@@ -99,6 +99,9 @@ class Config:
     ENABLE_AUTO_BACKUP = True
     ENABLE_MONITORING = True
     ENABLE_ANALYTICS = True
+
+    # Crypto
+    ALLOW_INSECURE_CRYPTO = False
     
     @classmethod
     def setup(cls):
@@ -178,7 +181,12 @@ class CryptoSuite:
     def encrypt_aes(data: bytes, key: bytes) -> bytes:
         """AES encryption"""
         if not CRYPTO_AVAILABLE:
-            return CryptoSuite._xor_encrypt(data, key)
+            if Config.ALLOW_INSECURE_CRYPTO:
+                return CryptoSuite._xor_encrypt(data, key)
+            raise RuntimeError(
+                "Cryptography backend unavailable. Install pycryptodome or set "
+                "Config.ALLOW_INSECURE_CRYPTO = True to allow insecure XOR fallback."
+            )
         
         try:
             cipher = AES.new(key[:32], AES.MODE_GCM)
@@ -191,7 +199,12 @@ class CryptoSuite:
     def decrypt_aes(data: bytes, key: bytes) -> bytes:
         """AES decryption"""
         if not CRYPTO_AVAILABLE:
-            return CryptoSuite._xor_decrypt(data, key)
+            if Config.ALLOW_INSECURE_CRYPTO:
+                return CryptoSuite._xor_decrypt(data, key)
+            raise RuntimeError(
+                "Cryptography backend unavailable. Install pycryptodome or set "
+                "Config.ALLOW_INSECURE_CRYPTO = True to allow insecure XOR fallback."
+            )
         
         try:
             nonce = data[:16]
