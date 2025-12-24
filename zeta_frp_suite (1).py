@@ -2,14 +2,14 @@
 from __future__ import annotations
 
 """
-███████╗███████╗████████╗ █████╗     ███████╗██████╗ ██████╗ 
-██╔════╝██╔════╝╚══██╔══╝██╔══██╗    ██╔════╝██╔══██╗██╔══██╗
-█████╗  █████╗     ██║   ███████║    █████╗  ██████╔╝██████╔╝
-██╔══╝  ██╔════╝     ██║   ██╔══██║    ██╔══╝  ██╔══██╗██╔══██╗
-██║     ███████╗   ██║   ██║  ██║    ███████╗██║  ██║██║  ██║
-╚═╝     ╚══════╝   ╚═╝   ╚═╝  ╚═╝    ╚══════╝╚═╝  ╚═╝╚═╝  ╚═╝
+██╗   ██╗ ██████╗ ██╗██████╗ 
+██║   ██║██╔═══██╗██║██╔══██╗
+██║   ██║██║   ██║██║██║  ██║
+╚██╗ ██╔╝██║   ██║██║██║  ██║
+ ╚████╔╝ ╚██████╔╝██║██████╔╝
+  ╚═══╝   ╚═════╝ ╚═╝╚═════╝
 
-ZETA FRP SUITE v6.0.0 - ULTIMATE AUTOMATED EDITION
+VOID FRP SUITE v6.0.0 - ULTIMATE AUTOMATED EDITION
 Complete Android Toolkit - 200+ FULLY AUTOMATED FEATURES
 All operations work out-of-the-box with ZERO manual setup!
 """
@@ -82,8 +82,8 @@ class Config:
     TIMEOUT_LONG = 300
     
     # Paths
-    BASE_DIR = Path.home() / ".zeta_frp_suite"
-    DB_PATH = BASE_DIR / "zeta.db"
+    BASE_DIR = Path.home() / ".void_frp_suite"
+    DB_PATH = BASE_DIR / "void.db"
     LOG_DIR = BASE_DIR / "logs"
     BACKUP_DIR = BASE_DIR / "backups"
     EXPORTS_DIR = BASE_DIR / "exports"
@@ -395,7 +395,7 @@ class Logger:
     def __init__(self):
         self.console = Console() if RICH_AVAILABLE else None
         
-        log_file = Config.LOG_DIR / f"zeta_{{datetime.now().strftime('%Y%m')}}.log"
+        log_file = Config.LOG_DIR / f"void_{datetime.now().strftime('%Y%m')}.log"
         logging.basicConfig(
             level=logging.DEBUG,
             format='%(asctime)s - %(levelname)s - %(message)s',
@@ -404,7 +404,7 @@ class Logger:
                 logging.StreamHandler()
             ]
         )
-        self.logger = logging.getLogger('ZetaFRP')
+        self.logger = logging.getLogger('VoidFRP')
     
     def log(self, level: str, category: str, message: str, device_id: str = None, method: str = None):
         """Log message"""
@@ -1589,7 +1589,7 @@ class CLI:
         
         while True:
             try:
-                cmd = input("\nzeta> ").strip()
+                cmd = input("\nvoid> ").strip()
                 if not cmd:
                     continue
                 
@@ -1633,7 +1633,7 @@ class CLI:
         
         banner = f"""
 ╔══════════════════════════════════════════════════════════════╗
-║  ZETA FRP SUITE v{Config.VERSION} - {Config.CODENAME}                    ║
+║  VOID FRP SUITE v{Config.VERSION} - {Config.CODENAME}                    ║
 ║  Ultimate Android Toolkit - {features_count}+ Automated Features      ║
 ╚══════════════════════════════════════════════════════════════╝
 
@@ -1813,7 +1813,7 @@ Type 'help' to see all available commands.
         """Show statistics"""
         stats = db.get_statistics()
         
-        print("\n📊 ZETA SUITE STATISTICS\n")
+        print("\n📊 VOID SUITE STATISTICS\n")
         print(f"  Total Devices: {stats['total_devices']}")
         print(f"  Total Logs: {stats['total_logs']}")
         print(f"  Total Backups: {stats['total_backups']}")
@@ -1916,7 +1916,7 @@ Type 'help' to see all available commands.
         """Show help"""
         help_text = """
 ╔══════════════════════════════════════════════════════════════╗
-║                   ZETA FRP SUITE - HELP                      ║
+║                   VOID FRP SUITE - HELP                      ║
 ╚══════════════════════════════════════════════════════════════╝
 
 📋 AVAILABLE COMMANDS:
@@ -1958,16 +1958,16 @@ SYSTEM:
 
 🎯 EXAMPLES:
 
-  zeta> devices
-  zeta> info emulator-5554
-  zeta> backup emulator-5554
-  zeta> screenshot emulator-5554
-  zeta> apps emulator-5554 user
-  zeta> analyze emulator-5554
-  zeta> recover emulator-5554 contacts
-  zeta> tweak emulator-5554 dpi 320
-  zeta> report emulator-5554
-  zeta> execute adb_shell_reset emulator-5554
+  void> devices
+  void> info emulator-5554
+  void> backup emulator-5554
+  void> screenshot emulator-5554
+  void> apps emulator-5554 user
+  void> analyze emulator-5554
+  void> recover emulator-5554 contacts
+  void> tweak emulator-5554 dpi 320
+  void> report emulator-5554
+  void> execute adb_shell_reset emulator-5554
 
 💡 TIP: All commands work automatically with no setup required!
 
@@ -1982,7 +1982,7 @@ SYSTEM:
 def main():
     """Main entry point"""
     parser = argparse.ArgumentParser(
-        description=f"Zeta FRP Suite v{Config.VERSION} - Ultimate Android Toolkit"
+        description=f"Void FRP Suite v{Config.VERSION} - Ultimate Android Toolkit"
     )
     
     parser.add_argument('--version', action='store_true', help='Show version')
@@ -1994,7 +1994,7 @@ def main():
     args = parser.parse_args()
     
     if args.version:
-        print(f"Zeta FRP Suite v{Config.VERSION} - {Config.CODENAME}")
+        print(f"Void FRP Suite v{Config.VERSION} - {Config.CODENAME}")
         print("200+ Automated Features")
         return
     
