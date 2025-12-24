@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 """
-███████╗███████╗████████╗ █████╗     ███████╗██████╗ ██████╗ 
+███████╗███████╗████████╗ █████╗     ███████╗██████╗ ██████╗
 ██╔════╝██╔════╝╚══██╔══╝██╔══██╗    ██╔════╝██╔══██╗██╔══██╗
 █████╗  █████╗     ██║   ███████║    █████╗  ██████╔╝██████╔╝
 ██╔══╝  ██╔════╝     ██║   ██╔══██║    ██╔══╝  ██╔══██╗██╔══██╗
@@ -12,6 +12,10 @@ from __future__ import annotations
 ZETA FRP SUITE v6.0.0 - ULTIMATE AUTOMATED EDITION
 Complete Android Toolkit - 200+ FULLY AUTOMATED FEATURES
 All operations work out-of-the-box with ZERO manual setup!
+
+Copyright (c) 2024 Roach Labs. All rights reserved.
+Made by James Michael Roach Jr.
+Proprietary and confidential. Unauthorized use or distribution is prohibited.
 """
 
 import sys
@@ -1635,9 +1639,11 @@ class CLI:
 ╔══════════════════════════════════════════════════════════════╗
 ║  ZETA FRP SUITE v{Config.VERSION} - {Config.CODENAME}                    ║
 ║  Ultimate Android Toolkit - {features_count}+ Automated Features      ║
+║  Owner: Roach Labs | Made by James Michael Roach Jr.                  ║
 ╚══════════════════════════════════════════════════════════════╝
 
 ✨ All features work automatically - zero manual setup required!
+🔒 Proprietary software owned by Roach Labs.
 
 Type 'help' to see all available commands.
 """
@@ -1919,6 +1925,10 @@ Type 'help' to see all available commands.
 ║                   ZETA FRP SUITE - HELP                      ║
 ╚══════════════════════════════════════════════════════════════╝
 
+Owner: Roach Labs
+Made by James Michael Roach Jr.
+Proprietary software. Unauthorized use or distribution is prohibited.
+
 📋 AVAILABLE COMMANDS:
 
 DEVICE MANAGEMENT:
@@ -1982,7 +1992,10 @@ SYSTEM:
 def main():
     """Main entry point"""
     parser = argparse.ArgumentParser(
-        description=f"Zeta FRP Suite v{Config.VERSION} - Ultimate Android Toolkit"
+        description=(
+            f"Zeta FRP Suite v{Config.VERSION} - Ultimate Android Toolkit "
+            "(Owner: Roach Labs, Made by James Michael Roach Jr.)"
+        )
     )
     
     parser.add_argument('--version', action='store_true', help='Show version')
@@ -1996,6 +2009,7 @@ def main():
     if args.version:
         print(f"Zeta FRP Suite v{Config.VERSION} - {Config.CODENAME}")
         print("200+ Automated Features")
+        print("Owner: Roach Labs | Made by James Michael Roach Jr.")
         return
     
     if args.devices:
