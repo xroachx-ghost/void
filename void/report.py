@@ -1,0 +1,132 @@
+"""Report generation."""
+from __future__ import annotations
+
+import json
+from datetime import datetime
+from pathlib import Path
+from typing import Any, Dict
+
+from .apps import AppManager
+from .config import Config
+from .device import DeviceDetector
+from .logger import logger
+from .network import NetworkAnalyzer
+from .performance import PerformanceAnalyzer
+
+
+class ReportGenerator:
+    """Automated report generation"""
+
+    @staticmethod
+    def generate_device_report(device_id: str) -> Dict[str, Any]:
+        """Generate comprehensive device report"""
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        report_name = f"device_report_{{device_id}}_{timestamp}"
+        report_dir = Config.REPORTS_DIR / report_name
+        report_dir.mkdir(parents=True, exist_ok=True)
+
+        report: Dict[str, Any] = {"generated": datetime.now().isoformat(), "device_id": device_id, "sections": {}}
+
+        # Device info
+        devices = DeviceDetector.detect_all()
+        device_info = next((d for d in devices if d["id"] == device_id), {})
+        report["sections"]["device_info"] = device_info
+
+        # Performance analysis
+        report["sections"]["performance"] = PerformanceAnalyzer.analyze(device_id)
+
+        # Network analysis
+        report["sections"]["network"] = NetworkAnalyzer.analyze(device_id)
+
+        # App list
+        report["sections"]["apps"] = {
+            "total": len(AppManager.list_apps(device_id)),
+            "system": len(AppManager.list_apps(device_id, "system")),
+            "user": len(AppManager.list_apps(device_id, "user")),
+        }
+
+        # Save as JSON
+        json_path = report_dir / "report.json"
+        with open(json_path, "w") as f:
+            json.dump(report, f, indent=2, default=str)
+
+        # Generate HTML report
+        html_path = report_dir / "report.html"
+        ReportGenerator._generate_html(report, html_path)
+
+        logger.log("success", "report", f"Report generated: {report_name}")
+
+        return {"success": True, "report_name": report_name, "json_path": str(json_path), "html_path": str(html_path)}
+
+    @staticmethod
+    def _generate_html(report: Dict, output_path: Path) -> None:
+        """Generate HTML report"""
+        html = f"""<!DOCTYPE html>
+<html>
+<head>
+    <meta charset=\"UTF-8\">
+    <title>Void Device Report</title>
+    <style>
+        body {{ font-family: Arial; margin: 40px; background: #f5f5f5; }}
+        .container {{ max-width: 1200px; margin: 0 auto; background: white; padding: 30px; border-radius: 10px; }}
+        .header {{ background: #2196F3; color: white; padding: 20px; border-radius: 5px; margin-bottom: 20px; }}
+        .section {{ margin: 20px 0; padding: 15px; background: #f9f9f9; border-radius: 5px; }}
+        .section h2 {{ color: #2196F3; margin-top: 0; }}
+        table {{ width: 100%; border-collapse: collapse; margin: 10px 0; }}
+        th, td {{ padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }}
+        th {{ background: #2196F3; color: white; }}
+        .badge {{ display: inline-block; padding: 4px 8px; border-radius: 3px; font-size: 12px; }}
+        .badge-success {{ background: #4CAF50; color: white; }}
+        .badge-info {{ background: #2196F3; color: white; }}
+    </style>
+</head>
+<body>
+    <div class=\"container\">
+        <div class=\"header\">
+            <h1>📱 Void Device Report</h1>
+            <p>Device: {report.get('device_id', 'Unknown')}</p>
+            <p>Generated: {report.get('generated', '')}</p>
+        </div>
+"""
+
+        # Device Info
+        if "device_info" in report["sections"]:
+            info = report["sections"]["device_info"]
+            html += """        <div class=\"section\">
+            <h2>Device Information</h2>
+            <table>
+"""
+            for key, value in info.items():
+                if not isinstance(value, dict):
+                    html += (
+                        f"<tr><td><strong>{{key.replace('_', ' ').title()}}</strong></td><td>{{value}}</td></tr>"
+                    )
+
+            html += """            </table>
+        </div>
+"""
+
+        # Performance
+        if "performance" in report["sections"]:
+            perf = report["sections"]["performance"]
+            html += """        <div class=\"section\">
+            <h2>Performance Analysis</h2>
+            <table>
+"""
+            for key, value in perf.items():
+                if not isinstance(value, (dict, list)):
+                    html += (
+                        f"<tr><td><strong>{{key.replace('_', ' ').title()}}</strong></td><td>{{value}}</td></tr>"
+                    )
+
+            html += """            </table>
+        </div>
+"""
+
+        html += """    </div>
+</body>
+</html>
+"""
+
+        with open(output_path, "w") as f:
+            f.write(html)
