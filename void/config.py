@@ -13,7 +13,7 @@ from pathlib import Path
 class Config:
     """Configuration constants."""
 
-    VERSION = "6.0.0"
+    VERSION = "6.0.1"
     CODENAME = "AUTOMATION"
     APP_NAME = "Void"
 

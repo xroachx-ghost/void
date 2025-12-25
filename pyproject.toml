@@ -1,6 +1,6 @@
 [project]
 name = "void-suite"
-version = "6.0.0"
+version = "6.0.1"
 description = "Void Suite - Android toolkit"
 requires-python = ">=3.9"
 
