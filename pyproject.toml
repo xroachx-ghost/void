@@ -3,6 +3,15 @@ name = "void-suite"
 version = "6.0.1"
 description = "Void Suite - Android toolkit"
 requires-python = ">=3.9"
+dependencies = [
+    "psutil",
+    "pycryptodome",
+    "rich",
+]
+
+[project.optional-dependencies]
+advanced = []
+gui = []
 
 [project.scripts]
 void = "void.main:main"
