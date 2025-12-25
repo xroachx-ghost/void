@@ -10,6 +10,7 @@ Unauthorized copying, modification, distribution, or disclosure is prohibited.
 from __future__ import annotations
 
 import hashlib
+import logging
 import secrets
 from typing import Optional
 
@@ -24,6 +25,8 @@ try:
     CRYPTO_AVAILABLE = True
 except ImportError:
     CRYPTO_AVAILABLE = False
+
+logger = logging.getLogger(__name__)
 
 
 class CryptoSuite:
@@ -44,6 +47,9 @@ class CryptoSuite:
         """AES encryption."""
         if not CRYPTO_AVAILABLE:
             if Config.ALLOW_INSECURE_CRYPTO:
+                logger.warning(
+                    "Insecure XOR fallback used for AES encryption: crypto backend unavailable."
+                )
                 return CryptoSuite._xor_encrypt(data, key)
             raise RuntimeError(
                 "Cryptography backend unavailable. Install pycryptodome or set "
@@ -54,14 +60,26 @@ class CryptoSuite:
             cipher = AES.new(key[:32], AES.MODE_GCM)
             ciphertext, tag = cipher.encrypt_and_digest(data)
             return cipher.nonce + tag + ciphertext
-        except Exception:
-            return CryptoSuite._xor_encrypt(data, key)
+        except Exception as exc:
+            if Config.ALLOW_INSECURE_CRYPTO:
+                logger.warning(
+                    "Insecure XOR fallback used for AES encryption due to error.",
+                    exc_info=exc,
+                )
+                return CryptoSuite._xor_encrypt(data, key)
+            raise RuntimeError(
+                "AES encryption failed. Set Config.ALLOW_INSECURE_CRYPTO = True to "
+                "allow insecure XOR fallback."
+            ) from exc
 
     @staticmethod
     def decrypt_aes(data: bytes, key: bytes) -> bytes:
         """AES decryption."""
         if not CRYPTO_AVAILABLE:
             if Config.ALLOW_INSECURE_CRYPTO:
+                logger.warning(
+                    "Insecure XOR fallback used for AES decryption: crypto backend unavailable."
+                )
                 return CryptoSuite._xor_decrypt(data, key)
             raise RuntimeError(
                 "Cryptography backend unavailable. Install pycryptodome or set "
@@ -74,8 +92,17 @@ class CryptoSuite:
             ciphertext = data[32:]
             cipher = AES.new(key[:32], AES.MODE_GCM, nonce=nonce)
             return cipher.decrypt_and_verify(ciphertext, tag)
-        except Exception:
-            return CryptoSuite._xor_decrypt(data, key)
+        except Exception as exc:
+            if Config.ALLOW_INSECURE_CRYPTO:
+                logger.warning(
+                    "Insecure XOR fallback used for AES decryption due to error.",
+                    exc_info=exc,
+                )
+                return CryptoSuite._xor_decrypt(data, key)
+            raise RuntimeError(
+                "AES decryption failed. Set Config.ALLOW_INSECURE_CRYPTO = True to "
+                "allow insecure XOR fallback."
+            ) from exc
 
     @staticmethod
     def _xor_encrypt(data: bytes, key: bytes) -> bytes:
