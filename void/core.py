@@ -2,20 +2,25 @@
 from __future__ import annotations
 
 """
-██╗   ██╗ ██████╗ ██╗██████╗ 
+██╗   ██╗ ██████╗ ██╗██████╗
 ██║   ██║██╔═══██╗██║██╔══██╗
 ██║   ██║██║   ██║██║██║  ██║
 ╚██╗ ██╔╝██║   ██║██║██║  ██║
  ╚████╔╝ ╚██████╔╝██║██████╔╝
   ╚═══╝   ╚═════╝ ╚═╝╚═════╝
 
-VOID FRP SUITE v6.0.0 - ULTIMATE AUTOMATED EDITION
+VOID v6.0.0 - ULTIMATE AUTOMATED EDITION
 Complete Android Toolkit - 200+ FULLY AUTOMATED FEATURES
 All operations work out-of-the-box with ZERO manual setup!
+
+PROPRIETARY SOFTWARE
+Copyright (c) 2024 Roach Labs. All rights reserved.
+Made by James Michael Roach Jr.
+Unauthorized copying, modification, distribution, or disclosure is prohibited.
 """
 
-import sys
-import os
+# Proprietary notice: all sections in this file are confidential to Roach Labs.
+
 import json
 import time
 import sqlite3
@@ -25,13 +30,11 @@ import logging
 import threading
 import hashlib
 import random
-import secrets
 import re
 import tempfile
 import socket
 import urllib.request
 import urllib.parse
-import argparse
 import queue
 import zipfile
 import xml.etree.ElementTree as ET
@@ -40,79 +43,20 @@ from pathlib import Path
 from contextlib import contextmanager
 from typing import Dict, List, Optional, Tuple, Any, Set
 
-# Optional imports with graceful fallbacks
+from .config import Config
+from .crypto import CryptoSuite
+
 try:
     from rich.console import Console
-    from rich.table import Table
-    from rich.panel import Panel
-    from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn
-    from rich.tree import Tree
-    from rich.live import Live
     RICH_AVAILABLE = True
 except ImportError:
     RICH_AVAILABLE = False
-
-try:
-    from Crypto.Cipher import AES, PKCS1_OAEP
-    from Crypto.PublicKey import RSA
-    from Crypto.Random import get_random_bytes
-    from Crypto.Util.Padding import pad, unpad
-    from Crypto.Protocol.KDF import PBKDF2
-    CRYPTO_AVAILABLE = True
-except ImportError:
-    CRYPTO_AVAILABLE = False
 
 try:
     import psutil
     PSUTIL_AVAILABLE = True
 except ImportError:
     PSUTIL_AVAILABLE = False
-
-# ==========================================
-# CONFIGURATION
-# ==========================================
-
-class Config:
-    """Configuration constants"""
-    VERSION = "6.0.0"
-    CODENAME = "AUTOMATION"
-    
-    # Timeouts
-    TIMEOUT_SHORT = 5
-    TIMEOUT_MEDIUM = 30
-    TIMEOUT_LONG = 300
-    
-    # Paths
-    BASE_DIR = Path.home() / ".void_frp_suite"
-    DB_PATH = BASE_DIR / "void.db"
-    LOG_DIR = BASE_DIR / "logs"
-    BACKUP_DIR = BASE_DIR / "backups"
-    EXPORTS_DIR = BASE_DIR / "exports"
-    CACHE_DIR = BASE_DIR / "cache"
-    REPORTS_DIR = BASE_DIR / "reports"
-    MONITOR_DIR = BASE_DIR / "monitoring"
-    SCRIPTS_DIR = BASE_DIR / "scripts"
-    
-    # Security
-    MAX_INPUT_LENGTH = 256
-    
-    # Features
-    ENABLE_AUTO_BACKUP = True
-    ENABLE_MONITORING = True
-    ENABLE_ANALYTICS = True
-
-    # Crypto
-    ALLOW_INSECURE_CRYPTO = False
-    
-    @classmethod
-    def setup(cls):
-        """Create necessary directories"""
-        for path in [cls.BASE_DIR, cls.LOG_DIR, cls.BACKUP_DIR, 
-                     cls.EXPORTS_DIR, cls.CACHE_DIR, cls.REPORTS_DIR,
-                     cls.MONITOR_DIR, cls.SCRIPTS_DIR]:
-            path.mkdir(parents=True, exist_ok=True)
-
-Config.setup()
 
 # ==========================================
 # UTILITIES
@@ -164,76 +108,6 @@ class NetworkTools:
             return True
         except:
             return False
-
-class CryptoSuite:
-    """Cryptographic operations"""
-    
-    @staticmethod
-    def hash_sha256(data: bytes) -> str:
-        """SHA-256 hash"""
-        return hashlib.sha256(data).hexdigest()
-    
-    @staticmethod
-    def generate_key(length: int = 32) -> bytes:
-        """Generate random key"""
-        return secrets.token_bytes(length)
-    
-    @staticmethod
-    def encrypt_aes(data: bytes, key: bytes) -> bytes:
-        """AES encryption"""
-        if not CRYPTO_AVAILABLE:
-            if Config.ALLOW_INSECURE_CRYPTO:
-                return CryptoSuite._xor_encrypt(data, key)
-            raise RuntimeError(
-                "Cryptography backend unavailable. Install pycryptodome or set "
-                "Config.ALLOW_INSECURE_CRYPTO = True to allow insecure XOR fallback."
-            )
-        
-        try:
-            cipher = AES.new(key[:32], AES.MODE_GCM)
-            ciphertext, tag = cipher.encrypt_and_digest(data)
-            return cipher.nonce + tag + ciphertext
-        except:
-            return CryptoSuite._xor_encrypt(data, key)
-    
-    @staticmethod
-    def decrypt_aes(data: bytes, key: bytes) -> bytes:
-        """AES decryption"""
-        if not CRYPTO_AVAILABLE:
-            if Config.ALLOW_INSECURE_CRYPTO:
-                return CryptoSuite._xor_decrypt(data, key)
-            raise RuntimeError(
-                "Cryptography backend unavailable. Install pycryptodome or set "
-                "Config.ALLOW_INSECURE_CRYPTO = True to allow insecure XOR fallback."
-            )
-        
-        try:
-            nonce = data[:16]
-            tag = data[16:32]
-            ciphertext = data[32:]
-            cipher = AES.new(key[:32], AES.MODE_GCM, nonce=nonce)
-            return cipher.decrypt_and_verify(ciphertext, tag)
-        except:
-            return CryptoSuite._xor_decrypt(data, key)
-    
-    @staticmethod
-    def _xor_encrypt(data: bytes, key: bytes) -> bytes:
-        """Fallback XOR encryption"""
-        iv = secrets.token_bytes(16)
-        result = bytearray()
-        for i, byte in enumerate(data):
-            result.append(byte ^ key[i % len(key)] ^ iv[i % len(iv)])
-        return iv + bytes(result)
-    
-    @staticmethod
-    def _xor_decrypt(data: bytes, key: bytes) -> bytes:
-        """Fallback XOR decryption"""
-        iv = data[:16]
-        ciphertext = data[16:]
-        result = bytearray()
-        for i, byte in enumerate(ciphertext):
-            result.append(byte ^ key[i % len(key)] ^ iv[i % len(iv)])
-        return bytes(result)
 
 # ==========================================
 # DATABASE
@@ -418,7 +292,7 @@ class Logger:
                 logging.StreamHandler()
             ]
         )
-        self.logger = logging.getLogger('VoidFRP')
+        self.logger = logging.getLogger('VoidSuite')
     
     def log(self, level: str, category: str, message: str, device_id: str = None, method: str = None):
         """Log message"""
@@ -469,7 +343,7 @@ class DeviceDetector:
         """Detect ADB devices"""
         devices = []
         try:
-            code, stdout, _ = SafeSubprocess.run(['adb', 'devices'])
+            code, stdout, _ = SafeSubprocess.run(['adb', 'devices', '-l'])
             if code == 0:
                 for line in stdout.strip().split('\n')[1:]:
                     if line.strip():
@@ -477,9 +351,10 @@ class DeviceDetector:
                         if len(parts) >= 2:
                             device_id = parts[0]
                             status = parts[1]
-                            
+
                             if status == 'device':
                                 info = DeviceDetector._get_adb_info(device_id)
+                                info.update(DeviceDetector._parse_adb_listing(parts[2:]))
                                 devices.append({
                                     'id': device_id,
                                     'mode': 'adb',
@@ -494,18 +369,27 @@ class DeviceDetector:
     def _get_adb_info(device_id: str) -> Dict[str, str]:
         """Get comprehensive device info"""
         info = {}
+        info['reachable'] = DeviceDetector._check_adb_ready(device_id)
         
         props = {
             'manufacturer': 'ro.product.manufacturer',
             'model': 'ro.product.model',
             'brand': 'ro.product.brand',
             'device': 'ro.product.device',
+            'product': 'ro.product.name',
             'android_version': 'ro.build.version.release',
             'sdk_version': 'ro.build.version.sdk',
+            'release_codename': 'ro.build.version.codename',
+            'incremental': 'ro.build.version.incremental',
             'build_id': 'ro.build.id',
+            'build_type': 'ro.build.type',
+            'build_tags': 'ro.build.tags',
+            'build_date': 'ro.build.date',
             'security_patch': 'ro.build.version.security_patch',
             'chipset': 'ro.board.platform',
             'hardware': 'ro.hardware',
+            'cpu_abi': 'ro.product.cpu.abi',
+            'cpu_abi2': 'ro.product.cpu.abi2',
             'serial': 'ro.serialno',
             'bootloader': 'ro.bootloader',
             'fingerprint': 'ro.build.fingerprint',
@@ -542,6 +426,30 @@ class DeviceDetector:
         # Screen info
         info['screen'] = DeviceDetector._get_screen_info(device_id)
         
+        return info
+
+    @staticmethod
+    def _check_adb_ready(device_id: str) -> bool:
+        """Check whether the device responds to ADB shell commands."""
+        try:
+            code, stdout, _ = SafeSubprocess.run(
+                ['adb', '-s', device_id, 'shell', 'getprop', 'ro.serialno']
+            )
+            return code == 0 and bool(stdout.strip())
+        except Exception:
+            return False
+
+    @staticmethod
+    def _parse_adb_listing(parts: List[str]) -> Dict[str, str]:
+        """Parse metadata from adb devices -l output."""
+        info = {}
+        for part in parts:
+            if ':' not in part:
+                continue
+            key, value = part.split(':', 1)
+            key = key.strip().lower()
+            if key in {"product", "model", "device", "transport_id"}:
+                info[key] = value.strip()
         return info
     
     @staticmethod
@@ -1441,7 +1349,7 @@ class ReportGenerator:
 <html>
 <head>
     <meta charset="UTF-8">
-    <title>Zeta Device Report</title>
+    <title>Void Device Report</title>
     <style>
         body {{ font-family: Arial; margin: 40px; background: #f5f5f5; }}
         .container {{ max-width: 1200px; margin: 0 auto; background: white; padding: 30px; border-radius: 10px; }}
@@ -1459,7 +1367,7 @@ class ReportGenerator:
 <body>
     <div class="container">
         <div class="header">
-            <h1>📱 Zeta Device Report</h1>
+            <h1>📱 Void Device Report</h1>
             <p>Device: {report.get('device_id', 'Unknown')}</p>
             <p>Generated: {report.get('generated', '')}</p>
         </div>
@@ -1474,9 +1382,24 @@ class ReportGenerator:
 """
             for key, value in info.items():
                 if not isinstance(value, dict):
-                    html += f"<tr><td><strong>{{key.replace('_', ' ').title()}}</strong></td><td>{{value}}</td></tr>"
+                    label = key.replace('_', ' ').title()
+                    html += f"<tr><td><strong>{label}</strong></td><td>{value}</td></tr>"
             
             html += """            </table>
+        </div>
+"""
+
+            for nested_key in ["battery", "storage", "screen"]:
+                nested = info.get(nested_key)
+                if isinstance(nested, dict) and nested:
+                    html += f"""        <div class="section">
+            <h2>{nested_key.replace('_', ' ').title()} Details</h2>
+            <table>
+"""
+                    for key, value in nested.items():
+                        label = key.replace('_', ' ').title()
+                        html += f"<tr><td><strong>{label}</strong></td><td>{value}</td></tr>"
+                    html += """            </table>
         </div>
 """
         
@@ -1489,7 +1412,8 @@ class ReportGenerator:
 """
             for key, value in perf.items():
                 if not isinstance(value, (dict, list)):
-                    html += f"<tr><td><strong>{{key.replace('_', ' ').title()}}</strong></td><td>{{value}}</td></tr>"
+                    label = key.replace('_', ' ').title()
+                    html += f"<tr><td><strong>{label}</strong></td><td>{value}</td></tr>"
             
             html += """            </table>
         </div>
@@ -1581,472 +1505,3 @@ class FRPEngine:
             'success': code == 0,
             'message': 'Userdata formatted' if code == 0 else 'Failed'
         }
-
-# ==========================================
-# COMMAND LINE INTERFACE
-# ==========================================
-
-class CLI:
-    """Enhanced CLI with all features"""
-    
-    def __init__(self):
-        self.console = Console() if RICH_AVAILABLE else None
-        self.engine = FRPEngine()
-        self.logcat = LogcatViewer()
-        
-        # Start monitoring
-        monitor.start()
-    
-    def run(self):
-        """Run CLI"""
-        self._print_banner()
-        
-        while True:
-            try:
-                cmd = input("\nvoid> ").strip()
-                if not cmd:
-                    continue
-                
-                parts = cmd.split()
-                command = parts[0].lower()
-                args = parts[1:]
-                
-                # Route commands
-                commands = {
-                    'devices': self._cmd_devices,
-                    'info': lambda: self._cmd_info(args),
-                    'backup': lambda: self._cmd_backup(args),
-                    'screenshot': lambda: self._cmd_screenshot(args),
-                    'apps': lambda: self._cmd_apps(args),
-                    'files': lambda: self._cmd_files(args),
-                    'analyze': lambda: self._cmd_analyze(args),
-                    'recover': lambda: self._cmd_recover(args),
-                    'tweak': lambda: self._cmd_tweak(args),
-                    'report': lambda: self._cmd_report(args),
-                    'stats': self._cmd_stats,
-                    'monitor': self._cmd_monitor,
-                    'logcat': lambda: self._cmd_logcat(args),
-                    'execute': lambda: self._cmd_execute(args),
-                    'help': self._cmd_help,
-                    'exit': lambda: sys.exit(0)
-                }
-                
-                if command in commands:
-                    commands[command]()
-                else:
-                    print(f"Unknown command: {command}")
-                    
-            except KeyboardInterrupt:
-                print("\nUse 'exit' to quit")
-            except Exception as e:
-                print(f"Error: {e}")
-    
-    def _print_banner(self):
-        """Print banner"""
-        features_count = 200  # Total automated features
-        
-        banner = f"""
-╔══════════════════════════════════════════════════════════════╗
-║  VOID FRP SUITE v{Config.VERSION} - {Config.CODENAME}                    ║
-║  Ultimate Android Toolkit - {features_count}+ Automated Features      ║
-╚══════════════════════════════════════════════════════════════╝
-
-✨ All features work automatically - zero manual setup required!
-
-Type 'help' to see all available commands.
-"""
-        print(banner)
-    
-    def _cmd_devices(self):
-        """List devices"""
-        devices = DeviceDetector.detect_all()
-        
-        if not devices:
-            print("❌ No devices detected")
-            return
-        
-        if self.console:
-            table = Table(title="Connected Devices")
-            table.add_column("ID", style="cyan")
-            table.add_column("Mode", style="green")
-            table.add_column("Manufacturer", style="yellow")
-            table.add_column("Model", style="blue")
-            table.add_column("Android", style="magenta")
-            
-            for device in devices:
-                table.add_row(
-                    device.get('id', 'Unknown'),
-                    device.get('mode', 'Unknown'),
-                    device.get('manufacturer', 'Unknown'),
-                    device.get('model', 'Unknown'),
-                    device.get('android_version', 'Unknown')
-                )
-            
-            self.console.print(table)
-        else:
-            print("\n📱 Connected Devices:")
-            for device in devices:
-                print(f"  • {device.get('id')} - {device.get('manufacturer')} {device.get('model')}")
-    
-    def _cmd_backup(self, args):
-        """Create backup"""
-        if len(args) < 1:
-            print("Usage: backup <device_id>")
-            return
-        
-        result = AutoBackup.create_backup(args[0])
-        if result['success']:
-            print(f"✅ Backup created: {result['backup_name']}")
-            print(f"   Items: {', '.join(result['items'])}")
-            print(f"   Size: {result['size']:,} bytes")
-        else:
-            print("❌ Backup failed")
-    
-    def _cmd_screenshot(self, args):
-        """Take screenshot"""
-        if len(args) < 1:
-            print("Usage: screenshot <device_id>")
-            return
-        
-        result = ScreenCapture.take_screenshot(args[0])
-        if result['success']:
-            print(f"✅ Screenshot saved: {result['path']}")
-        else:
-            print("❌ Screenshot failed")
-    
-    def _cmd_apps(self, args):
-        """List apps"""
-        if len(args) < 1:
-            print("Usage: apps <device_id> [system|user|all]")
-            return
-        
-        filter_type = args[1] if len(args) > 1 else 'all'
-        apps = AppManager.list_apps(args[0], filter_type)
-        
-        print(f"\n📦 {filter_type.title()} Apps ({len(apps)}):")
-        for app in apps[:20]:  # Show first 20
-            print(f"  • {app['package']}")
-        
-        if len(apps) > 20:
-            print(f"  ... and {len(apps) - 20} more")
-    
-    def _cmd_info(self, args):
-        """Show device info"""
-        if len(args) < 1:
-            print("Usage: info <device_id>")
-            return
-        
-        devices = DeviceDetector.detect_all()
-        device = next((d for d in devices if d['id'] == args[0]), None)
-        
-        if device:
-            print(f"\n📱 Device Information: {args[0]}\n")
-            for key, value in device.items():
-                if not isinstance(value, dict):
-                    print(f"  {key.replace('_', ' ').title()}: {value}")
-        else:
-            print("❌ Device not found")
-    
-    def _cmd_analyze(self, args):
-        """Analyze device"""
-        if len(args) < 1:
-            print("Usage: analyze <device_id>")
-            return
-        
-        print(f"🔍 Analyzing device...")
-        result = PerformanceAnalyzer.analyze(args[0])
-        
-        print(f"\n📊 Performance Analysis:\n")
-        for key, value in result.items():
-            if not isinstance(value, (dict, list)):
-                print(f"  {key.replace('_', ' ').title()}: {value}")
-    
-    def _cmd_recover(self, args):
-        """Recover data"""
-        if len(args) < 2:
-            print("Usage: recover <device_id> <contacts|sms>")
-            return
-        
-        device_id, data_type = args[0], args[1]
-        
-        print(f"💾 Recovering {data_type}...")
-        
-        if data_type == 'contacts':
-            result = DataRecovery.recover_contacts(device_id)
-        elif data_type == 'sms':
-            result = DataRecovery.recover_sms(device_id)
-        else:
-            print("❌ Unknown data type")
-            return
-        
-        if result['success']:
-            print(f"✅ Recovered {result['count']} items")
-            print(f"   Saved to: {result.get('json_path') or result.get('path')}")
-        else:
-            print("❌ Recovery failed")
-    
-    def _cmd_tweak(self, args):
-        """System tweaks"""
-        if len(args) < 3:
-            print("Usage: tweak <device_id> <dpi|animation|timeout> <value>")
-            return
-        
-        device_id, tweak_type, value = args[0], args[1], args[2]
-        
-        if tweak_type == 'dpi':
-            success = SystemTweaker.set_dpi(device_id, int(value))
-        elif tweak_type == 'animation':
-            success = SystemTweaker.set_animation_scale(device_id, float(value))
-        elif tweak_type == 'timeout':
-            success = SystemTweaker.set_screen_timeout(device_id, int(value))
-        else:
-            print("❌ Unknown tweak type")
-            return
-        
-        if success:
-            print(f"✅ {tweak_type.title()} updated")
-        else:
-            print("❌ Tweak failed")
-    
-    def _cmd_report(self, args):
-        """Generate report"""
-        if len(args) < 1:
-            print("Usage: report <device_id>")
-            return
-        
-        print("📄 Generating report...")
-        result = ReportGenerator.generate_device_report(args[0])
-        
-        if result['success']:
-            print(f"✅ Report generated: {result['report_name']}")
-            print(f"   HTML: {result['html_path']}")
-        else:
-            print("❌ Report generation failed")
-    
-    def _cmd_stats(self):
-        """Show statistics"""
-        stats = db.get_statistics()
-        
-        print("\n📊 VOID SUITE STATISTICS\n")
-        print(f"  Total Devices: {stats['total_devices']}")
-        print(f"  Total Logs: {stats['total_logs']}")
-        print(f"  Total Backups: {stats['total_backups']}")
-        print(f"  Methods Tracked: {stats['total_methods']}")
-        
-        if stats.get('top_methods'):
-            print("\n  Top Methods:")
-            for method in stats['top_methods']:
-                rate = (method['success_count'] / method['total_count'] * 100) if method['total_count'] > 0 else 0
-                print(f"    • {method['name']}: {rate:.1f}% ({method['success_count']}/{method['total_count']})")
-    
-    def _cmd_monitor(self):
-        """Show system monitor"""
-        stats = monitor.get_stats()
-        
-        if stats:
-            print("\n🖥️  SYSTEM MONITOR\n")
-            print(f"  CPU: {stats.get('cpu_percent', 0):.1f}%")
-            print(f"  Memory: {stats.get('memory_percent', 0):.1f}%")
-            print(f"  Disk: {stats.get('disk_usage', 0):.1f}%")
-        else:
-            print("❌ Monitoring not available (install psutil)")
-    
-    def _cmd_logcat(self, args):
-        """Start logcat"""
-        if len(args) < 1:
-            print("Usage: logcat <device_id> [filter_tag]")
-            return
-        
-        device_id = args[0]
-        filter_tag = args[1] if len(args) > 1 else None
-        
-        print("📜 Starting logcat (Ctrl+C to stop)...")
-        self.logcat.start(device_id, filter_tag)
-        
-        try:
-            while True:
-                line = self.logcat.read_line()
-                if line:
-                    print(line.strip())
-        except KeyboardInterrupt:
-            self.logcat.stop()
-            print("\n📜 Logcat stopped")
-    
-    def _cmd_execute(self, args):
-        """Execute FRP method"""
-        if len(args) < 2:
-            print("Usage: execute <method> <device_id>")
-            return
-        
-        method_name, device_id = args[0], args[1]
-        
-        print(f"⚡ Executing {method_name}...")
-        
-        if method_name not in self.engine.methods:
-            print(f"❌ Unknown method: {method_name}")
-            return
-        
-        result = self.engine.methods[method_name](device_id)
-        
-        if result['success']:
-            print(f"✅ Success: {result['message']}")
-        else:
-            print(f"❌ Failed: {result.get('error', result['message'])}")
-    
-    def _cmd_files(self, args):
-        """File operations"""
-        if len(args) < 2:
-            print("Usage: files <device_id> <list|pull|push> [path]")
-            return
-        
-        device_id, operation = args[0], args[1]
-        
-        if operation == 'list':
-            path = args[2] if len(args) > 2 else '/sdcard'
-            files = FileManager.list_files(device_id, path)
-            
-            print(f"\n📁 Files in {path}:\n")
-            for file in files[:20]:
-                print(f"  {file['permissions']} {file['size']:>10} {file['date']:>20} {file['name']}")
-            
-            if len(files) > 20:
-                print(f"\n  ... and {len(files) - 20} more")
-        
-        elif operation == 'pull':
-            if len(args) < 3:
-                print("Usage: files <device_id> pull <remote_path>")
-                return
-            
-            result = FileManager.pull_file(device_id, args[2])
-            if result['success']:
-                print(f"✅ File pulled: {result['path']}")
-            else:
-                print("❌ Pull failed")
-        
-        else:
-            print("❌ Unknown operation")
-    
-    def _cmd_help(self):
-        """Show help"""
-        help_text = """
-╔══════════════════════════════════════════════════════════════╗
-║                   VOID FRP SUITE - HELP                      ║
-╚══════════════════════════════════════════════════════════════╝
-
-📋 AVAILABLE COMMANDS:
-
-DEVICE MANAGEMENT:
-  devices                          - List all connected devices
-  info <device_id>                 - Show detailed device info
-  
-BACKUP & DATA:
-  backup <device_id>               - Create automated backup
-  recover <device_id> <type>       - Recover data (contacts/sms)
-  screenshot <device_id>           - Take screenshot
-  
-APP MANAGEMENT:
-  apps <device_id> [filter]        - List apps (system/user/all)
-  
-FILE OPERATIONS:
-  files <device_id> list [path]    - List files
-  files <device_id> pull <path>    - Pull file from device
-  
-ANALYSIS:
-  analyze <device_id>              - Performance analysis
-  report <device_id>               - Generate full report
-  logcat <device_id> [tag]         - View real-time logs
-  
-TWEAKS:
-  tweak <device_id> <type> <value> - System tweaks
-    Types: dpi, animation, timeout
-  
-FRP BYPASS:
-  execute <method> <device_id>     - Execute bypass method
-    Methods: adb_shell_reset, fastboot_erase, etc.
-  
-SYSTEM:
-  stats                            - Show suite statistics
-  monitor                          - Show system monitor
-  help                             - Show this help
-  exit                             - Exit suite
-
-🎯 EXAMPLES:
-
-  void> devices
-  void> info emulator-5554
-  void> backup emulator-5554
-  void> screenshot emulator-5554
-  void> apps emulator-5554 user
-  void> analyze emulator-5554
-  void> recover emulator-5554 contacts
-  void> tweak emulator-5554 dpi 320
-  void> report emulator-5554
-  void> execute adb_shell_reset emulator-5554
-
-💡 TIP: All commands work automatically with no setup required!
-
-╚══════════════════════════════════════════════════════════════╝
-"""
-        print(help_text)
-
-# ==========================================
-# MAIN
-# ==========================================
-
-def main():
-    """Main entry point"""
-    parser = argparse.ArgumentParser(
-        description=f"Void FRP Suite v{Config.VERSION} - Ultimate Android Toolkit"
-    )
-    
-    parser.add_argument('--version', action='store_true', help='Show version')
-    parser.add_argument('--devices', action='store_true', help='List devices')
-    parser.add_argument('--backup', type=str, help='Backup device')
-    parser.add_argument('--analyze', type=str, help='Analyze device')
-    parser.add_argument('--report', type=str, help='Generate report')
-    
-    args = parser.parse_args()
-    
-    if args.version:
-        print(f"Void FRP Suite v{Config.VERSION} - {Config.CODENAME}")
-        print("200+ Automated Features")
-        return
-    
-    if args.devices:
-        devices = DeviceDetector.detect_all()
-        print("Connected Devices:")
-        for device in devices:
-            print(f"  • {device.get('id')} - {device.get('manufacturer')} {device.get('model')}")
-        return
-    
-    if args.backup:
-        result = AutoBackup.create_backup(args.backup)
-        print(f"Backup: {'Success' if result['success'] else 'Failed'}")
-        return
-    
-    if args.analyze:
-        result = PerformanceAnalyzer.analyze(args.analyze)
-        print(f"Analysis: {json.dumps(result, indent=2)}")
-        return
-    
-    if args.report:
-        result = ReportGenerator.generate_device_report(args.report)
-        print(f"Report: {result.get('html_path', 'Failed')}")
-        return
-    
-    # Start CLI
-    cli = CLI()
-    cli.run()
-
-if __name__ == "__main__":
-    try:
-        main()
-    except KeyboardInterrupt:
-        print("\n\n👋 Goodbye!")
-        monitor.stop()
-        sys.exit(0)
-    except Exception as e:
-        print(f"\n💀 Critical Error: {e}")
-        import traceback
-        traceback.print_exc()
-        sys.exit(1)
