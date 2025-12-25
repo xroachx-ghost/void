@@ -1,4 +1,5 @@
 import importlib
+import types
 
 import pytest
 
@@ -21,17 +22,20 @@ def test_generate_key_length(crypto_module):
     assert len(key) == 48
 
 
-def test_encrypt_decrypt_with_xor_fallback(monkeypatch, crypto_module):
+def test_encrypt_decrypt_with_xor_fallback(monkeypatch, crypto_module, caplog):
     monkeypatch.setattr(crypto_module, "CRYPTO_AVAILABLE", False)
     monkeypatch.setattr(crypto_module.Config, "ALLOW_INSECURE_CRYPTO", True)
 
     plaintext = b"secure message"
     key = b"k" * 32
 
-    encrypted = crypto_module.CryptoSuite.encrypt_aes(plaintext, key)
-    decrypted = crypto_module.CryptoSuite.decrypt_aes(encrypted, key)
+    with caplog.at_level("WARNING"):
+        encrypted = crypto_module.CryptoSuite.encrypt_aes(plaintext, key)
+        decrypted = crypto_module.CryptoSuite.decrypt_aes(encrypted, key)
 
     assert decrypted == plaintext
+    assert "Insecure XOR fallback used for AES encryption" in caplog.text
+    assert "Insecure XOR fallback used for AES decryption" in caplog.text
 
 
 def test_encrypt_requires_crypto_backend(monkeypatch, crypto_module):
@@ -40,3 +44,37 @@ def test_encrypt_requires_crypto_backend(monkeypatch, crypto_module):
 
     with pytest.raises(RuntimeError, match="Cryptography backend unavailable"):
         crypto_module.CryptoSuite.encrypt_aes(b"data", b"k" * 32)
+
+
+def test_encrypt_aes_failure_requires_opt_in(monkeypatch, crypto_module):
+    def _raise(*args, **kwargs):
+        raise ValueError("boom")
+
+    monkeypatch.setattr(crypto_module, "CRYPTO_AVAILABLE", True)
+    monkeypatch.setattr(crypto_module.Config, "ALLOW_INSECURE_CRYPTO", False)
+    monkeypatch.setattr(
+        crypto_module,
+        "AES",
+        types.SimpleNamespace(new=_raise, MODE_GCM=object()),
+        raising=False,
+    )
+
+    with pytest.raises(RuntimeError, match="AES encryption failed"):
+        crypto_module.CryptoSuite.encrypt_aes(b"data", b"k" * 32)
+
+
+def test_decrypt_aes_failure_requires_opt_in(monkeypatch, crypto_module):
+    def _raise(*args, **kwargs):
+        raise ValueError("boom")
+
+    monkeypatch.setattr(crypto_module, "CRYPTO_AVAILABLE", True)
+    monkeypatch.setattr(crypto_module.Config, "ALLOW_INSECURE_CRYPTO", False)
+    monkeypatch.setattr(
+        crypto_module,
+        "AES",
+        types.SimpleNamespace(new=_raise, MODE_GCM=object()),
+        raising=False,
+    )
+
+    with pytest.raises(RuntimeError, match="AES decryption failed"):
+        crypto_module.CryptoSuite.decrypt_aes(b"data", b"k" * 32)
