@@ -1,0 +1,123 @@
+import importlib
+import io
+import subprocess
+
+
+def load_core(tmp_path, monkeypatch):
+    monkeypatch.setenv("HOME", str(tmp_path))
+    import void.config as config
+    import void.core as core
+
+    importlib.reload(config)
+    return importlib.reload(core)
+
+
+def test_safe_subprocess_run_success(tmp_path, monkeypatch):
+    core = load_core(tmp_path, monkeypatch)
+
+    def fake_run(cmd, capture_output, text, timeout, shell):
+        return subprocess.CompletedProcess(cmd, 0, "ok", "")
+
+    monkeypatch.setattr(core.subprocess, "run", fake_run)
+
+    code, stdout, stderr = core.SafeSubprocess.run(["echo", "ok"])
+
+    assert code == 0
+    assert stdout == "ok"
+    assert stderr == ""
+
+
+def test_safe_subprocess_run_timeout(tmp_path, monkeypatch):
+    core = load_core(tmp_path, monkeypatch)
+
+    def fake_run(*_args, **_kwargs):
+        raise subprocess.TimeoutExpired(cmd="sleep", timeout=1)
+
+    monkeypatch.setattr(core.subprocess, "run", fake_run)
+
+    code, stdout, stderr = core.SafeSubprocess.run(["sleep", "1"], timeout=1)
+
+    assert code == -1
+    assert stdout == ""
+    assert stderr == "Timeout"
+
+
+def test_networktools_download_file_success(tmp_path, monkeypatch):
+    core = load_core(tmp_path, monkeypatch)
+    dest = tmp_path / "payload.bin"
+
+    class DummyResponse:
+        def __init__(self, data):
+            self._io = io.BytesIO(data)
+
+        def read(self, *args, **kwargs):
+            return self._io.read(*args, **kwargs)
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+    monkeypatch.setattr(
+        core.urllib.request,
+        "urlopen",
+        lambda *_args, **_kwargs: DummyResponse(b"payload"),
+    )
+
+    assert core.NetworkTools.download_file("https://example.com/file", dest)
+    assert dest.read_bytes() == b"payload"
+
+
+def test_networktools_download_file_rejects_scheme(tmp_path, monkeypatch):
+    core = load_core(tmp_path, monkeypatch)
+    dest = tmp_path / "payload.bin"
+
+    assert not core.NetworkTools.download_file("ftp://example.com/file", dest)
+    assert not dest.exists()
+
+
+def test_networktools_check_internet_failure(tmp_path, monkeypatch):
+    core = load_core(tmp_path, monkeypatch)
+
+    def fake_connection(*_args, **_kwargs):
+        raise OSError("offline")
+
+    monkeypatch.setattr(core.socket, "create_connection", fake_connection)
+
+    assert core.NetworkTools.check_internet() is False
+
+
+def test_parse_adb_listing(tmp_path, monkeypatch):
+    core = load_core(tmp_path, monkeypatch)
+
+    info = core.DeviceDetector._parse_adb_listing(
+        ["product:sailfish", "model:Pixel", "device:marlin", "transport_id:1"]
+    )
+
+    assert info == {
+        "product": "sailfish",
+        "model": "Pixel",
+        "device": "marlin",
+        "transport_id": "1",
+    }
+
+
+def test_check_adb_ready(tmp_path, monkeypatch):
+    core = load_core(tmp_path, monkeypatch)
+
+    monkeypatch.setattr(
+        core.SafeSubprocess,
+        "run",
+        lambda *_args, **_kwargs: (0, "serial", ""),
+    )
+
+    assert core.DeviceDetector._check_adb_ready("device-1") is True
+
+    monkeypatch.setattr(
+        core.SafeSubprocess,
+        "run",
+        lambda *_args, **_kwargs: (1, "", ""),
+    )
+
+    assert core.DeviceDetector._check_adb_ready("device-2") is False
