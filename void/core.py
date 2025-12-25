@@ -9,7 +9,7 @@ from __future__ import annotations
  ╚████╔╝ ╚██████╔╝██║██████╔╝
   ╚═══╝   ╚═════╝ ╚═╝╚═════╝
 
-VOID v6.0.0 - ULTIMATE AUTOMATED EDITION
+VOID v6.0.1 - ULTIMATE AUTOMATED EDITION
 Complete Android Toolkit - 200+ FULLY AUTOMATED FEATURES
 All operations work out-of-the-box with ZERO manual setup!
 
@@ -258,6 +258,9 @@ class Database:
             stats['total_logs'] = conn.execute("SELECT COUNT(*) FROM logs").fetchone()[0]
             stats['total_backups'] = conn.execute("SELECT COUNT(*) FROM backups").fetchone()[0]
             stats['total_methods'] = conn.execute("SELECT COUNT(*) FROM methods").fetchone()[0]
+            stats['total_reports'] = conn.execute(
+                "SELECT COUNT(*) FROM analytics WHERE event_type = 'report'"
+            ).fetchone()[0]
             
             # Method success rates
             methods = conn.execute("""
@@ -270,6 +273,78 @@ class Database:
             stats['top_methods'] = [dict(m) for m in methods]
             
             return stats
+
+    def get_recent_logs(self, limit: int = 50) -> List[Dict[str, Any]]:
+        """Get recent log entries."""
+        with self._get_connection() as conn:
+            rows = conn.execute(
+                """
+                SELECT timestamp, level, category, message, device_id, method
+                FROM logs
+                ORDER BY timestamp DESC
+                LIMIT ?
+                """,
+                (limit,),
+            ).fetchall()
+            return [dict(row) for row in rows]
+
+    def get_recent_backups(self, limit: int = 10) -> List[Dict[str, Any]]:
+        """Get recent backups."""
+        with self._get_connection() as conn:
+            rows = conn.execute(
+                """
+                SELECT device_id, backup_name, backup_path, backup_size, backup_type, created
+                FROM backups
+                ORDER BY created DESC
+                LIMIT ?
+                """,
+                (limit,),
+            ).fetchall()
+            return [dict(row) for row in rows]
+
+    def get_recent_reports(self, limit: int = 10) -> List[Dict[str, Any]]:
+        """Get recent reports."""
+        with self._get_connection() as conn:
+            rows = conn.execute(
+                """
+                SELECT timestamp, event_data, device_id
+                FROM analytics
+                WHERE event_type = 'report'
+                ORDER BY timestamp DESC
+                LIMIT ?
+                """,
+                (limit,),
+            ).fetchall()
+            return [dict(row) for row in rows]
+
+    def get_recent_devices(self, limit: int = 10) -> List[Dict[str, Any]]:
+        """Get recently seen devices."""
+        with self._get_connection() as conn:
+            rows = conn.execute(
+                """
+                SELECT id, manufacturer, model, android_version, last_seen, connection_count
+                FROM devices
+                ORDER BY last_seen DESC
+                LIMIT ?
+                """,
+                (limit,),
+            ).fetchall()
+            return [dict(row) for row in rows]
+
+    def get_top_methods(self, limit: int = 5) -> List[Dict[str, Any]]:
+        """Get top methods by success rate."""
+        with self._get_connection() as conn:
+            rows = conn.execute(
+                """
+                SELECT name, success_count, total_count, avg_duration, last_success
+                FROM methods
+                WHERE total_count > 0
+                ORDER BY (success_count * 1.0 / total_count) DESC
+                LIMIT ?
+                """,
+                (limit,),
+            ).fetchall()
+            return [dict(row) for row in rows]
 
 db = Database()
 
@@ -1296,7 +1371,7 @@ class ReportGenerator:
     def generate_device_report(device_id: str) -> Dict[str, Any]:
         """Generate comprehensive device report"""
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-        report_name = f"device_report_{{device_id}}_{timestamp}"
+        report_name = f"device_report_{device_id}_{timestamp}"
         report_dir = Config.REPORTS_DIR / report_name
         report_dir.mkdir(parents=True, exist_ok=True)
         
@@ -1334,6 +1409,15 @@ class ReportGenerator:
         ReportGenerator._generate_html(report, html_path)
         
         logger.log('success', 'report', f'Report generated: {report_name}')
+        db.track_event(
+            'report',
+            {
+                'report_name': report_name,
+                'json_path': str(json_path),
+                'html_path': str(html_path),
+            },
+            device_id,
+        )
         
         return {
             'success': True,
