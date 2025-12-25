@@ -15,7 +15,11 @@ import sys
 
 from .cli import CLI
 from .config import Config
-from .core import AutoBackup, DeviceDetector, PerformanceAnalyzer, ReportGenerator, monitor
+from .core.backup import AutoBackup
+from .core.device import DeviceDetector
+from .core.monitor import monitor
+from .core.performance import PerformanceAnalyzer
+from .core.report import ReportGenerator
 from .gui import run_gui
 from .terms import ensure_terms_acceptance_cli
 
