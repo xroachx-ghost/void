@@ -14,13 +14,11 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 from .config import Config
-from .core import (
-    AutoBackup,
-    DeviceDetector,
-    PerformanceAnalyzer,
-    ReportGenerator,
-    ScreenCapture,
-)
+from .core.backup import AutoBackup
+from .core.device import DeviceDetector
+from .core.performance import PerformanceAnalyzer
+from .core.report import ReportGenerator
+from .core.screen import ScreenCapture
 from .terms import ensure_terms_acceptance_gui
 
 try:

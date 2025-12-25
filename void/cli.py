@@ -20,24 +20,21 @@ import getpass
 from typing import Any, Dict, List, Optional
 
 from .config import Config
-from .core import (
-    AppManager,
-    AutoBackup,
-    DataRecovery,
-    DeviceDetector,
-    FileManager,
-    FRPEngine,
-    LogcatViewer,
-    NetworkTools,
-    PerformanceAnalyzer,
-    PSUTIL_AVAILABLE,
-    ReportGenerator,
-    SafeSubprocess,
-    ScreenCapture,
-    SystemTweaker,
-    db,
-    monitor,
-)
+from .core.apps import AppManager
+from .core.backup import AutoBackup
+from .core.data_recovery import DataRecovery
+from .core.database import db
+from .core.device import DeviceDetector
+from .core.files import FileManager
+from .core.frp import FRPEngine
+from .core.logcat import LogcatViewer
+from .core.monitor import PSUTIL_AVAILABLE, monitor
+from .core.network import NetworkTools
+from .core.performance import PerformanceAnalyzer
+from .core.report import ReportGenerator
+from .core.screen import ScreenCapture
+from .core.system import SystemTweaker
+from .core.utils import SafeSubprocess
 
 try:
     from rich.console import Console
