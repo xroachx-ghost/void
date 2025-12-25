@@ -26,4 +26,20 @@ def test_config_setup_creates_dirs(tmp_path, monkeypatch):
     ]
 
     for directory in expected_dirs:
+        assert not directory.exists()
+
+    config.Config.setup()
+
+    expected_dirs = [
+        config.Config.BASE_DIR,
+        config.Config.LOG_DIR,
+        config.Config.BACKUP_DIR,
+        config.Config.EXPORTS_DIR,
+        config.Config.CACHE_DIR,
+        config.Config.REPORTS_DIR,
+        config.Config.MONITOR_DIR,
+        config.Config.SCRIPTS_DIR,
+    ]
+
+    for directory in expected_dirs:
         assert directory.exists()
