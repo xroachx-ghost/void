@@ -40,6 +40,8 @@ def main() -> None:
         print("200+ Automated Features")
         return
 
+    Config.setup()
+
     if not ensure_terms_acceptance_cli():
         return
 
