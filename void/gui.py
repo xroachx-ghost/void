@@ -19,6 +19,7 @@ from .core.device import DeviceDetector
 from .core.performance import PerformanceAnalyzer
 from .core.report import ReportGenerator
 from .core.screen import ScreenCapture
+from .plugins import PluginContext, PluginMetadata, PluginResult, discover_plugins, get_registry
 from .terms import ensure_terms_acceptance_gui
 
 try:
@@ -88,6 +89,9 @@ class VoidGUI:
         if not GUI_AVAILABLE:
             raise RuntimeError("GUI dependencies missing. Install tkinter to use the GUI.")
 
+        discover_plugins()
+        self.plugin_registry = get_registry()
+
         self.root = tk.Tk()
         self.root.title(Config.APP_NAME)
         self.root.geometry("980x640")
@@ -101,12 +105,17 @@ class VoidGUI:
         self.action_help_var = tk.StringVar(
             value="Select an action to see a description."
         )
+        self.plugin_description_var = tk.StringVar(
+            value="Select a plugin to view details."
+        )
         self.progress_var = tk.StringVar(value="")
+        self.plugin_metadata: List[PluginMetadata] = []
         self._build_layout()
         if not ensure_terms_acceptance_gui(messagebox):
             self.root.destroy()
             raise SystemExit(0)
         self.refresh_devices()
+        self._load_plugins()
 
     def _build_layout(self) -> None:
         """Build the themed layout."""
@@ -202,8 +211,10 @@ class VoidGUI:
         dashboard = ttk.Frame(notebook, style="Void.TFrame")
         logs = ttk.Frame(notebook, style="Void.TFrame")
         help_panel = ttk.Frame(notebook, style="Void.TFrame")
+        plugins_panel = ttk.Frame(notebook, style="Void.TFrame")
         notebook.add(dashboard, text="Dashboard")
         notebook.add(logs, text="Operations Log")
+        notebook.add(plugins_panel, text="Plugins")
         notebook.add(help_panel, text="What Does This Do?")
 
         ttk.Label(dashboard, text="Selected Device", style="Void.TLabel").pack(anchor="w")
@@ -343,6 +354,51 @@ class VoidGUI:
         )
         ttk.Label(help_panel, text=guide, style="Void.TLabel", wraplength=600).pack(anchor="w")
 
+        ttk.Label(plugins_panel, text="Registered Plugins", style="Void.TLabel").pack(anchor="w")
+        plugin_controls = ttk.Frame(plugins_panel, style="Void.TFrame")
+        plugin_controls.pack(fill="both", expand=True, pady=(6, 0))
+
+        self.plugin_list = tk.Listbox(
+            plugin_controls,
+            width=36,
+            height=12,
+            bg="#0f141b",
+            fg="#00ff9c",
+            selectbackground="#1a2633",
+            selectforeground="#e6f1ff",
+            highlightthickness=0,
+            font=("Consolas", 10),
+        )
+        self.plugin_list.pack(side="left", fill="y", padx=(0, 12))
+        self.plugin_list.bind("<<ListboxSelect>>", lambda _: self._on_plugin_select())
+        Tooltip(self.plugin_list, "Select a plugin to see details or run it.")
+
+        plugin_details = ttk.Frame(plugin_controls, style="Void.TFrame")
+        plugin_details.pack(side="left", fill="both", expand=True)
+
+        ttk.Label(plugin_details, text="Details", style="Void.TLabel").pack(anchor="w")
+        ttk.Label(
+            plugin_details,
+            textvariable=self.plugin_description_var,
+            style="Void.TLabel",
+            wraplength=420,
+        ).pack(anchor="w", pady=(4, 10))
+
+        plugin_actions = ttk.Frame(plugin_details, style="Void.TFrame")
+        plugin_actions.pack(anchor="w")
+        ttk.Button(
+            plugin_actions,
+            text="Refresh Plugins",
+            style="Void.TButton",
+            command=self._load_plugins,
+        ).pack(side="left", padx=(0, 8))
+        ttk.Button(
+            plugin_actions,
+            text="Run Plugin",
+            style="Void.TButton",
+            command=self._run_selected_plugin,
+        ).pack(side="left")
+
         status = ttk.Frame(self.root, style="Void.TFrame")
         status.pack(fill="x", padx=20, pady=(0, 12))
         ttk.Label(status, textvariable=self.status_var, style="Void.TLabel").pack(anchor="w")
@@ -365,6 +421,52 @@ class VoidGUI:
             self.output.see("end")
 
         self.root.after(0, append)
+
+    def _load_plugins(self) -> None:
+        """Load plugins into the list view."""
+        plugins = self.plugin_registry.list_metadata()
+        self.plugin_metadata = plugins
+        self.plugin_list.delete(0, "end")
+
+        for plugin in plugins:
+            self.plugin_list.insert("end", f"{plugin.name} ({plugin.id})")
+
+        if plugins:
+            self.plugin_description_var.set("Select a plugin to view details.")
+        else:
+            self.plugin_description_var.set("No plugins registered.")
+
+    def _on_plugin_select(self) -> None:
+        """Update plugin details when selection changes."""
+        selection = self.plugin_list.curselection()
+        if not selection or selection[0] >= len(self.plugin_metadata):
+            return
+
+        plugin = self.plugin_metadata[selection[0]]
+        tags = ", ".join(plugin.tags) if plugin.tags else "None"
+        details = (
+            f"{plugin.name} ({plugin.id})\n"
+            f"Version: {plugin.version}\n"
+            f"Author: {plugin.author}\n"
+            f"Tags: {tags}\n\n"
+            f"{plugin.description}"
+        )
+        self.plugin_description_var.set(details)
+
+    def _run_selected_plugin(self) -> None:
+        """Run the selected plugin."""
+        selection = self.plugin_list.curselection()
+        if not selection or selection[0] >= len(self.plugin_metadata):
+            messagebox.showwarning("Void", "Select a plugin first.")
+            return
+
+        plugin = self.plugin_metadata[selection[0]]
+        self._run_task(f"Plugin {plugin.name}", self._execute_plugin, plugin.id)
+
+    def _execute_plugin(self, plugin_id: str) -> PluginResult:
+        """Execute a plugin and return its result."""
+        context = PluginContext(mode="gui", emit=lambda msg: self._log(msg, level="PLUGIN"))
+        return self.plugin_registry.run(plugin_id, context, [])
 
     def _run_task(self, label: str, func, *args) -> None:
         """Run a potentially slow task in a background thread."""
@@ -486,6 +588,9 @@ class VoidGUI:
 
     def _summarize_result(self, label: str, result: Any) -> str:
         """Create a friendly summary of an operation result."""
+        if isinstance(result, PluginResult):
+            status = "complete" if result.success else "failed"
+            return f"{label} {status}: {result.message}"
         if isinstance(result, dict):
             success = result.get("success")
             if success is True:
