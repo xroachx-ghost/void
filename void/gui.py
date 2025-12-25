@@ -542,6 +542,8 @@ def run_gui() -> None:
         )
         return
 
+    Config.setup()
+
     gui = VoidGUI()
     gui.run()
 

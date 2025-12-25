@@ -57,7 +57,6 @@ class Config:
             cls.MONITOR_DIR,
             cls.SCRIPTS_DIR,
         ]:
+            if path.exists():
+                continue
             path.mkdir(parents=True, exist_ok=True)
-
-
-Config.setup()
