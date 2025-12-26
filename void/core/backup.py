@@ -3,7 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 from datetime import datetime
-from typing import Any, Dict, List
+from typing import Any, Callable, Dict, List, Optional
 
 from ..config import Config
 from .database import db
@@ -16,12 +16,19 @@ class AutoBackup:
     """Automated backup system"""
 
     @staticmethod
-    def create_backup(device_id: str, backup_type: str = 'full') -> Dict[str, Any]:
+    def create_backup(
+        device_id: str,
+        backup_type: str = 'full',
+        progress_callback: Optional[Callable[[str], None]] = None,
+    ) -> Dict[str, Any]:
         """Create automated backup"""
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
         backup_name = f"backup_{device_id}_{timestamp}"
         backup_path = Config.BACKUP_DIR / backup_name
         backup_path.mkdir(parents=True, exist_ok=True)
+
+        if progress_callback:
+            progress_callback("Collecting device info...")
 
         logger.log('info', 'backup', f'Creating {backup_type} backup for {device_id}')
 
@@ -37,6 +44,8 @@ class AutoBackup:
         backed_up.append('device_info')
 
         # Backup build.prop
+        if progress_callback:
+            progress_callback("Pulling build.prop...")
         build_prop = backup_path / "build.prop"
         code, _, _ = SafeSubprocess.run(
             ['adb', '-s', device_id, 'pull', '/system/build.prop', str(build_prop)]
@@ -46,6 +55,8 @@ class AutoBackup:
             total_size += build_prop.stat().st_size
 
         # Backup packages list
+        if progress_callback:
+            progress_callback("Listing installed packages...")
         packages_file = backup_path / "packages.txt"
         code, stdout, _ = SafeSubprocess.run(['adb', '-s', device_id, 'shell', 'pm', 'list', 'packages'])
         if code == 0:
@@ -55,6 +66,8 @@ class AutoBackup:
             total_size += packages_file.stat().st_size
 
         # Calculate checksum
+        if progress_callback:
+            progress_callback("Calculating backup checksum...")
         checksum = hashlib.sha256()
         for file in backup_path.rglob('*'):
             if file.is_file():
@@ -62,6 +75,8 @@ class AutoBackup:
                     checksum.update(f.read())
 
         # Save to database
+        if progress_callback:
+            progress_callback("Recording backup metadata...")
         with db._get_connection() as conn:
             conn.execute(
                 """INSERT INTO backups (device_id, backup_name, backup_path, backup_size, backup_type, checksum)
@@ -72,6 +87,8 @@ class AutoBackup:
             conn.commit()
 
         logger.log('success', 'backup', f'Backup created: {backup_name}')
+        if progress_callback:
+            progress_callback("Backup complete.")
 
         return {
             'success': True,
