@@ -13,7 +13,7 @@ from .database import Database, db
 from .device import DeviceDetector
 from .frp import FRPEngine
 from .logcat import LogcatViewer
-from .logging import Logger, RICH_AVAILABLE, logger
+from .logging import Logger, logger
 from .monitor import PSUTIL_AVAILABLE, SystemMonitor, monitor
 from .network import NetworkAnalyzer, NetworkTools
 from .performance import PerformanceAnalyzer
@@ -37,7 +37,6 @@ __all__ = [
     'NetworkTools',
     'PSUTIL_AVAILABLE',
     'PerformanceAnalyzer',
-    'RICH_AVAILABLE',
     'ReportGenerator',
     'SafeSubprocess',
     'ScreenCapture',

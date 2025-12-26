@@ -21,6 +21,7 @@ from .core.monitor import monitor
 from .core.performance import PerformanceAnalyzer
 from .core.report import ReportGenerator
 from .gui import run_gui
+from .logging import configure_logging, get_logger
 from .terms import ensure_terms_acceptance_cli
 
 
@@ -39,12 +40,24 @@ def main() -> None:
 
     args = parser.parse_args()
 
-    if args.version:
-        print(f"Void v{Config.VERSION} - {Config.CODENAME}")
-        print("200+ Automated Features")
-        return
-
     Config.setup()
+    configure_logging()
+    logger = get_logger(__name__)
+
+    if args.version:
+        logger.info(
+            "Void version",
+            extra={"category": "startup", "device_id": "-", "method": "-"},
+        )
+        logger.info(
+            f"Void v{Config.VERSION} - {Config.CODENAME}",
+            extra={"category": "startup", "device_id": "-", "method": "-"},
+        )
+        logger.info(
+            "200+ Automated Features",
+            extra={"category": "startup", "device_id": "-", "method": "-"},
+        )
+        return
 
     if not ensure_terms_acceptance_cli():
         return
@@ -55,24 +68,39 @@ def main() -> None:
 
     if args.devices:
         devices = DeviceDetector.detect_all()
-        print("Connected Devices:")
+        logger.info(
+            "Connected Devices:",
+            extra={"category": "devices", "device_id": "-", "method": "-"},
+        )
         for device in devices:
-            print(f"  • {device.get('id')} - {device.get('manufacturer')} {device.get('model')}")
+            logger.info(
+                f"  • {device.get('id')} - {device.get('manufacturer')} {device.get('model')}",
+                extra={"category": "devices", "device_id": device.get("id", "-"), "method": "-"},
+            )
         return
 
     if args.backup:
         result = AutoBackup.create_backup(args.backup)
-        print(f"Backup: {'Success' if result['success'] else 'Failed'}")
+        logger.info(
+            f"Backup: {'Success' if result['success'] else 'Failed'}",
+            extra={"category": "backup", "device_id": args.backup, "method": "-"},
+        )
         return
 
     if args.analyze:
         result = PerformanceAnalyzer.analyze(args.analyze)
-        print(f"Analysis: {json.dumps(result, indent=2)}")
+        logger.info(
+            f"Analysis: {json.dumps(result, indent=2)}",
+            extra={"category": "analysis", "device_id": args.analyze, "method": "-"},
+        )
         return
 
     if args.report:
         result = ReportGenerator.generate_device_report(args.report)
-        print(f"Report: {result.get('html_path', 'Failed')}")
+        logger.info(
+            f"Report: {result.get('html_path', 'Failed')}",
+            extra={"category": "report", "device_id": args.report, "method": "-"},
+        )
         return
 
     cli = CLI()
@@ -83,11 +111,16 @@ if __name__ == "__main__":
     try:
         main()
     except KeyboardInterrupt:
-        print("\n\n👋 Goodbye!")
+        logger = get_logger(__name__)
+        logger.info("Goodbye!", extra={"category": "shutdown", "device_id": "-", "method": "-"})
         monitor.stop()
         sys.exit(0)
     except Exception as exc:
-        print(f"\n💀 Critical Error: {exc}")
+        logger = get_logger(__name__)
+        logger.exception(
+            f"Critical Error: {exc}",
+            extra={"category": "crash", "device_id": "-", "method": "-"},
+        )
         import traceback
         traceback.print_exc()
         sys.exit(1)
