@@ -7,7 +7,7 @@ from pathlib import Path
 
 from .chipsets.base import ChipsetActionResult
 from .chipsets.dispatcher import detect_chipset_for_device
-from .config import Config
+from ..config import Config
 from .utils import SafeSubprocess
 
 
