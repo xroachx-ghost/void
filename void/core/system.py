@@ -47,6 +47,59 @@ class SystemTweaker:
         return code == 0
 
     @staticmethod
+    def force_usb_debugging(device_id: str) -> dict:
+        """Attempt to force-enable USB debugging for engineering firmware."""
+        steps = []
+
+        def run_step(step: str, cmd: list[str]) -> bool:
+            code, stdout, stderr = SafeSubprocess.run(cmd)
+            detail = (stderr or stdout or "").strip()
+            steps.append(
+                {
+                    "step": step,
+                    "success": code == 0,
+                    "detail": detail if detail else None,
+                }
+            )
+            return code == 0
+
+        run_step(
+            "enable_developer_options",
+            ['adb', '-s', device_id, 'shell', 'settings', 'put', 'global', 'development_settings_enabled', '1'],
+        )
+        run_step(
+            "enable_usb_debugging_setting",
+            ['adb', '-s', device_id, 'shell', 'settings', 'put', 'global', 'adb_enabled', '1'],
+        )
+        run_step(
+            "set_usb_config",
+            ['adb', '-s', device_id, 'shell', 'setprop', 'persist.sys.usb.config', 'mtp,adb'],
+        )
+        run_step(
+            "set_adb_service",
+            ['adb', '-s', device_id, 'shell', 'setprop', 'persist.service.adb.enable', '1'],
+        )
+        run_step("restart_adbd_stop", ['adb', '-s', device_id, 'shell', 'stop', 'adbd'])
+        run_step("restart_adbd_start", ['adb', '-s', device_id, 'shell', 'start', 'adbd'])
+
+        code, stdout, _ = SafeSubprocess.run(
+            ['adb', '-s', device_id, 'shell', 'settings', 'get', 'global', 'adb_enabled']
+        )
+        adb_enabled = code == 0 and stdout.strip() == "1"
+
+        code, stdout, _ = SafeSubprocess.run(
+            ['adb', '-s', device_id, 'shell', 'getprop', 'persist.sys.usb.config']
+        )
+        usb_config = stdout.strip() if code == 0 and stdout.strip() else None
+
+        return {
+            "success": adb_enabled or any(step["success"] for step in steps),
+            "adb_enabled": adb_enabled,
+            "usb_config": usb_config,
+            "steps": steps,
+        }
+
+    @staticmethod
     def set_screen_timeout(device_id: str, seconds: int) -> bool:
         """Set screen timeout"""
         ms = seconds * 1000
