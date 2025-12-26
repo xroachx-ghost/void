@@ -156,6 +156,8 @@ class VoidGUI:
         self._splash_total_frames = 48
         self._app_config: Dict[str, Any] = self._load_app_config()
         self._pending_troubleshooting_open = False
+        self.output: Optional[scrolledtext.ScrolledText] = None
+        self._pending_log_entries: List[str] = []
         self.notebook: Optional[ttk.Notebook] = None
         self.troubleshooting_panel: Optional[ttk.Frame] = None
         self.backup_button: Optional[ttk.Button] = None
@@ -1243,6 +1245,13 @@ class VoidGUI:
             state="disabled"
         )
         self.output.pack(fill="both", expand=True, pady=(6, 0))
+        if self._pending_log_entries:
+            self.output.configure(state="normal")
+            for entry in self._pending_log_entries:
+                self.output.insert("end", entry)
+            self.output.configure(state="disabled")
+            self.output.see("end")
+            self._pending_log_entries.clear()
 
         ttk.Label(help_panel, text="Action Details", style="Void.TLabel").pack(anchor="w")
         ttk.Label(
@@ -1528,10 +1537,18 @@ class VoidGUI:
     def _log(self, message: str, level: str = "INFO") -> None:
         """Write a log line to the GUI console."""
         timestamp = datetime.now().strftime("%H:%M:%S")
+        entry = f"[{timestamp}] [{level}] {message}\n"
+
+        if not self.output:
+            self._pending_log_entries.append(entry)
+            return
 
         def append():
+            if not self.output:
+                self._pending_log_entries.append(entry)
+                return
             self.output.configure(state="normal")
-            self.output.insert("end", f"[{timestamp}] [{level}] {message}\n")
+            self.output.insert("end", entry)
             self.output.configure(state="disabled")
             self.output.see("end")
 
@@ -2238,6 +2255,9 @@ class VoidGUI:
 
     def _export_log(self) -> None:
         """Export the operations log to a text file."""
+        if not self.output:
+            messagebox.showwarning("Void", "The log is not available yet.")
+            return
         path = filedialog.asksaveasfilename(
             title="Export Log",
             defaultextension=".txt",
