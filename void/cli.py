@@ -37,7 +37,8 @@ from .core.screen import ScreenCapture
 from .core.system import SystemTweaker
 from .core.utils import SafeSubprocess
 from .logging import get_logger
-from .plugins import PluginContext, discover_plugins, get_registry
+from .plugins import PluginContext, PluginMetadata, discover_plugins, get_registry
+from .terms import confirm_destructive_action_cli
 
 try:
     from rich.console import Console
@@ -1401,6 +1402,26 @@ SYSTEM:
 """
         print(help_text)
 
+    def _extract_plugin_device_id(self, args: List[str]) -> str:
+        """Extract device id from plugin args when present."""
+        for arg in args:
+            if arg.startswith("--device="):
+                return arg.split("=", 1)[1].strip() or "-"
+        return "-"
+
+    def _destructive_action_for_plugin(
+        self, plugin: PluginMetadata, args: List[str]
+    ) -> Optional[str]:
+        """Infer destructive action identifiers for plugin invocations."""
+        lowered_args = [arg.lower() for arg in args]
+        if any("partition" in arg for arg in lowered_args) and any(
+            "dump" in arg for arg in lowered_args
+        ):
+            return "partition_dump"
+        if "edl" in plugin.tags:
+            return "edl_flash"
+        return None
+
     def _cmd_plugins(self) -> None:
         """List available plugins."""
         plugins = self.plugin_registry.list_metadata()
@@ -1441,6 +1462,22 @@ SYSTEM:
 
         plugin_id = args[0]
         plugin_args = args[1:]
+        plugin = self.plugin_registry.get(plugin_id)
+        if not plugin:
+            print(f"❌ Unknown plugin: {plugin_id}")
+            return
+        destructive_action = self._destructive_action_for_plugin(plugin.metadata, plugin_args)
+        if destructive_action:
+            device_id = self._extract_plugin_device_id(plugin_args)
+            confirmed = confirm_destructive_action_cli(
+                destructive_action,
+                device_id=device_id,
+                method=plugin_id,
+                interface="cli",
+            )
+            if not confirmed:
+                print("❌ Action cancelled.")
+                return
         context = PluginContext(mode="cli", emit=print)
 
         try:

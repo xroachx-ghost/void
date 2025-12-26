@@ -20,7 +20,7 @@ from .core.performance import PerformanceAnalyzer
 from .core.report import ReportGenerator
 from .core.screen import ScreenCapture
 from .plugins import PluginContext, PluginMetadata, PluginResult, discover_plugins, get_registry
-from .terms import ensure_terms_acceptance_gui
+from .terms import confirm_destructive_action_gui, ensure_terms_acceptance_gui
 
 try:
     import tkinter as tk
@@ -461,6 +461,20 @@ class VoidGUI:
             return
 
         plugin = self.plugin_metadata[selection[0]]
+        destructive_action = self._destructive_action_for_plugin(plugin)
+        if destructive_action:
+            device_id = self._peek_selected_device()
+            confirmed = confirm_destructive_action_gui(
+                messagebox,
+                destructive_action,
+                device_id=device_id,
+                method=plugin.id,
+                interface="gui",
+            )
+            if not confirmed:
+                self._log(f"Plugin {plugin.name} cancelled by user.", level="WARN")
+                self.status_var.set("Plugin cancelled.")
+                return
         self._run_task(f"Plugin {plugin.name}", self._execute_plugin, plugin.id)
 
     def _execute_plugin(self, plugin_id: str) -> PluginResult:
@@ -492,6 +506,13 @@ class VoidGUI:
         if not selection or selection[0] >= len(self.device_ids):
             messagebox.showwarning("Void", "Select a device first.")
             return None
+        return self.device_ids[selection[0]]
+
+    def _peek_selected_device(self) -> str:
+        """Return the selected device id without warnings."""
+        selection = self.device_list.curselection()
+        if not selection or selection[0] >= len(self.device_ids):
+            return "-"
         return self.device_ids[selection[0]]
 
     def _on_device_select(self) -> None:
@@ -600,6 +621,12 @@ class VoidGUI:
                 error = result.get("error") or result.get("message") or "Operation failed."
                 return f"{label} failed: {error}"
         return f"{label} complete."
+
+    def _destructive_action_for_plugin(self, plugin: PluginMetadata) -> Optional[str]:
+        """Infer destructive action identifiers for GUI plugin runs."""
+        if "edl" in plugin.tags:
+            return "edl_flash"
+        return None
 
     def _show_about(self) -> None:
         """Display the About dialog."""
