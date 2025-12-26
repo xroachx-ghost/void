@@ -29,6 +29,33 @@ from .core.database import db
 from .core.device import DeviceDetector
 from .core.display import DisplayAnalyzer
 from .core.edl import edl_dump, edl_flash
+from .core.edl_toolkit import (
+    ToolkitResult,
+    backup_partition,
+    capture_edl_log,
+    compatibility_matrix,
+    convert_sparse_image,
+    delete_profile,
+    detect_edl_devices,
+    device_notes,
+    edl_unbrick_plan,
+    extract_boot_image,
+    flash_recovery,
+    list_firehose_programmers,
+    list_partitions_via_adb,
+    load_profiles,
+    pull_magisk_patched,
+    read_partition_table,
+    reboot_device,
+    restore_partition,
+    rollback_flash,
+    safety_check,
+    save_profile,
+    stage_magisk_patch,
+    verify_hash,
+    verify_root,
+    verify_twrp_image,
+)
 from .core.files import FileManager
 from .core.frp import FRPEngine
 from .core.launcher import install_start_menu, launcher_status, uninstall_start_menu
@@ -119,6 +146,27 @@ class CLI:
                     'edl-enter': lambda: self._cmd_edl_enter(args),
                     'edl-flash': lambda: self._cmd_edl_flash(args),
                     'edl-dump': lambda: self._cmd_edl_dump(args),
+                    'edl-detect': self._cmd_edl_detect,
+                    'edl-programmers': self._cmd_edl_programmers,
+                    'edl-partitions': lambda: self._cmd_edl_partitions(args),
+                    'edl-backup': lambda: self._cmd_edl_backup(args),
+                    'edl-restore': lambda: self._cmd_edl_restore(args),
+                    'edl-sparse': lambda: self._cmd_edl_sparse(args),
+                    'edl-profile': lambda: self._cmd_edl_profile(args),
+                    'edl-verify': lambda: self._cmd_edl_verify(args),
+                    'edl-unbrick': lambda: self._cmd_edl_unbrick(args),
+                    'edl-notes': lambda: self._cmd_edl_notes(args),
+                    'edl-reboot': lambda: self._cmd_edl_reboot(args),
+                    'edl-log': self._cmd_edl_log,
+                    'boot-extract': lambda: self._cmd_boot_extract(args),
+                    'magisk-patch': lambda: self._cmd_magisk_patch(args),
+                    'magisk-pull': lambda: self._cmd_magisk_pull(args),
+                    'twrp-verify': lambda: self._cmd_twrp_verify(args),
+                    'twrp-flash': lambda: self._cmd_twrp_flash(args),
+                    'root-verify': lambda: self._cmd_root_verify(args),
+                    'safety-check': lambda: self._cmd_safety_check(args),
+                    'rollback': lambda: self._cmd_rollback(args),
+                    'compat-matrix': self._cmd_compat_matrix,
                     'testpoint-guide': lambda: self._cmd_testpoint_guide(args),
                     'clear-cache': self._cmd_clear_cache,
                     'doctor': self._cmd_doctor,
@@ -193,6 +241,12 @@ class CLI:
             return sorted(prefix_matches)[:5]
 
         return difflib.get_close_matches(command, options, n=5, cutoff=0.5)
+
+    def _print_toolkit_result(self, result: ToolkitResult) -> None:
+        icon = "✅" if result.success else "⚠️"
+        print(f"{icon} {result.message}")
+        if result.data:
+            print(json.dumps(result.data, indent=2))
 
     def _print_banner(self) -> None:
         """Print banner."""
@@ -1768,6 +1822,231 @@ class CLI:
             details=result.data,
         )
 
+    def _cmd_edl_detect(self) -> None:
+        """Detect EDL devices using USB scanning."""
+        result = detect_edl_devices()
+        self._print_toolkit_result(result)
+
+    def _cmd_edl_programmers(self) -> None:
+        """List firehose programmers."""
+        result = list_firehose_programmers()
+        self._print_toolkit_result(result)
+
+    def _cmd_edl_partitions(self, args: List[str]) -> None:
+        """List partition map via ADB or EDL tooling."""
+        if len(args) < 1:
+            print("Usage: edl-partitions <device_id|smart> [loader]")
+            return
+        device_id = self._resolve_device_id([args[0]], "edl-partitions <device_id|smart> [loader]")
+        if not device_id:
+            return
+        loader = args[1] if len(args) > 1 else None
+        adb_result = list_partitions_via_adb(device_id)
+        if adb_result.success:
+            self._print_toolkit_result(adb_result)
+            return
+        edl_result = read_partition_table(loader)
+        self._print_toolkit_result(edl_result)
+
+    def _cmd_edl_backup(self, args: List[str]) -> None:
+        """Backup a partition via EDL."""
+        if len(args) < 2:
+            print("Usage: edl-backup <device_id|smart> <partition>")
+            return
+        device_id = self._resolve_device_id([args[0]], "edl-backup <device_id|smart> <partition>")
+        if not device_id:
+            return
+        partition = args[1]
+        result = backup_partition({"id": device_id}, partition)
+        self._print_toolkit_result(result)
+
+    def _cmd_edl_restore(self, args: List[str]) -> None:
+        """Restore a partition via EDL."""
+        if len(args) < 3:
+            print("Usage: edl-restore <device_id|smart> <loader> <image>")
+            return
+        device_id = self._resolve_device_id([args[0]], "edl-restore <device_id|smart> <loader> <image>")
+        if not device_id:
+            return
+        loader = args[1]
+        image = args[2]
+        result = restore_partition({"id": device_id}, loader, image)
+        self._print_toolkit_result(result)
+
+    def _cmd_edl_sparse(self, args: List[str]) -> None:
+        """Convert sparse images."""
+        if len(args) < 3:
+            print("Usage: edl-sparse <to-raw|to-sparse> <source> <dest>")
+            return
+        direction = args[0].lower()
+        to_sparse = direction == "to-sparse"
+        if direction not in {"to-raw", "to-sparse"}:
+            print("Usage: edl-sparse <to-raw|to-sparse> <source> <dest>")
+            return
+        result = convert_sparse_image(Path(args[1]), Path(args[2]), to_sparse)
+        self._print_toolkit_result(result)
+
+    def _cmd_edl_profile(self, args: List[str]) -> None:
+        """Manage EDL profiles."""
+        if not args:
+            print("Usage: edl-profile <list|add|delete> [name] [json]")
+            return
+        action = args[0].lower()
+        if action == "list":
+            profiles = load_profiles()
+            result = ToolkitResult(
+                success=True,
+                message="EDL profiles loaded.",
+                data={"profiles": profiles},
+            )
+            self._print_toolkit_result(result)
+            return
+        if action == "add" and len(args) >= 3:
+            name = args[1]
+            try:
+                profile = json.loads(" ".join(args[2:]))
+            except json.JSONDecodeError:
+                print("Profile data must be valid JSON.")
+                return
+            result = save_profile(name, profile)
+            self._print_toolkit_result(result)
+            return
+        if action == "delete" and len(args) == 2:
+            result = delete_profile(args[1])
+            self._print_toolkit_result(result)
+            return
+        print("Usage: edl-profile <list|add|delete> [name] [json]")
+
+    def _cmd_edl_verify(self, args: List[str]) -> None:
+        """Verify image hash."""
+        if len(args) < 1:
+            print("Usage: edl-verify <file> [sha256]")
+            return
+        expected = args[1] if len(args) > 1 else None
+        result = verify_hash(Path(args[0]), expected)
+        self._print_toolkit_result(result)
+
+    def _cmd_edl_unbrick(self, args: List[str]) -> None:
+        """Generate an unbrick checklist."""
+        loader = args[0] if args else None
+        result = edl_unbrick_plan(loader)
+        self._print_toolkit_result(result)
+
+    def _cmd_edl_notes(self, args: List[str]) -> None:
+        """Show device-specific notes."""
+        vendor = args[0] if args else None
+        result = device_notes(vendor)
+        self._print_toolkit_result(result)
+
+    def _cmd_edl_reboot(self, args: List[str]) -> None:
+        """Reboot to a target mode."""
+        if len(args) < 2:
+            print("Usage: edl-reboot <device_id|smart> <edl|fastboot|recovery|bootloader|system>")
+            return
+        device_id = self._resolve_device_id([args[0]], "edl-reboot <device_id|smart> <target>")
+        if not device_id:
+            return
+        target = args[1]
+        result = reboot_device(device_id, target)
+        self._print_toolkit_result(result)
+
+    def _cmd_edl_log(self) -> None:
+        """Capture EDL log artifacts."""
+        result = capture_edl_log()
+        self._print_toolkit_result(result)
+
+    def _cmd_boot_extract(self, args: List[str]) -> None:
+        """Extract boot image contents."""
+        if len(args) < 1:
+            print("Usage: boot-extract <boot.img>")
+            return
+        result = extract_boot_image(Path(args[0]))
+        self._print_toolkit_result(result)
+
+    def _cmd_magisk_patch(self, args: List[str]) -> None:
+        """Stage a Magisk patch workflow."""
+        if len(args) < 2:
+            print("Usage: magisk-patch <device_id|smart> <boot.img>")
+            return
+        device_id = self._resolve_device_id([args[0]], "magisk-patch <device_id|smart> <boot.img>")
+        if not device_id:
+            return
+        result = stage_magisk_patch(device_id, Path(args[1]))
+        self._print_toolkit_result(result)
+
+    def _cmd_magisk_pull(self, args: List[str]) -> None:
+        """Pull Magisk patched image."""
+        if len(args) < 1:
+            print("Usage: magisk-pull <device_id|smart> [output_dir]")
+            return
+        device_id = self._resolve_device_id([args[0]], "magisk-pull <device_id|smart> [output_dir]")
+        if not device_id:
+            return
+        output_dir = Path(args[1]) if len(args) > 1 else Config.EXPORTS_DIR
+        result = pull_magisk_patched(device_id, output_dir)
+        self._print_toolkit_result(result)
+
+    def _cmd_twrp_verify(self, args: List[str]) -> None:
+        """Verify a TWRP image matches device codename."""
+        if len(args) < 2:
+            print("Usage: twrp-verify <device_id|smart> <twrp.img>")
+            return
+        device_id = self._resolve_device_id([args[0]], "twrp-verify <device_id|smart> <twrp.img>")
+        if not device_id:
+            return
+        result = verify_twrp_image(device_id, Path(args[1]))
+        self._print_toolkit_result(result)
+
+    def _cmd_twrp_flash(self, args: List[str]) -> None:
+        """Flash or boot TWRP recovery via fastboot."""
+        if len(args) < 2:
+            print("Usage: twrp-flash <device_id|smart> <twrp.img> [boot]")
+            return
+        device_id = self._resolve_device_id([args[0]], "twrp-flash <device_id|smart> <twrp.img>")
+        if not device_id:
+            return
+        boot_only = len(args) > 2 and args[2].lower() == "boot"
+        result = flash_recovery(device_id, Path(args[1]), boot_only=boot_only)
+        self._print_toolkit_result(result)
+
+    def _cmd_root_verify(self, args: List[str]) -> None:
+        """Verify root access via ADB."""
+        if len(args) < 1:
+            print("Usage: root-verify <device_id|smart>")
+            return
+        device_id = self._resolve_device_id([args[0]], "root-verify <device_id|smart>")
+        if not device_id:
+            return
+        result = verify_root(device_id)
+        self._print_toolkit_result(result)
+
+    def _cmd_safety_check(self, args: List[str]) -> None:
+        """Run safety checklist for device operations."""
+        if len(args) < 1:
+            print("Usage: safety-check <device_id|smart>")
+            return
+        device_id = self._resolve_device_id([args[0]], "safety-check <device_id|smart>")
+        if not device_id:
+            return
+        result = safety_check(device_id)
+        self._print_toolkit_result(result)
+
+    def _cmd_rollback(self, args: List[str]) -> None:
+        """Rollback a partition flash."""
+        if len(args) < 3:
+            print("Usage: rollback <device_id|smart> <partition> <image>")
+            return
+        device_id = self._resolve_device_id([args[0]], "rollback <device_id|smart> <partition> <image>")
+        if not device_id:
+            return
+        result = rollback_flash(device_id, args[1], Path(args[2]))
+        self._print_toolkit_result(result)
+
+    def _cmd_compat_matrix(self) -> None:
+        """Show compatibility matrix."""
+        result = compatibility_matrix()
+        self._print_toolkit_result(result)
+
     def _cmd_testpoint_guide(self, args: List[str]) -> None:
         """Show test-point guidance references."""
         device_id = self._resolve_device_id(args, "testpoint-guide <device_id|smart>")
@@ -1871,6 +2150,27 @@ EDL & TEST-POINT:
   edl-enter <device_id|smart>            - Enter EDL mode (if supported)
   edl-flash <device_id|smart> <loader> <image> - Flash via EDL (chipset-specific)
   edl-dump <device_id|smart> <partition> - Dump a partition via EDL
+  edl-detect                            - Scan USB for EDL devices
+  edl-programmers                       - List available firehose programmers
+  edl-partitions <device_id|smart> [loader] - Show partition map
+  edl-backup <device_id|smart> <partition> - Backup partition via EDL
+  edl-restore <device_id|smart> <loader> <image> - Restore partition via EDL
+  edl-sparse <to-raw|to-sparse> <source> <dest> - Convert sparse images
+  edl-profile <list|add|delete>          - Manage EDL profiles
+  edl-verify <file> [sha256]             - Verify image hash
+  edl-unbrick [loader]                   - Show unbrick checklist
+  edl-notes [vendor]                     - Show device-specific notes
+  edl-reboot <device_id|smart> <target>  - Reboot to target mode
+  edl-log                               - Capture EDL workflow logs
+  boot-extract <boot.img>                - Extract boot image contents
+  magisk-patch <device_id|smart> <boot.img> - Stage Magisk patch workflow
+  magisk-pull <device_id|smart> [output_dir] - Pull Magisk patched image
+  twrp-verify <device_id|smart> <twrp.img> - Validate TWRP image
+  twrp-flash <device_id|smart> <twrp.img> [boot] - Flash/boot TWRP
+  root-verify <device_id|smart>          - Verify root access
+  safety-check <device_id|smart>         - Run safety checklist
+  rollback <device_id|smart> <partition> <image> - Roll back a flash
+  compat-matrix                          - Show EDL compatibility matrix
   testpoint-guide <device_id|smart>      - Show test-point references
   
 SYSTEM:
@@ -1939,6 +2239,27 @@ SYSTEM:
   void> edl-enter emulator-5554
   void> edl-flash usb-05c6:9008 firehose.mbn boot.img
   void> edl-dump usb-05c6:9008 userdata
+  void> edl-detect
+  void> edl-programmers
+  void> edl-partitions emulator-5554
+  void> edl-backup usb-05c6:9008 modem
+  void> edl-restore usb-05c6:9008 firehose.mbn boot.img
+  void> edl-sparse to-raw system.img system.raw.img
+  void> edl-profile list
+  void> edl-verify boot.img
+  void> edl-unbrick firehose.mbn
+  void> edl-notes qualcomm
+  void> edl-reboot emulator-5554 edl
+  void> edl-log
+  void> boot-extract boot.img
+  void> magisk-patch emulator-5554 boot.img
+  void> magisk-pull emulator-5554
+  void> twrp-verify emulator-5554 twrp.img
+  void> twrp-flash emulator-5554 twrp.img
+  void> root-verify emulator-5554
+  void> safety-check emulator-5554
+  void> rollback emulator-5554 boot boot_backup.img
+  void> compat-matrix
   void> testpoint-guide usb-05c6:9008
   void> menu
   void> version
