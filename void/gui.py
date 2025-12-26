@@ -1328,6 +1328,24 @@ class VoidGUI:
         ).pack(anchor="w", pady=(6, 0))
         self.diagnostics_links_frame = ttk.Frame(diagnostics_card, style="Void.TFrame")
         self.diagnostics_links_frame.pack(fill="x", pady=(8, 0))
+        display_diagnostics_frame = ttk.Frame(diagnostics_card, style="Void.TFrame")
+        display_diagnostics_frame.pack(fill="x", pady=(8, 0))
+        ttk.Button(
+            display_diagnostics_frame,
+            text="Run Display Diagnostics",
+            style="Void.TButton",
+            command=self._run_display_diagnostics,
+        ).pack(anchor="w")
+        ttk.Label(
+            display_diagnostics_frame,
+            text=(
+                "Screenshot looks normal → display hardware likely at fault.\n"
+                "Screenshot black → system rendering or power state issue."
+            ),
+            style="Void.TLabel",
+            wraplength=600,
+            justify="left",
+        ).pack(anchor="w", pady=(4, 0))
         ttk.Button(
             diagnostics_card,
             text="Recheck Diagnostics",
@@ -1349,6 +1367,12 @@ class VoidGUI:
             "• Windows: install OEM or Google USB drivers and reboot after install.\n"
             "• macOS: install Android platform tools (Homebrew: brew install android-platform-tools).\n"
             "• Linux: add udev rules (e.g., /etc/udev/rules.d/51-android.rules) and reload.\n\n"
+            "Black screen:\n"
+            "• Check the power state and try waking the device.\n"
+            "• Force reboot if the panel stays dark.\n"
+            "• Verify brightness isn't set to minimum.\n"
+            "• Confirm adb responds (adb devices, logcat).\n"
+            "• Run Display Diagnostics to compare the screenshot with the panel.\n\n"
             "Still stuck? Visit the Android developer documentation for platform tooling."
         )
         ttk.Label(
@@ -1973,6 +1997,63 @@ class VoidGUI:
         device_id = self._get_selected_device()
         if device_id:
             self._run_task("Screenshot", ScreenCapture.take_screenshot, device_id)
+
+    def _run_display_diagnostics(self) -> None:
+        device_id = self._get_selected_device()
+        if not device_id:
+            return
+
+        def runner() -> None:
+            try:
+                self._log("Display diagnostics started...")
+                self._start_progress()
+                result = DisplayAnalyzer.analyze(device_id)
+                summary, message = self._format_display_diagnostics_result(result)
+                self._log(summary)
+                self.status_var.set(summary)
+                self.root.after(
+                    0, lambda: messagebox.showinfo("Display Diagnostics", message)
+                )
+            except Exception as exc:
+                self._log(f"Display diagnostics failed: {exc}", level="ERROR")
+                self.status_var.set("Display diagnostics failed. See log for details.")
+                self._show_task_error("Display diagnostics", exc=exc)
+            finally:
+                self._stop_progress()
+
+        threading.Thread(target=runner, daemon=True).start()
+
+    def _format_display_diagnostics_result(self, result: Dict[str, Any]) -> tuple[str, str]:
+        analysis = result.get("screenshot_analysis") or {}
+        black_frame = result.get("black_frame_detected")
+        if black_frame is True:
+            headline = "Screenshot appears black."
+            implication = "Screenshot black → system rendering or power state issue."
+        elif black_frame is False:
+            headline = "Screenshot looks normal."
+            implication = "Screenshot looks normal → display hardware likely at fault."
+        elif "error" in analysis:
+            headline = f"Screenshot failed: {analysis.get('error')}"
+            implication = "Check ADB connectivity and try again."
+        elif "note" in analysis:
+            headline = analysis.get("note", "Screenshot captured without pixel analysis.")
+            implication = "Open the screenshot file to verify the panel state."
+        else:
+            headline = "Screenshot analysis unavailable."
+            implication = "Retry after confirming ADB access and device unlock."
+
+        detail_lines = [
+            f"Screen state: {result.get('screen_state') or 'unknown'}",
+            f"Display power: {result.get('display_power') or 'n/a'}",
+            f"Brightness: {result.get('display_brightness') or 'n/a'}",
+            f"Refresh rate: {result.get('refresh_rate') or 'n/a'}",
+        ]
+        if result.get("screenshot_path"):
+            detail_lines.append(f"Screenshot saved: {result['screenshot_path']}")
+
+        summary = f"Display diagnostics complete: {headline}"
+        message = "\n".join([headline, "", implication, "", *detail_lines])
+        return summary, message
 
     def _build_settings_panel(self, panel: ttk.Frame) -> None:
         ttk.Label(panel, text="Settings", style="Void.TLabel").pack(anchor="w")
