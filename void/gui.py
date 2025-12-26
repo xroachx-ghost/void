@@ -465,6 +465,30 @@ class VoidGUI:
             foreground=[("active", self.theme["accent_soft"])],
             relief=[("pressed", "sunken")],
         )
+        style.configure(
+            "Void.TNotebook",
+            background=self.theme["bg"],
+            borderwidth=0,
+            tabmargins=(2, 6, 2, 0),
+        )
+        style.configure(
+            "Void.TNotebook.Tab",
+            background=self.theme["panel_alt"],
+            foreground=self.theme["muted"],
+            padding=(14, 8),
+            font=("Consolas", 10, "bold"),
+        )
+        style.map(
+            "Void.TNotebook.Tab",
+            background=[
+                ("selected", self.theme["panel"]),
+                ("active", self.theme["button_active"]),
+            ],
+            foreground=[
+                ("selected", self.theme["accent"]),
+                ("active", self.theme["accent_soft"]),
+            ],
+        )
 
         header = tk.Canvas(
             self.root,
@@ -522,7 +546,7 @@ class VoidGUI:
         right = ttk.Frame(body, style="Void.TFrame")
         right.pack(side="left", fill="both", expand=True)
 
-        notebook = ttk.Notebook(right)
+        notebook = ttk.Notebook(right, style="Void.TNotebook")
         notebook.pack(fill="both", expand=True)
 
         dashboard = ttk.Frame(notebook, style="Void.TFrame")
