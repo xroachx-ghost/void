@@ -1147,9 +1147,12 @@ class VoidGUI:
                 summary = self._summarize_result(label, result)
                 self._log(summary)
                 self.status_var.set(summary)
+                if self._is_failed_result(result):
+                    self._show_task_error(label, result=result)
             except Exception as exc:
                 self._log(f"{label} failed: {exc}", level="ERROR")
                 self.status_var.set(f"{label} failed. See log for details.")
+                self._show_task_error(label, exc=exc)
             finally:
                 self._stop_progress()
 
@@ -1370,6 +1373,84 @@ class VoidGUI:
                 error = result.get("error") or result.get("message") or "Operation failed."
                 return f"{label} failed: {error}"
         return f"{label} complete."
+
+    def _is_failed_result(self, result: Any) -> bool:
+        if isinstance(result, PluginResult):
+            return not result.success
+        if isinstance(result, ChipsetActionResult):
+            return not result.success
+        if isinstance(result, dict):
+            return result.get("success") is False
+        return False
+
+    def _show_task_error(self, label: str, result: Any | None = None, exc: Exception | None = None) -> None:
+        summary, detail, steps = self._build_failure_dialog(label, result=result, exc=exc)
+        if steps:
+            next_steps = "\n".join(f"• {step}" for step in steps)
+            message = f"{summary}\n\nDetails: {detail}\n\nNext steps:\n{next_steps}"
+        else:
+            message = f"{summary}\n\nDetails: {detail}\n\nNext steps:\n• Review the Operations Log for details."
+
+        self.root.after(0, lambda: messagebox.showerror("Void", message))
+
+    def _build_failure_dialog(
+        self,
+        label: str,
+        result: Any | None = None,
+        exc: Exception | None = None,
+    ) -> tuple[str, str, List[str]]:
+        detail = self._extract_failure_detail(result, exc)
+        summary = f"{label} failed."
+        if detail:
+            summary = f"{label} failed: {detail}"
+        steps = self._failure_guidance(detail, result)
+        return summary, detail or "Unknown error.", steps
+
+    def _extract_failure_detail(self, result: Any | None, exc: Exception | None) -> str:
+        if exc is not None:
+            return str(exc) or exc.__class__.__name__
+        if isinstance(result, PluginResult):
+            return result.message or "Operation failed."
+        if isinstance(result, ChipsetActionResult):
+            return result.message or "Operation failed."
+        if isinstance(result, dict):
+            return (
+                result.get("error")
+                or result.get("message")
+                or result.get("reason")
+                or "Operation failed."
+            )
+        return "Operation failed."
+
+    def _failure_guidance(self, detail: str, result: Any | None) -> List[str]:
+        detail_lower = (detail or "").lower()
+        if "adb" in detail_lower and (
+            "not found" in detail_lower
+            or "no such file or directory" in detail_lower
+            or "tool_missing" in detail_lower
+        ):
+            return [
+                "Install Android platform-tools (adb) for your OS.",
+                "Ensure adb is on your PATH, then restart Void.",
+                "Run Refresh Devices and retry the action.",
+            ]
+        if "device offline" in detail_lower or "offline" in detail_lower:
+            return [
+                "Reconnect the USB cable and unlock the device.",
+                "Confirm USB Debugging is enabled and accept the RSA prompt.",
+                "Run 'adb kill-server' then 'adb start-server' and retry.",
+            ]
+        if "adb_not_authorized" in detail_lower or "manual_authorization_required" in detail_lower:
+            return [
+                "Unlock the device and accept the USB debugging authorization prompt.",
+                "Revoke USB debugging authorizations on the device, reconnect, and retry.",
+                "Run Refresh Devices after reauthorizing.",
+            ]
+        return [
+            "Confirm the device is connected and in the expected mode.",
+            "Review the Operations Log for the full error details.",
+            "Retry after addressing the issue.",
+        ]
 
     def _show_about(self) -> None:
         """Display the About dialog."""
