@@ -41,6 +41,7 @@ class Config:
         "button_bg": "#0f1826",
         "button_active": "#1b2a3d",
         "button_text": "#00f5d4",
+        "border": "#1b2a3d",
         "gradient_start": "#0a1220",
         "gradient_end": "#16243b",
         "splash_start": "#04060b",
