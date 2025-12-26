@@ -67,7 +67,7 @@ def main() -> None:
         return
 
     if args.devices:
-        devices = DeviceDetector.detect_all()
+    devices, _ = DeviceDetector.detect_all()
         logger.info(
             "Connected Devices:",
             extra={"category": "devices", "device_id": "-", "method": "-"},

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import re
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Tuple
 
 from .chipsets.dispatcher import detect_chipset_for_device
 from .database import db
@@ -32,12 +32,19 @@ class DeviceDetector:
     }
 
     @staticmethod
-    def detect_all() -> List[Dict[str, Any]]:
-        """Detect all devices"""
+    def detect_all() -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
+        """Detect all devices and return devices with detection errors."""
         devices: List[Dict[str, Any]] = []
-        devices.extend(DeviceDetector._detect_adb())
-        devices.extend(DeviceDetector._detect_fastboot())
-        devices.extend(DeviceDetector._detect_usb_modes())
+        errors: List[Dict[str, Any]] = []
+        adb_devices, adb_errors = DeviceDetector._detect_adb()
+        fastboot_devices, fastboot_errors = DeviceDetector._detect_fastboot()
+        usb_devices, usb_errors = DeviceDetector._detect_usb_modes()
+        devices.extend(adb_devices)
+        devices.extend(fastboot_devices)
+        devices.extend(usb_devices)
+        errors.extend(adb_errors)
+        errors.extend(fastboot_errors)
+        errors.extend(usb_errors)
         devices = DeviceDetector._merge_devices(devices)
 
         # Update database
@@ -45,7 +52,7 @@ class DeviceDetector:
             DeviceDetector._attach_chipset_metadata(device)
             db.update_device(device)
 
-        return devices
+        return devices, errors
 
     @staticmethod
     def _device_merge_key(device: Dict[str, Any]) -> str:
@@ -118,35 +125,43 @@ class DeviceDetector:
         return merged_devices
 
     @staticmethod
-    def _detect_adb() -> List[Dict[str, Any]]:
-        """Detect ADB devices"""
-        devices = []
-        try:
-            code, stdout, _ = SafeSubprocess.run(['adb', 'devices', '-l'])
-            if code == 0:
-                for line in stdout.strip().split('\n')[1:]:
-                    if line.strip():
-                        parts = line.split()
-                        if len(parts) >= 2:
-                            device_id = parts[0]
-                            status = parts[1]
+    def _detect_adb() -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
+        """Detect ADB devices."""
+        devices: List[Dict[str, Any]] = []
+        errors: List[Dict[str, Any]] = []
+        code, stdout, stderr = SafeSubprocess.run(['adb', 'devices', '-l'])
+        if code == 0:
+            for line in stdout.strip().split('\n')[1:]:
+                if line.strip():
+                    parts = line.split()
+                    if len(parts) >= 2:
+                        device_id = parts[0]
+                        status = parts[1]
 
-                            if status == 'device':
-                                info = DeviceDetector._get_adb_info(device_id)
-                            else:
-                                info = {'reachable': False}
-                            info.update(DeviceDetector._parse_adb_listing(parts[2:]))
-                            devices.append(
-                                {
-                                    'id': device_id,
-                                    'mode': 'adb',
-                                    'status': status,
-                                    **info,
-                                }
-                            )
-        except Exception:
-            pass
-        return devices
+                        if status == 'device':
+                            info = DeviceDetector._get_adb_info(device_id)
+                        else:
+                            info = {'reachable': False}
+                        info.update(DeviceDetector._parse_adb_listing(parts[2:]))
+                        devices.append(
+                            {
+                                'id': device_id,
+                                'mode': 'adb',
+                                'status': status,
+                                **info,
+                            }
+                        )
+        else:
+            errors.append(
+                DeviceDetector._build_detection_error(
+                    source="adb",
+                    command=["adb", "devices", "-l"],
+                    exit_code=code,
+                    stdout=stdout,
+                    stderr=stderr,
+                )
+            )
+        return devices, errors
 
     @staticmethod
     def _get_adb_info(device_id: str) -> Dict[str, str]:
@@ -289,35 +304,43 @@ class DeviceDetector:
         return {}
 
     @staticmethod
-    def _detect_fastboot() -> List[Dict[str, Any]]:
-        """Detect fastboot devices"""
-        devices = []
-        try:
-            code, stdout, _ = SafeSubprocess.run(['fastboot', 'devices'])
-            if code == 0:
-                for line in stdout.strip().split('\n'):
-                    if line.strip():
-                        parts = line.split()
-                        if len(parts) >= 2:
-                            device_id = parts[0]
-                            device = {
-                                'id': device_id,
-                                'mode': 'fastboot',
-                                'status': parts[1],
-                                'serial': device_id,
-                            }
-                            metadata, error = DeviceDetector._get_fastboot_metadata(device_id)
-                            if metadata:
-                                device['fastboot_vars'] = metadata
-                                DeviceDetector._normalize_fastboot_metadata(device, metadata)
-                                if metadata.get("serialno"):
-                                    device["serial"] = metadata["serialno"]
-                            if error:
-                                device['fastboot_metadata_error'] = error
-                            devices.append(device)
-        except Exception:
-            pass
-        return devices
+    def _detect_fastboot() -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
+        """Detect fastboot devices."""
+        devices: List[Dict[str, Any]] = []
+        errors: List[Dict[str, Any]] = []
+        code, stdout, stderr = SafeSubprocess.run(['fastboot', 'devices'])
+        if code == 0:
+            for line in stdout.strip().split('\n'):
+                if line.strip():
+                    parts = line.split()
+                    if len(parts) >= 2:
+                        device_id = parts[0]
+                        device = {
+                            'id': device_id,
+                            'mode': 'fastboot',
+                            'status': parts[1],
+                            'serial': device_id,
+                        }
+                        metadata, error = DeviceDetector._get_fastboot_metadata(device_id)
+                        if metadata:
+                            device['fastboot_vars'] = metadata
+                            DeviceDetector._normalize_fastboot_metadata(device, metadata)
+                            if metadata.get("serialno"):
+                                device["serial"] = metadata["serialno"]
+                        if error:
+                            device['fastboot_metadata_error'] = error
+                        devices.append(device)
+        else:
+            errors.append(
+                DeviceDetector._build_detection_error(
+                    source="fastboot",
+                    command=["fastboot", "devices"],
+                    exit_code=code,
+                    stdout=stdout,
+                    stderr=stderr,
+                )
+            )
+        return devices, errors
 
     @staticmethod
     def _get_fastboot_metadata(device_id: str) -> tuple[Dict[str, str], str | None]:
@@ -383,46 +406,90 @@ class DeviceDetector:
                     break
 
     @staticmethod
-    def _detect_usb_modes() -> List[Dict[str, Any]]:
+    def _detect_usb_modes() -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
         """Detect USB devices in low-level modes (EDL/preloader/download)."""
         devices: List[Dict[str, Any]] = []
-        try:
-            code, stdout, _ = SafeSubprocess.run(["lsusb"])
-            if code == 0:
-                for line in stdout.strip().split("\n"):
-                    if "ID" not in line:
-                        continue
-                    parts = line.split()
-                    try:
-                        id_index = parts.index("ID")
-                    except ValueError:
-                        continue
-                    if id_index + 1 >= len(parts):
-                        continue
-                    usb_id = parts[id_index + 1].strip()
-                    if ":" not in usb_id:
-                        continue
-                    vid, pid = usb_id.split(":", 1)
-                    usb_product = " ".join(parts[id_index + 2 :]).strip()
-                    classification = DeviceDetector._classify_usb_device(vid.lower(), pid.lower())
-                    if not classification:
-                        continue
-                    devices.append(
-                        {
-                            "id": f"usb-{usb_id.lower()}",
-                            "mode": classification["mode"],
-                            "status": "detected",
-                            "usb_vid": vid.lower(),
-                            "usb_pid": pid.lower(),
-                            "usb_id": usb_id.lower(),
-                            "usb_product": usb_product if usb_product else None,
-                            "usb_vendor": classification.get("usb_vendor"),
-                            "chipset_vendor_hint": classification.get("chipset_vendor_hint"),
-                        }
-                    )
-        except Exception:
-            pass
-        return devices
+        errors: List[Dict[str, Any]] = []
+        code, stdout, stderr = SafeSubprocess.run(["lsusb"])
+        if code == 0:
+            for line in stdout.strip().split("\n"):
+                if "ID" not in line:
+                    continue
+                parts = line.split()
+                try:
+                    id_index = parts.index("ID")
+                except ValueError:
+                    continue
+                if id_index + 1 >= len(parts):
+                    continue
+                usb_id = parts[id_index + 1].strip()
+                if ":" not in usb_id:
+                    continue
+                vid, pid = usb_id.split(":", 1)
+                usb_product = " ".join(parts[id_index + 2 :]).strip()
+                classification = DeviceDetector._classify_usb_device(vid.lower(), pid.lower())
+                if not classification:
+                    continue
+                devices.append(
+                    {
+                        "id": f"usb-{usb_id.lower()}",
+                        "mode": classification["mode"],
+                        "status": "detected",
+                        "usb_vid": vid.lower(),
+                        "usb_pid": pid.lower(),
+                        "usb_id": usb_id.lower(),
+                        "usb_product": usb_product if usb_product else None,
+                        "usb_vendor": classification.get("usb_vendor"),
+                        "chipset_vendor_hint": classification.get("chipset_vendor_hint"),
+                    }
+                )
+        else:
+            errors.append(
+                DeviceDetector._build_detection_error(
+                    source="usb",
+                    command=["lsusb"],
+                    exit_code=code,
+                    stdout=stdout,
+                    stderr=stderr,
+                )
+            )
+        return devices, errors
+
+    @staticmethod
+    def _build_detection_error(
+        source: str,
+        command: List[str],
+        exit_code: int,
+        stdout: str,
+        stderr: str,
+    ) -> Dict[str, Any]:
+        """Build a structured detection error payload."""
+        raw_message = (stderr or stdout).strip()
+        lower_message = raw_message.lower()
+        if exit_code == -1 and "timeout" in lower_message:
+            code = "timeout"
+            message = f"{source.upper()} command timed out."
+        elif "no such file" in lower_message or "not found" in lower_message:
+            code = "tool_missing"
+            message = f"{source.upper()} tool not found on PATH."
+        elif "permission" in lower_message or "denied" in lower_message:
+            code = "permission_denied"
+            message = f"Permission denied while running {source.upper()}."
+        else:
+            code = "command_failed"
+            message = raw_message or f"{source.upper()} command failed."
+
+        return {
+            "source": source,
+            "code": code,
+            "message": message,
+            "details": {
+                "command": command,
+                "exit_code": exit_code,
+                "stdout": stdout,
+                "stderr": stderr,
+            },
+        }
 
     @staticmethod
     def _classify_usb_device(vid: str, pid: str) -> Dict[str, str] | None:

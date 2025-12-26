@@ -115,6 +115,7 @@ class VoidGUI:
         self.device_ids: List[str] = []
         self.device_info: List[Dict[str, Any]] = []
         self.all_device_info: List[Dict[str, Any]] = []
+        self.detection_errors: List[Dict[str, Any]] = []
         self.selected_device_id: Optional[str] = None
         self.status_var = tk.StringVar(value="Ready.")
         self.selected_device_var = tk.StringVar(value="No device selected.")
@@ -458,7 +459,7 @@ class VoidGUI:
                 ("fastboot", ["--version"]),
             ]
         )
-        devices = DeviceDetector.detect_all()
+        devices, _ = DeviceDetector.detect_all()
         return {
             "tools": tools,
             "device_count": len(devices),
@@ -1544,9 +1545,36 @@ class VoidGUI:
 
     def refresh_devices(self) -> None:
         """Refresh the device list."""
-        devices = DeviceDetector.detect_all()
+        devices, errors = DeviceDetector.detect_all()
         self.all_device_info = devices
+        self.detection_errors = errors
         self._apply_device_filter(log_refresh=True)
+        if errors:
+            summary = self._summarize_detection_errors(errors)
+            base_status = self.status_var.get().strip()
+            status = f"{base_status} {summary}".strip() if base_status else summary
+            self.status_var.set(status)
+            for error in errors:
+                self._log(
+                    f"Device detection error: {json.dumps(error, indent=2, sort_keys=True)}",
+                    level="ERROR",
+                )
+
+    def _summarize_detection_errors(self, errors: List[Dict[str, Any]]) -> str:
+        sources = sorted(
+            {
+                str(error.get("source", "")).upper()
+                for error in errors
+                if error.get("source")
+            }
+        )
+        if sources:
+            sources_label = ", ".join(sources)
+            return (
+                f"Diagnostics: {sources_label} detection issue(s). "
+                "Open Troubleshooting → Diagnostics for help."
+            )
+        return "Diagnostics: Device detection issues detected. See Troubleshooting."
 
     def _apply_device_filter(self, log_refresh: bool = False) -> None:
         """Filter the device list based on the search query."""
