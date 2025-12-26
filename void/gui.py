@@ -118,7 +118,10 @@ class VoidGUI:
         self.selected_device_id: Optional[str] = None
         self.status_var = tk.StringVar(value="Ready.")
         self.selected_device_var = tk.StringVar(value="No device selected.")
-        self.details_var = tk.StringVar(value="Device details will appear here.")
+        self.device_section_texts: Dict[str, tk.Text] = {}
+        self._device_summary_text = ""
+        self.copy_device_id_button: Optional[ttk.Button] = None
+        self.copy_device_summary_button: Optional[ttk.Button] = None
         self.device_search_var = tk.StringVar(value="")
         self.action_help_var = tk.StringVar(
             value="Select an action to see a description."
@@ -172,6 +175,89 @@ class VoidGUI:
         )
         self._splash_canvas.pack(fill="both", expand=True)
         self._animate_splash()
+
+    def _create_readonly_text(self, parent: tk.Widget, height: int = 4) -> scrolledtext.ScrolledText:
+        text_widget = scrolledtext.ScrolledText(
+            parent,
+            height=height,
+            wrap="word",
+            font=("Consolas", 10),
+            background=self.theme["bg"],
+            foreground=self.theme["text"],
+            insertbackground=self.theme["text"],
+            relief="solid",
+            borderwidth=1,
+        )
+        text_widget.configure(
+            highlightthickness=1,
+            highlightbackground=self.theme["border"],
+            highlightcolor=self.theme["accent_soft"],
+        )
+        text_widget.bind("<Key>", self._block_text_edit)
+        text_widget.bind("<<Paste>>", lambda _event: "break")
+        return text_widget
+
+    def _block_text_edit(self, event: tk.Event) -> Optional[str]:
+        if event.state & 0x4 and event.keysym.lower() in {"c", "a"}:
+            return None
+        if event.keysym in {
+            "Left",
+            "Right",
+            "Up",
+            "Down",
+            "Home",
+            "End",
+            "Prior",
+            "Next",
+            "Shift_L",
+            "Shift_R",
+            "Control_L",
+            "Control_R",
+        }:
+            return None
+        if not event.char:
+            return None
+        return "break"
+
+    def _set_device_section(self, key: str, content: str) -> None:
+        widget = self.device_section_texts.get(key)
+        if not widget:
+            return
+        widget.configure(state="normal")
+        widget.delete("1.0", tk.END)
+        widget.insert(tk.END, content)
+        widget.configure(state="normal")
+
+    def _clear_device_sections(self) -> None:
+        placeholders = {
+            "device": "Select a device to view device details.",
+            "build": "Select a device to view build details.",
+            "connectivity": "Select a device to view connectivity details.",
+            "chipset": "Select a device to view chipset details.",
+        }
+        for key, text in placeholders.items():
+            self._set_device_section(key, text)
+        self._device_summary_text = ""
+        if self.copy_device_id_button:
+            self.copy_device_id_button.configure(state="disabled")
+        if self.copy_device_summary_button:
+            self.copy_device_summary_button.configure(state="disabled")
+
+    def _copy_device_id(self) -> None:
+        if not self.selected_device_id:
+            messagebox.showwarning("Void", "Select a device first.")
+            return
+        self.root.clipboard_clear()
+        self.root.clipboard_append(self.selected_device_id)
+        self.status_var.set("Device ID copied to clipboard.")
+
+    def _copy_device_summary(self) -> None:
+        if not self._device_summary_text:
+            messagebox.showwarning("Void", "Select a device first.")
+            return
+        self.root.clipboard_clear()
+        self.root.clipboard_append(self._device_summary_text)
+        self.status_var.set("Device summary copied to clipboard.")
 
     def _animate_splash(self) -> None:
         """Animate the splash screen (dragon flapping -> mask reveal)."""
@@ -842,9 +928,48 @@ class VoidGUI:
 
         details = ttk.Frame(dashboard, style="Void.TFrame")
         details.pack(fill="x", pady=(0, 10))
-        ttk.Label(details, textvariable=self.details_var, style="Void.TLabel", wraplength=520).pack(
-            anchor="w"
+
+        details_header = ttk.Frame(details, style="Void.TFrame")
+        details_header.pack(fill="x", pady=(0, 6))
+        ttk.Label(details_header, text="Device Summary", style="Void.TLabel").pack(side="left")
+
+        details_actions = ttk.Frame(details_header, style="Void.TFrame")
+        details_actions.pack(side="right")
+        self.copy_device_id_button = ttk.Button(
+            details_actions,
+            text="Copy Device ID",
+            style="Void.TButton",
+            command=self._copy_device_id,
+            state="disabled",
         )
+        self.copy_device_id_button.pack(side="left", padx=(0, 6))
+        Tooltip(self.copy_device_id_button, "Copy the selected device ID to the clipboard.")
+
+        self.copy_device_summary_button = ttk.Button(
+            details_actions,
+            text="Copy Device Summary",
+            style="Void.TButton",
+            command=self._copy_device_summary,
+            state="disabled",
+        )
+        self.copy_device_summary_button.pack(side="left")
+        Tooltip(self.copy_device_summary_button, "Copy the selected device summary to the clipboard.")
+
+        sections = (
+            ("Device", "device", 7),
+            ("Build", "build", 4),
+            ("Connectivity", "connectivity", 4),
+            ("Chipset", "chipset", 4),
+        )
+        for label, key, height in sections:
+            section_frame = ttk.Frame(details, style="Void.TFrame")
+            section_frame.pack(fill="x", pady=(0, 6))
+            ttk.Label(section_frame, text=label, style="Void.TLabel").pack(anchor="w")
+            text_widget = self._create_readonly_text(section_frame, height=height)
+            text_widget.pack(fill="x", pady=(2, 0))
+            self.device_section_texts[key] = text_widget
+
+        self._clear_device_sections()
 
         ttk.Label(dashboard, text="Actions", style="Void.TLabel").pack(anchor="w", pady=(6, 0))
         actions = ttk.Frame(dashboard, style="Void.TFrame")
@@ -1304,7 +1429,7 @@ class VoidGUI:
         if not selection or selection[0] >= len(self.device_info):
             self.selected_device_id = None
             self.selected_device_var.set("No device selected.")
-            self.details_var.set("Device details will appear here.")
+            self._clear_device_sections()
             self.chipset_status_var.set("Select a device to view chipset workflow status.")
             self.testpoint_notes_var.set("No model-specific test-point notes available.")
             return
@@ -1341,23 +1466,53 @@ class VoidGUI:
         status_label = ", ".join(statuses) if isinstance(statuses, list) else str(statuses)
         reachable = "Yes" if info.get("reachable", False) else "No"
         self.selected_device_var.set(f"{device_id} • {manufacturer} {model}")
-        self.details_var.set(
-            "Device Overview\n"
-            f"• Mode: {mode} | Reachable: {reachable}\n"
-            f"• Modes: {mode_label}\n"
-            f"• Status: {status} | Statuses: {status_label}\n"
-            f"• Brand: {brand} | Product: {product}\n"
-            f"• Android: {android} (SDK {sdk})\n"
-            f"• Build: {build_id} ({build_type})\n"
-            f"• Hardware: {hardware} | ABI: {cpu_abi}\n"
-            f"• Security Patch: {security}\n"
-            f"• Chipset: {chipset} ({chipset_vendor}) | Mode: {chipset_mode}\n"
-            f"• Chipset Confidence: {chipset_confidence} | Notes: {chipset_notes}\n"
-            f"• USB ID: {usb_id} | VID: {usb_vid} PID: {usb_pid}\n"
-            f"• Battery Level: {battery.get('level', 'Unknown')}\n"
-            f"• Storage Free: {storage.get('available', 'Unknown')}\n"
-            f"• Serial: {device_id}"
+        device_section = "\n".join([
+            f"ID: {device_id}",
+            f"Manufacturer: {manufacturer}",
+            f"Model: {model}",
+            f"Brand: {brand}",
+            f"Product: {product}",
+            f"Hardware: {hardware}",
+            f"ABI: {cpu_abi}",
+            f"Battery Level: {battery.get('level', 'Unknown')}",
+            f"Storage Free: {storage.get('available', 'Unknown')}",
+        ])
+        build_section = "\n".join([
+            f"Android: {android} (SDK {sdk})",
+            f"Build ID: {build_id}",
+            f"Build Type: {build_type}",
+            f"Security Patch: {security}",
+        ])
+        connectivity_section = "\n".join([
+            f"Mode: {mode} (Reachable: {reachable})",
+            f"Modes: {mode_label}",
+            f"Status: {status} (Statuses: {status_label})",
+            f"USB: {usb_id} (VID: {usb_vid} PID: {usb_pid})",
+        ])
+        chipset_section = "\n".join([
+            f"Chipset: {chipset} ({chipset_vendor})",
+            f"Mode: {chipset_mode}",
+            f"Confidence: {chipset_confidence}",
+            f"Notes: {chipset_notes}",
+        ])
+        self._set_device_section("device", device_section)
+        self._set_device_section("build", build_section)
+        self._set_device_section("connectivity", connectivity_section)
+        self._set_device_section("chipset", chipset_section)
+        self._device_summary_text = (
+            "Device\n"
+            f"{device_section}\n\n"
+            "Build\n"
+            f"{build_section}\n\n"
+            "Connectivity\n"
+            f"{connectivity_section}\n\n"
+            "Chipset\n"
+            f"{chipset_section}"
         )
+        if self.copy_device_id_button:
+            self.copy_device_id_button.configure(state="normal")
+        if self.copy_device_summary_button:
+            self.copy_device_summary_button.configure(state="normal")
         self.chipset_status_var.set(
             f"Active chipset: {chipset} ({chipset_vendor}) "
             f"mode={chipset_mode} confidence={chipset_confidence}."
@@ -1390,7 +1545,7 @@ class VoidGUI:
             if log_refresh:
                 self._log("No devices detected", level="WARN")
             self.selected_device_var.set("No device selected.")
-            self.details_var.set("Device details will appear here.")
+            self._clear_device_sections()
             self.status_var.set("No devices detected.")
             self.selected_device_id = None
             return
