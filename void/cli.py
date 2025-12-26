@@ -196,7 +196,7 @@ class CLI:
 
     def _cmd_devices(self) -> None:
         """List devices."""
-        devices = DeviceDetector.detect_all()
+        devices, _ = DeviceDetector.detect_all()
 
         if not devices:
             print("❌ No devices detected")
@@ -283,7 +283,7 @@ class CLI:
             print("Usage: info <device_id>")
             return
 
-        devices = DeviceDetector.detect_all()
+        devices, _ = DeviceDetector.detect_all()
         device = next((d for d in devices if d['id'] == args[0]), None)
 
         if device:
@@ -296,7 +296,7 @@ class CLI:
 
     def _cmd_summary(self) -> None:
         """Show a short device summary."""
-        devices = DeviceDetector.detect_all()
+        devices, _ = DeviceDetector.detect_all()
         if not devices:
             print("❌ No devices detected")
             return
@@ -703,7 +703,7 @@ class CLI:
 
     def _cmd_devices_json(self) -> None:
         """Export connected devices to JSON."""
-        devices = DeviceDetector.detect_all()
+        devices, _ = DeviceDetector.detect_all()
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         export_path = Config.EXPORTS_DIR / f"devices_{timestamp}.json"
         export_path.write_text(json.dumps(devices, indent=2))
@@ -1371,7 +1371,7 @@ class CLI:
             print("❌ Unknown operation")
 
     def _resolve_device_context(self, device_id: str) -> tuple[dict[str, str], Dict[str, Any] | None]:
-        devices = DeviceDetector.detect_all()
+        devices, _ = DeviceDetector.detect_all()
         device = None
         for item in devices:
             if item.get("id") == device_id:

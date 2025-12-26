@@ -37,7 +37,7 @@ class AutoBackup:
 
         # Backup device info
         info_file = backup_path / "device_info.json"
-        devices = DeviceDetector.detect_all()
+        devices, _ = DeviceDetector.detect_all()
         device_info = next((d for d in devices if d['id'] == device_id), {})
         with open(info_file, 'w') as f:
             json.dump(device_info, f, indent=2, default=str)

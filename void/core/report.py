@@ -37,7 +37,7 @@ class ReportGenerator:
         # Device info
         if progress_callback:
             progress_callback("Collecting device info...")
-        devices = DeviceDetector.detect_all()
+        devices, _ = DeviceDetector.detect_all()
         device_info = next((d for d in devices if d['id'] == device_id), {})
         report['sections']['device_info'] = device_info
 
