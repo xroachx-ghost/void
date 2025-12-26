@@ -16,6 +16,7 @@ import platform
 import shutil
 import sys
 from collections import deque
+from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from pathlib import Path
 import getpass
@@ -82,6 +83,16 @@ except ImportError:
     RICH_AVAILABLE = False
 
 
+@dataclass(frozen=True)
+class CommandInfo:
+    name: str
+    summary: str
+    usage: str
+    category: str
+    examples: List[str] = field(default_factory=list)
+    aliases: List[str] = field(default_factory=list)
+
+
 class CLI:
     """Enhanced CLI with all features."""
 
@@ -93,6 +104,8 @@ class CLI:
         self.logger = get_logger(__name__)
         discover_plugins()
         self.plugin_registry = get_registry()
+        self.command_catalog = self._build_command_catalog()
+        self.command_aliases = self._build_command_aliases()
 
         # Start monitoring
         monitor.start()
@@ -205,12 +218,19 @@ class CLI:
                     'smart': lambda: self._cmd_smart(args),
                     'launcher': lambda: self._cmd_launcher(args),
                     'start-menu': lambda: self._cmd_launcher(args),
-                    'help': self._cmd_help,
-                    'exit': lambda: exit(0)
+                    'search': lambda: self._cmd_search(args),
+                    'help': lambda: self._cmd_help(args),
+                    'exit': lambda: exit(0),
+                    'quit': lambda: exit(0),
+                    'q': lambda: exit(0),
+                    '?': lambda: self._cmd_help([]),
                 }
 
-                if command in commands:
-                    commands[command]()
+                commands = self._add_alias_commands(commands)
+                command_key = self.command_aliases.get(command, command)
+
+                if command_key in commands:
+                    commands[command_key]()
                 else:
                     suggestions = self._suggest_commands(command, list(commands.keys()))
                     self.logger.warning(
@@ -219,6 +239,7 @@ class CLI:
                     )
                     if suggestions:
                         print(f"Did you mean: {', '.join(suggestions)}?")
+                    print("Tip: use 'search <keyword>' or 'help <command>' for guidance.")
 
             except KeyboardInterrupt:
                 self.logger.info(
@@ -238,9 +259,577 @@ class CLI:
 
         prefix_matches = [option for option in options if option.startswith(command)]
         if prefix_matches:
-            return sorted(prefix_matches)[:5]
+            return self._format_suggestions(sorted(prefix_matches)[:5])
 
-        return difflib.get_close_matches(command, options, n=5, cutoff=0.5)
+        return self._format_suggestions(difflib.get_close_matches(command, options, n=5, cutoff=0.5))
+
+    def _format_suggestions(self, suggestions: List[str]) -> List[str]:
+        """Prefer primary command names in suggestions."""
+        resolved = []
+        for suggestion in suggestions:
+            resolved.append(self.command_aliases.get(suggestion, suggestion))
+        return sorted(set(resolved), key=resolved.index)
+
+    def _add_alias_commands(self, commands: Dict[str, Any]) -> Dict[str, Any]:
+        for alias, target in self.command_aliases.items():
+            if alias not in commands and target in commands:
+                commands[alias] = commands[target]
+        return commands
+
+    def _build_command_aliases(self) -> Dict[str, str]:
+        aliases: Dict[str, str] = {}
+        for command in self.command_catalog.values():
+            for alias in command.aliases:
+                aliases[alias] = command.name
+        return aliases
+
+    def _build_command_catalog(self) -> Dict[str, CommandInfo]:
+        catalog = [
+            CommandInfo(
+                name="devices",
+                summary="List all connected devices.",
+                usage="devices",
+                category="Device Management",
+                examples=["devices"],
+                aliases=["list", "ls", "device"],
+            ),
+            CommandInfo(
+                name="info",
+                summary="Show detailed device info.",
+                usage="info <device_id|smart>",
+                category="Device Management",
+                examples=["info emulator-5554", "info smart"],
+            ),
+            CommandInfo(
+                name="summary",
+                summary="Show a short summary for all devices.",
+                usage="summary",
+                category="Device Management",
+                examples=["summary"],
+            ),
+            CommandInfo(
+                name="backup",
+                summary="Create an automated backup.",
+                usage="backup <device_id|smart>",
+                category="Backup & Data",
+                examples=["backup emulator-5554", "backup smart"],
+            ),
+            CommandInfo(
+                name="recover",
+                summary="Recover contacts or SMS.",
+                usage="recover <device_id|smart> <contacts|sms>",
+                category="Backup & Data",
+                examples=["recover emulator-5554 contacts", "recover smart sms"],
+            ),
+            CommandInfo(
+                name="screenshot",
+                summary="Capture a device screenshot.",
+                usage="screenshot <device_id|smart>",
+                category="Backup & Data",
+                examples=["screenshot emulator-5554"],
+            ),
+            CommandInfo(
+                name="apps",
+                summary="List installed apps.",
+                usage="apps <device_id|smart> [system|user|all]",
+                category="Apps & Files",
+                examples=["apps smart", "apps emulator-5554 user"],
+            ),
+            CommandInfo(
+                name="files",
+                summary="Manage files on the device.",
+                usage="files <device_id|smart> <list|pull|push|delete> [path]",
+                category="Apps & Files",
+                examples=["files smart list /sdcard", "files emulator-5554 pull /sdcard/test.txt"],
+            ),
+            CommandInfo(
+                name="analyze",
+                summary="Run performance analysis.",
+                usage="analyze <device_id|smart>",
+                category="Analysis & Reports",
+                examples=["analyze smart"],
+            ),
+            CommandInfo(
+                name="display-diagnostics",
+                summary="Run display and framebuffer diagnostics.",
+                usage="display-diagnostics <device_id|smart>",
+                category="Analysis & Reports",
+                examples=["display-diagnostics emulator-5554"],
+            ),
+            CommandInfo(
+                name="report",
+                summary="Generate a full device report.",
+                usage="report <device_id|smart>",
+                category="Analysis & Reports",
+                examples=["report smart"],
+            ),
+            CommandInfo(
+                name="logcat",
+                summary="View real-time logcat output.",
+                usage="logcat <device_id|smart> [filter_tag]",
+                category="Analysis & Reports",
+                examples=["logcat emulator-5554", "logcat smart ActivityManager"],
+            ),
+            CommandInfo(
+                name="tweak",
+                summary="Apply system tweaks (dpi/animation/timeout).",
+                usage="tweak <device_id|smart> <dpi|animation|timeout> <value>",
+                category="System & Diagnostics",
+                examples=["tweak smart dpi 320", "tweak emulator-5554 timeout 600000"],
+            ),
+            CommandInfo(
+                name="usb-debug",
+                summary="Enable or force USB debugging.",
+                usage="usb-debug <device_id|smart> [force]",
+                category="System & Diagnostics",
+                examples=["usb-debug smart", "usb-debug emulator-5554 force"],
+            ),
+            CommandInfo(
+                name="execute",
+                summary="Execute an FRP method.",
+                usage="execute <method> <device_id|smart>",
+                category="FRP Bypass",
+                examples=["execute adb_shell_reset smart"],
+            ),
+            CommandInfo(
+                name="edl-status",
+                summary="Show EDL mode status and USB IDs.",
+                usage="edl-status <device_id|smart>",
+                category="EDL & Test-point",
+                examples=["edl-status usb-05c6:9008"],
+            ),
+            CommandInfo(
+                name="edl-enter",
+                summary="Enter EDL mode (if supported).",
+                usage="edl-enter <device_id|smart>",
+                category="EDL & Test-point",
+            ),
+            CommandInfo(
+                name="edl-flash",
+                summary="Flash an image via EDL.",
+                usage="edl-flash <device_id|smart> <loader> <image>",
+                category="EDL & Test-point",
+            ),
+            CommandInfo(
+                name="edl-dump",
+                summary="Dump a partition via EDL.",
+                usage="edl-dump <device_id|smart> <partition>",
+                category="EDL & Test-point",
+            ),
+            CommandInfo(
+                name="edl-detect",
+                summary="Scan USB for EDL devices.",
+                usage="edl-detect",
+                category="EDL & Test-point",
+            ),
+            CommandInfo(
+                name="edl-programmers",
+                summary="List available firehose programmers.",
+                usage="edl-programmers",
+                category="EDL & Test-point",
+            ),
+            CommandInfo(
+                name="edl-partitions",
+                summary="Show partition map via ADB or EDL.",
+                usage="edl-partitions <device_id|smart> [loader]",
+                category="EDL & Test-point",
+            ),
+            CommandInfo(
+                name="edl-backup",
+                summary="Backup a partition via EDL.",
+                usage="edl-backup <device_id|smart> <partition>",
+                category="EDL & Test-point",
+            ),
+            CommandInfo(
+                name="edl-restore",
+                summary="Restore a partition via EDL.",
+                usage="edl-restore <device_id|smart> <loader> <image>",
+                category="EDL & Test-point",
+            ),
+            CommandInfo(
+                name="edl-sparse",
+                summary="Convert sparse images.",
+                usage="edl-sparse <to-raw|to-sparse> <source> <dest>",
+                category="EDL & Test-point",
+            ),
+            CommandInfo(
+                name="edl-profile",
+                summary="Manage EDL profiles.",
+                usage="edl-profile <list|add|delete> [name] [json]",
+                category="EDL & Test-point",
+            ),
+            CommandInfo(
+                name="edl-verify",
+                summary="Verify image hash.",
+                usage="edl-verify <file> [sha256]",
+                category="EDL & Test-point",
+            ),
+            CommandInfo(
+                name="edl-unbrick",
+                summary="Show an unbrick checklist.",
+                usage="edl-unbrick [loader]",
+                category="EDL & Test-point",
+            ),
+            CommandInfo(
+                name="edl-notes",
+                summary="Show device-specific notes.",
+                usage="edl-notes [vendor]",
+                category="EDL & Test-point",
+            ),
+            CommandInfo(
+                name="edl-reboot",
+                summary="Reboot to a target mode.",
+                usage="edl-reboot <device_id|smart> <edl|fastboot|recovery|bootloader|system>",
+                category="EDL & Test-point",
+            ),
+            CommandInfo(
+                name="edl-log",
+                summary="Capture EDL workflow logs.",
+                usage="edl-log",
+                category="EDL & Test-point",
+            ),
+            CommandInfo(
+                name="boot-extract",
+                summary="Extract boot image contents.",
+                usage="boot-extract <boot.img>",
+                category="EDL & Test-point",
+            ),
+            CommandInfo(
+                name="magisk-patch",
+                summary="Stage a Magisk patch workflow.",
+                usage="magisk-patch <device_id|smart> <boot.img>",
+                category="EDL & Test-point",
+            ),
+            CommandInfo(
+                name="magisk-pull",
+                summary="Pull Magisk patched image.",
+                usage="magisk-pull <device_id|smart> [output_dir]",
+                category="EDL & Test-point",
+            ),
+            CommandInfo(
+                name="twrp-verify",
+                summary="Verify a TWRP image matches device codename.",
+                usage="twrp-verify <device_id|smart> <twrp.img>",
+                category="EDL & Test-point",
+            ),
+            CommandInfo(
+                name="twrp-flash",
+                summary="Flash or boot TWRP recovery via fastboot.",
+                usage="twrp-flash <device_id|smart> <twrp.img> [boot]",
+                category="EDL & Test-point",
+            ),
+            CommandInfo(
+                name="root-verify",
+                summary="Verify root access via ADB.",
+                usage="root-verify <device_id|smart>",
+                category="EDL & Test-point",
+            ),
+            CommandInfo(
+                name="safety-check",
+                summary="Run safety checklist for device operations.",
+                usage="safety-check <device_id|smart>",
+                category="EDL & Test-point",
+            ),
+            CommandInfo(
+                name="rollback",
+                summary="Rollback a partition flash.",
+                usage="rollback <device_id|smart> <partition> <image>",
+                category="EDL & Test-point",
+            ),
+            CommandInfo(
+                name="compat-matrix",
+                summary="Show EDL compatibility matrix.",
+                usage="compat-matrix",
+                category="EDL & Test-point",
+            ),
+            CommandInfo(
+                name="testpoint-guide",
+                summary="Show test-point references.",
+                usage="testpoint-guide <device_id|smart>",
+                category="EDL & Test-point",
+            ),
+            CommandInfo(
+                name="stats",
+                summary="Show suite statistics.",
+                usage="stats",
+                category="System",
+            ),
+            CommandInfo(
+                name="monitor",
+                summary="Show system resource usage.",
+                usage="monitor",
+                category="System",
+            ),
+            CommandInfo(
+                name="version",
+                summary="Show suite version details.",
+                usage="version",
+                category="System",
+            ),
+            CommandInfo(
+                name="paths",
+                summary="Show local data directories.",
+                usage="paths",
+                category="System",
+            ),
+            CommandInfo(
+                name="menu",
+                summary="Launch interactive menu.",
+                usage="menu",
+                category="System",
+            ),
+            CommandInfo(
+                name="netcheck",
+                summary="Check internet connectivity.",
+                usage="netcheck",
+                category="System",
+            ),
+            CommandInfo(
+                name="adb",
+                summary="Check ADB availability.",
+                usage="adb",
+                category="System",
+            ),
+            CommandInfo(
+                name="clear-cache",
+                summary="Clear local cache directory.",
+                usage="clear-cache",
+                category="System",
+            ),
+            CommandInfo(
+                name="doctor",
+                summary="Run quick system checks.",
+                usage="doctor",
+                category="System",
+            ),
+            CommandInfo(
+                name="logs",
+                summary="List recent log files.",
+                usage="logs",
+                category="System",
+            ),
+            CommandInfo(
+                name="backups",
+                summary="List recent backups.",
+                usage="backups",
+                category="System",
+            ),
+            CommandInfo(
+                name="reports",
+                summary="List recent reports.",
+                usage="reports",
+                category="System",
+            ),
+            CommandInfo(
+                name="exports",
+                summary="List recent exports.",
+                usage="exports",
+                category="System",
+            ),
+            CommandInfo(
+                name="devices-json",
+                summary="Export devices to JSON.",
+                usage="devices-json",
+                category="System",
+            ),
+            CommandInfo(
+                name="stats-json",
+                summary="Export stats to JSON.",
+                usage="stats-json",
+                category="System",
+            ),
+            CommandInfo(
+                name="logtail",
+                summary="Tail recent log lines.",
+                usage="logtail [lines]",
+                category="System",
+            ),
+            CommandInfo(
+                name="cleanup-exports",
+                summary="Remove old exports.",
+                usage="cleanup-exports",
+                category="System",
+            ),
+            CommandInfo(
+                name="cleanup-backups",
+                summary="Remove old backups.",
+                usage="cleanup-backups",
+                category="System",
+            ),
+            CommandInfo(
+                name="cleanup-reports",
+                summary="Remove old reports.",
+                usage="cleanup-reports",
+                category="System",
+            ),
+            CommandInfo(
+                name="env",
+                summary="Show environment info.",
+                usage="env",
+                category="System",
+            ),
+            CommandInfo(
+                name="recent-logs",
+                summary="Show recent log entries.",
+                usage="recent-logs [count]",
+                category="System",
+            ),
+            CommandInfo(
+                name="recent-backups",
+                summary="Show recent backup records.",
+                usage="recent-backups [count]",
+                category="System",
+            ),
+            CommandInfo(
+                name="recent-reports",
+                summary="Show recent report records.",
+                usage="recent-reports [count]",
+                category="System",
+            ),
+            CommandInfo(
+                name="logs-json",
+                summary="Export logs to JSON.",
+                usage="logs-json",
+                category="System",
+            ),
+            CommandInfo(
+                name="logs-export",
+                summary="Export filtered logs to JSON or CSV.",
+                usage="logs-export <json|csv> [filters]",
+                category="System",
+            ),
+            CommandInfo(
+                name="backups-json",
+                summary="Export backups to JSON.",
+                usage="backups-json",
+                category="System",
+            ),
+            CommandInfo(
+                name="latest-report",
+                summary="Show latest report paths.",
+                usage="latest-report",
+                category="System",
+            ),
+            CommandInfo(
+                name="recent-devices",
+                summary="Show recent devices.",
+                usage="recent-devices [count]",
+                category="System",
+            ),
+            CommandInfo(
+                name="methods",
+                summary="Show top methods.",
+                usage="methods [count]",
+                category="System",
+            ),
+            CommandInfo(
+                name="methods-json",
+                summary="Export methods to JSON.",
+                usage="methods-json",
+                category="System",
+            ),
+            CommandInfo(
+                name="db-health",
+                summary="Show database health summary.",
+                usage="db-health",
+                category="System",
+            ),
+            CommandInfo(
+                name="stats-plus",
+                summary="Show extended stats.",
+                usage="stats-plus",
+                category="System",
+            ),
+            CommandInfo(
+                name="reports-json",
+                summary="Export reports to JSON.",
+                usage="reports-json",
+                category="System",
+            ),
+            CommandInfo(
+                name="smart",
+                summary="Show or toggle smart features.",
+                usage="smart [status|on|off|auto-device|prefer-last|auto-doctor|suggest|safety] [on|off]",
+                category="System",
+                aliases=["assist", "suggest"],
+            ),
+            CommandInfo(
+                name="launcher",
+                summary="Manage start menu launchers.",
+                usage="launcher <install|uninstall|status>",
+                category="System",
+            ),
+            CommandInfo(
+                name="reports-open",
+                summary="Open reports directory.",
+                usage="reports-open",
+                category="System",
+            ),
+            CommandInfo(
+                name="recent-reports-json",
+                summary="Export recent reports to JSON.",
+                usage="recent-reports-json",
+                category="System",
+            ),
+            CommandInfo(
+                name="config",
+                summary="Show configuration values.",
+                usage="config",
+                category="System",
+            ),
+            CommandInfo(
+                name="config-json",
+                summary="Export configuration to JSON.",
+                usage="config-json",
+                category="System",
+            ),
+            CommandInfo(
+                name="exports-open",
+                summary="Open exports directory.",
+                usage="exports-open",
+                category="System",
+            ),
+            CommandInfo(
+                name="db-backup",
+                summary="Backup database to exports.",
+                usage="db-backup",
+                category="System",
+            ),
+            CommandInfo(
+                name="plugins",
+                summary="List available plugins.",
+                usage="plugins",
+                category="Plugins",
+            ),
+            CommandInfo(
+                name="plugin",
+                summary="Run a plugin by id.",
+                usage="plugin <id> [args]",
+                category="Plugins",
+            ),
+            CommandInfo(
+                name="search",
+                summary="Search commands by keyword.",
+                usage="search <keyword>",
+                category="Help",
+                aliases=["find", "lookup"],
+            ),
+            CommandInfo(
+                name="help",
+                summary="Show help or command details.",
+                usage="help [command]",
+                category="Help",
+                aliases=["h", "man"],
+            ),
+            CommandInfo(
+                name="exit",
+                summary="Exit the suite.",
+                usage="exit",
+                category="Help",
+                aliases=["quit", "q"],
+            ),
+        ]
+        return {command.name: command for command in catalog}
 
     def _print_toolkit_result(self, result: ToolkitResult) -> None:
         icon = "✅" if result.success else "⚠️"
@@ -267,6 +856,8 @@ class CLI:
             f"✨ {slogan_lines[0]}\n"
             f"✨ {slogan_lines[1]}\n\n"
             "Type 'help' to see all available commands.\n"
+            "Type 'help <command>' for detailed usage.\n"
+            "Type 'search <keyword>' to find commands.\n"
             "Type 'menu' to launch the interactive menu.\n"
         )
         print(banner)
@@ -2102,14 +2693,62 @@ class CLI:
             details={"chipset": chipset},
         )
 
-    def _cmd_help(self) -> None:
+    def _cmd_search(self, args: List[str]) -> None:
+        """Search commands by keyword."""
+        if not args:
+            print("Usage: search <keyword>")
+            print("Example: search backup")
+            return
+
+        keyword = " ".join(args).strip().lower()
+        matches = []
+        for command in self.command_catalog.values():
+            haystack = " ".join(
+                [command.name, command.summary, command.usage, " ".join(command.aliases), command.category]
+            ).lower()
+            if keyword in haystack:
+                matches.append(command)
+
+        if not matches:
+            print(f"❌ No commands matched '{keyword}'.")
+            return
+
+        print(f"\n🔎 Matches for '{keyword}':\n")
+        for command in sorted(matches, key=lambda item: (item.category, item.name)):
+            alias_text = f" (aliases: {', '.join(command.aliases)})" if command.aliases else ""
+            print(f"  {command.name} — {command.summary}{alias_text}")
+
+    def _cmd_help(self, args: Optional[List[str]] = None) -> None:
         """Show help."""
+        args = args or []
+        if args:
+            query = args[0].lower()
+            resolved = self.command_aliases.get(query, query)
+            command = self.command_catalog.get(resolved)
+            if not command:
+                print(f"❌ Unknown command '{query}'.")
+                print("Tip: use 'search <keyword>' to discover commands.")
+                return
+
+            print(f"\n📘 Help: {command.name}\n")
+            print(f"Summary: {command.summary}")
+            print(f"Usage:   {command.usage}")
+            if command.aliases:
+                print(f"Aliases: {', '.join(command.aliases)}")
+            if command.examples:
+                print("\nExamples:")
+                for example in command.examples:
+                    print(f"  {example}")
+            return
+
         help_text = """
 ╔══════════════════════════════════════════════════════════════╗
 ║                   VOID - HELP                                ║
 ╚══════════════════════════════════════════════════════════════╝
 
 📋 AVAILABLE COMMANDS:
+
+Tip: Use 'help <command>' for detailed usage or 'search <keyword>' to find commands.
 
 DEVICE MANAGEMENT:
   devices                          - List all connected devices
@@ -2217,6 +2856,7 @@ SYSTEM:
   db-backup                        - Backup database to exports
   plugins                          - List available plugins
   plugin <id> [args]               - Run a plugin by id
+  search <keyword>                 - Search commands by keyword
   help                             - Show this help
   exit                             - Exit suite
 
@@ -2277,6 +2917,8 @@ SYSTEM:
   void> config-json
   void> plugins
   void> plugin system-info
+  void> search backup
+  void> help devices
 
 💡 TIP: All commands work automatically with no setup required!
 
