@@ -35,6 +35,7 @@ from .core.report import ReportGenerator
 from .core.screen import ScreenCapture
 from .core.system import SystemTweaker
 from .core.utils import SafeSubprocess
+from .plugins import PluginContext, discover_plugins, get_registry
 
 try:
     from rich.console import Console
@@ -53,6 +54,8 @@ class CLI:
         self.engine = FRPEngine()
         self.logcat = LogcatViewer()
         self.last_device_id: Optional[str] = None
+        discover_plugins()
+        self.plugin_registry = get_registry()
 
         # Start monitoring
         monitor.start()
@@ -127,6 +130,8 @@ class CLI:
                     'config-json': self._cmd_config_json,
                     'exports-open': self._cmd_exports_open,
                     'db-backup': self._cmd_db_backup,
+                    'plugins': self._cmd_plugins,
+                    'plugin': lambda: self._cmd_plugin(args),
                     'help': self._cmd_help,
                     'exit': lambda: exit(0)
                 }
@@ -1268,6 +1273,8 @@ SYSTEM:
   config-json                      - Export configuration to JSON
   exports-open                     - Open exports directory
   db-backup                        - Backup database to exports
+  plugins                          - List available plugins
+  plugin <id> [args]               - Run a plugin by id
   help                             - Show this help
   exit                             - Exit suite
 
@@ -1297,12 +1304,69 @@ SYSTEM:
   void> methods 5
   void> reports-open
   void> config-json
+  void> plugins
+  void> plugin system-info
 
 💡 TIP: All commands work automatically with no setup required!
 
 ╚══════════════════════════════════════════════════════════════╝
 """
         print(help_text)
+
+    def _cmd_plugins(self) -> None:
+        """List available plugins."""
+        plugins = self.plugin_registry.list_metadata()
+
+        if not plugins:
+            print("No plugins registered.")
+            return
+
+        if self.console:
+            table = Table(title="Available Plugins")
+            table.add_column("ID", style="cyan")
+            table.add_column("Name", style="green")
+            table.add_column("Description", style="yellow")
+            table.add_column("Version", style="magenta")
+            table.add_column("Tags", style="blue")
+            for plugin in plugins:
+                table.add_row(
+                    plugin.id,
+                    plugin.name,
+                    plugin.description,
+                    plugin.version,
+                    ", ".join(plugin.tags) if plugin.tags else "-",
+                )
+            self.console.print(table)
+            return
+
+        print("\n🔌 Available Plugins:")
+        for plugin in plugins:
+            tags = ", ".join(plugin.tags) if plugin.tags else "-"
+            print(f"  • {plugin.id} - {plugin.name} ({plugin.version}) [{tags}]")
+            print(f"      {plugin.description}")
+
+    def _cmd_plugin(self, args: List[str]) -> None:
+        """Run a plugin by id."""
+        if not args:
+            print("Usage: plugin <id> [args]")
+            return
+
+        plugin_id = args[0]
+        plugin_args = args[1:]
+        context = PluginContext(mode="cli", emit=print)
+
+        try:
+            result = self.plugin_registry.run(plugin_id, context, plugin_args)
+        except KeyError as exc:
+            print(f"❌ {exc}")
+            return
+        except Exception as exc:
+            print(f"❌ Plugin failed: {exc}")
+            return
+
+        print(f"✅ {result.message}")
+        if result.data:
+            print(json.dumps(result.data, indent=2))
 
 
 __all__ = ["CLI", "RICH_AVAILABLE"]
