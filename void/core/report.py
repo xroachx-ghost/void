@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Callable, Dict, Optional
 
 from ..config import Config
 from .apps import AppManager
@@ -18,7 +18,10 @@ class ReportGenerator:
     """Automated report generation"""
 
     @staticmethod
-    def generate_device_report(device_id: str) -> Dict[str, Any]:
+    def generate_device_report(
+        device_id: str,
+        progress_callback: Optional[Callable[[str], None]] = None,
+    ) -> Dict[str, Any]:
         """Generate comprehensive device report"""
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
         report_name = f"device_report_{device_id}_{timestamp}"
@@ -32,17 +35,25 @@ class ReportGenerator:
         }
 
         # Device info
+        if progress_callback:
+            progress_callback("Collecting device info...")
         devices = DeviceDetector.detect_all()
         device_info = next((d for d in devices if d['id'] == device_id), {})
         report['sections']['device_info'] = device_info
 
         # Performance analysis
+        if progress_callback:
+            progress_callback("Analyzing performance...")
         report['sections']['performance'] = PerformanceAnalyzer.analyze(device_id)
 
         # Network analysis
+        if progress_callback:
+            progress_callback("Analyzing network...")
         report['sections']['network'] = NetworkAnalyzer.analyze(device_id)
 
         # App list
+        if progress_callback:
+            progress_callback("Gathering app inventory...")
         report['sections']['apps'] = {
             'total': len(AppManager.list_apps(device_id)),
             'system': len(AppManager.list_apps(device_id, 'system')),
@@ -50,11 +61,15 @@ class ReportGenerator:
         }
 
         # Save as JSON
+        if progress_callback:
+            progress_callback("Saving report data...")
         json_path = report_dir / "report.json"
         with open(json_path, 'w') as f:
             json.dump(report, f, indent=2, default=str)
 
         # Generate HTML report
+        if progress_callback:
+            progress_callback("Rendering report...")
         html_path = report_dir / "report.html"
         ReportGenerator._generate_html(report, html_path)
 
@@ -68,6 +83,8 @@ class ReportGenerator:
             },
             device_id,
         )
+        if progress_callback:
+            progress_callback("Report complete.")
 
         return {
             'success': True,

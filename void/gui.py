@@ -15,7 +15,7 @@ import webbrowser
 from pathlib import Path
 from datetime import datetime
 from math import sin, pi
-from typing import Any, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional
 
 from .config import Config
 from .core.backup import AutoBackup
@@ -1394,13 +1394,28 @@ class VoidGUI:
         context = PluginContext(mode="gui", emit=lambda msg: self._log(msg, level="PLUGIN"))
         return self.plugin_registry.run(plugin_id, context, [])
 
-    def _run_task(self, label: str, func, *args) -> None:
+    def _run_task(
+        self,
+        label: str,
+        func,
+        *args,
+        progress_callback: Optional[Callable[[str], None]] = None,
+    ) -> None:
         """Run a potentially slow task in a background thread."""
+        def emit_progress(message: str) -> None:
+            if message:
+                self.root.after(0, lambda: self.progress_var.set(message))
+            if progress_callback:
+                progress_callback(message)
+
         def runner():
             try:
                 self._log(f"{label} started...")
                 self._start_progress()
-                result = func(*args)
+                if progress_callback:
+                    result = func(*args, progress_callback=emit_progress)
+                else:
+                    result = func(*args)
                 summary = self._summarize_result(label, result)
                 self._log(summary)
                 self.status_var.set(summary)
@@ -1644,7 +1659,12 @@ class VoidGUI:
     def _backup(self) -> None:
         device_id = self._get_selected_device()
         if device_id:
-            self._run_task("Backup", AutoBackup.create_backup, device_id)
+            self._run_task(
+                "Backup",
+                AutoBackup.create_backup,
+                device_id,
+                progress_callback=self._log,
+            )
 
     def _analyze(self) -> None:
         device_id = self._get_selected_device()
@@ -1654,7 +1674,12 @@ class VoidGUI:
     def _report(self) -> None:
         device_id = self._get_selected_device()
         if device_id:
-            self._run_task("Report", ReportGenerator.generate_device_report, device_id)
+            self._run_task(
+                "Report",
+                ReportGenerator.generate_device_report,
+                device_id,
+                progress_callback=self._log,
+            )
 
     def _screenshot(self) -> None:
         device_id = self._get_selected_device()
