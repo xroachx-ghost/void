@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from .base import ChipsetActionResult, ChipsetDetection
 from .utils import extract_usb_ids, match_any, normalize_text
+from ..tools.qualcomm import resolve_qualcomm_recovery_tool
 from ..utils import SafeSubprocess
 
 
@@ -74,16 +75,18 @@ class QualcommChipset:
         )
 
     def recover(self, context: dict[str, str]) -> ChipsetActionResult:
-        for tool in ("edl", "qdl", "emmcdl"):
-            code, stdout, stderr = SafeSubprocess.run(["which", tool])
-            if code == 0 and stdout.strip():
-                return ChipsetActionResult(
-                    success=True,
-                    message=f"Qualcomm recovery tool '{tool}' is available for Sahara/Firehose flows.",
-                    data={"tool": tool},
-                )
+        tool_name, metadata = resolve_qualcomm_recovery_tool()
+        if tool_name:
+            return ChipsetActionResult(
+                success=True,
+                message=f"Qualcomm recovery tool '{tool_name}' is available for Sahara/Firehose flows.",
+                data={"tool": tool_name, **metadata},
+            )
 
+        error = metadata.get("error", {})
+        message = error.get("message", "No Qualcomm recovery tools found (edl/qdl/emmcdl).")
         return ChipsetActionResult(
             success=False,
-            message="No Qualcomm recovery tools found (edl/qdl/emmcdl). Install a tool to proceed.",
+            message=message,
+            data={"error": error, **metadata},
         )
