@@ -26,6 +26,7 @@ from .core.backup import AutoBackup
 from .core.data_recovery import DataRecovery
 from .core.database import db
 from .core.device import DeviceDetector
+from .core.edl import edl_dump, edl_flash
 from .core.files import FileManager
 from .core.frp import FRPEngine
 from .core.logcat import LogcatViewer
@@ -36,7 +37,8 @@ from .core.report import ReportGenerator
 from .core.screen import ScreenCapture
 from .core.system import SystemTweaker
 from .core.utils import SafeSubprocess
-from .logging import get_logger
+from .logging import get_logger, log_edl_event
+from .core.chipsets.dispatcher import detect_chipset_for_device, enter_chipset_mode
 from .plugins import PluginContext, discover_plugins, get_registry
 
 try:
@@ -105,6 +107,11 @@ class CLI:
                     'paths': self._cmd_paths,
                     'netcheck': self._cmd_netcheck,
                     'adb': self._cmd_adb,
+                    'edl-status': lambda: self._cmd_edl_status(args),
+                    'edl-enter': lambda: self._cmd_edl_enter(args),
+                    'edl-flash': lambda: self._cmd_edl_flash(args),
+                    'edl-dump': lambda: self._cmd_edl_dump(args),
+                    'testpoint-guide': lambda: self._cmd_testpoint_guide(args),
                     'clear-cache': self._cmd_clear_cache,
                     'doctor': self._cmd_doctor,
                     'logs': self._cmd_logs,
@@ -1279,6 +1286,224 @@ Type 'menu' to launch the interactive menu.
         else:
             print("❌ Unknown operation")
 
+    def _resolve_device_context(self, device_id: str) -> tuple[dict[str, str], Dict[str, Any] | None]:
+        devices = DeviceDetector.detect_all()
+        device = None
+        for item in devices:
+            if item.get("id") == device_id:
+                device = item
+                break
+            if item.get("usb_id") == device_id:
+                device = item
+                break
+            usb_id = str(item.get("id", ""))
+            if usb_id.startswith("usb-") and usb_id.replace("usb-", "") == device_id:
+                device = item
+                break
+
+        if device:
+            context = {key: str(value) for key, value in device.items()}
+        else:
+            context = {"id": device_id, "mode": "unknown"}
+        return context, device
+
+    def _cmd_edl_status(self, args: List[str]) -> None:
+        """Show EDL mode status and USB IDs."""
+        if not args:
+            print("Usage: edl-status <device_id>")
+            return
+
+        device_id = args[0]
+        context, _ = self._resolve_device_context(device_id)
+        detection = detect_chipset_for_device(context)
+
+        mode = context.get("mode", "unknown")
+        usb_vid = context.get("usb_vid", "-")
+        usb_pid = context.get("usb_pid", "-")
+
+        if detection:
+            print(
+                f"✅ Chipset: {detection.chipset} ({detection.vendor}) "
+                f"mode={detection.mode} confidence={detection.confidence:.2f}"
+            )
+        else:
+            print("⚠️ Chipset detection unavailable.")
+
+        print(f"🔌 Device: {device_id} mode={mode} usb_vid={usb_vid} usb_pid={usb_pid}")
+
+        log_edl_event(
+            self.logger,
+            "status",
+            device_id,
+            "EDL status checked.",
+            success=True if detection else None,
+            details={
+                "mode": mode,
+                "usb_vid": usb_vid,
+                "usb_pid": usb_pid,
+                "chipset": detection.chipset if detection else "unknown",
+            },
+        )
+
+    def _cmd_edl_enter(self, args: List[str]) -> None:
+        """Enter EDL mode when supported."""
+        if not args:
+            print("Usage: edl-enter <device_id>")
+            return
+
+        device_id = args[0]
+        context, _ = self._resolve_device_context(device_id)
+        result = enter_chipset_mode(context, "edl")
+
+        if result.success:
+            print(f"✅ {result.message}")
+        else:
+            print(f"❌ {result.message}")
+
+        log_edl_event(
+            self.logger,
+            "enter",
+            device_id,
+            result.message,
+            success=result.success,
+            details=result.data,
+        )
+
+    def _cmd_edl_flash(self, args: List[str]) -> None:
+        """Flash an image via EDL."""
+        if len(args) < 3:
+            print("Usage: edl-flash <device_id> <loader> <image>")
+            return
+
+        device_id, loader, image = args[0], args[1], args[2]
+        loader_path = Path(loader)
+        image_path = Path(image)
+
+        if not loader_path.exists():
+            print(f"❌ Loader not found: {loader_path}")
+            log_edl_event(
+                self.logger,
+                "flash",
+                device_id,
+                "Loader not found.",
+                success=False,
+                details={"loader": str(loader_path)},
+            )
+            return
+        if not image_path.exists():
+            print(f"❌ Image not found: {image_path}")
+            log_edl_event(
+                self.logger,
+                "flash",
+                device_id,
+                "Image not found.",
+                success=False,
+                details={"image": str(image_path)},
+            )
+            return
+
+        context, _ = self._resolve_device_context(device_id)
+        result = edl_flash(context, str(loader_path), str(image_path))
+
+        if result.success:
+            print(f"✅ {result.message}")
+            if result.data.get("command"):
+                print(f"   Command: {result.data['command']}")
+        else:
+            print(f"❌ {result.message}")
+
+        log_edl_event(
+            self.logger,
+            "flash",
+            device_id,
+            result.message,
+            success=result.success,
+            details=result.data,
+        )
+
+    def _cmd_edl_dump(self, args: List[str]) -> None:
+        """Dump a partition via EDL when supported."""
+        if len(args) < 2:
+            print("Usage: edl-dump <device_id> <partition>")
+            return
+
+        device_id, partition = args[0], args[1]
+        context, _ = self._resolve_device_context(device_id)
+        result = edl_dump(context, partition)
+
+        if result.success:
+            print(f"✅ {result.message}")
+            if result.data.get("output"):
+                print(f"   Output: {result.data['output']}")
+        else:
+            print(f"❌ {result.message}")
+
+        log_edl_event(
+            self.logger,
+            "dump",
+            device_id,
+            result.message,
+            success=result.success,
+            details=result.data,
+        )
+
+    def _cmd_testpoint_guide(self, args: List[str]) -> None:
+        """Show test-point guidance references."""
+        if not args:
+            print("Usage: testpoint-guide <device_id>")
+            return
+
+        device_id = args[0]
+        context, _ = self._resolve_device_context(device_id)
+        detection = detect_chipset_for_device(context)
+        chipset = detection.chipset if detection else "Unknown"
+
+        guides = {
+            "Qualcomm": {
+                "summary": "Qualcomm devices can often enter EDL via test-point short.",
+                "references": [
+                    "https://github.com/bkerler/edl",
+                    "https://forum.xda-developers.com/",
+                ],
+            },
+            "MediaTek": {
+                "summary": "MediaTek bootrom/preloader modes may require test-point access.",
+                "references": [
+                    "https://github.com/bkerler/mtkclient",
+                    "https://forum.xda-developers.com/",
+                ],
+            },
+            "Samsung Exynos": {
+                "summary": "Samsung download mode access varies by model and requires OEM docs.",
+                "references": [
+                    "https://forum.xda-developers.com/",
+                ],
+            },
+        }
+
+        guide = guides.get(
+            chipset,
+            {"summary": "Use model-specific guides for test-point access.", "references": []},
+        )
+
+        print(f"📌 Test-point guidance for {chipset}:")
+        print(f"   {guide['summary']}")
+        print("   Suggested references:")
+        if guide["references"]:
+            for ref in guide["references"]:
+                print(f"   - {ref}")
+        else:
+            print("   - Search for '<model> test point' on trusted forums.")
+
+        log_edl_event(
+            self.logger,
+            "testpoint-guide",
+            device_id,
+            "Test-point guidance displayed.",
+            success=True,
+            details={"chipset": chipset},
+        )
+
     def _cmd_help(self) -> None:
         """Show help."""
         help_text = """
@@ -1319,6 +1544,13 @@ TWEAKS:
 FRP BYPASS:
   execute <method> <device_id>     - Execute bypass method
     Methods: adb_shell_reset, fastboot_erase, etc.
+
+EDL & TEST-POINT:
+  edl-status <device_id>           - Detect EDL mode + USB VID/PID
+  edl-enter <device_id>            - Enter EDL mode (if supported)
+  edl-flash <device_id> <loader> <image> - Flash via EDL (chipset-specific)
+  edl-dump <device_id> <partition> - Dump a partition via EDL
+  testpoint-guide <device_id>      - Show test-point references
   
 SYSTEM:
   stats                            - Show suite statistics
@@ -1378,6 +1610,11 @@ SYSTEM:
   void> tweak emulator-5554 dpi 320
   void> report emulator-5554
   void> execute adb_shell_reset emulator-5554
+  void> edl-status usb-05c6:9008
+  void> edl-enter emulator-5554
+  void> edl-flash usb-05c6:9008 firehose.mbn boot.img
+  void> edl-dump usb-05c6:9008 userdata
+  void> testpoint-guide usb-05c6:9008
   void> menu
   void> version
   void> paths

@@ -83,6 +83,11 @@ void> analyze emulator-5554
 void> report emulator-5554
 void> logcat emulator-5554
 void> execute adb_shell_reset emulator-5554
+void> edl-status usb-05c6:9008
+void> edl-enter emulator-5554
+void> edl-flash usb-05c6:9008 firehose.mbn boot.img
+void> edl-dump usb-05c6:9008 userdata
+void> testpoint-guide usb-05c6:9008
 ```
 
 ## GUI Usage
@@ -125,6 +130,13 @@ void --gui
   - `logs` / `backups` / `reports` / `exports`
   - `help`
   - `exit`
+
+- **EDL & test-point**
+  - `edl-status <device_id>`
+  - `edl-enter <device_id>`
+  - `edl-flash <device_id> <loader> <image>`
+  - `edl-dump <device_id> <partition>`
+  - `testpoint-guide <device_id>`
 
 ## Troubleshooting
 

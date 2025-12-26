@@ -51,3 +51,29 @@ def get_logger(name: str) -> logging.Logger:
     """Return a configured logger."""
     configure_logging()
     return logging.getLogger(name)
+
+
+def log_edl_event(
+    logger: logging.Logger,
+    action: str,
+    device_id: str | None,
+    message: str,
+    *,
+    success: bool | None = None,
+    details: dict[str, str] | None = None,
+) -> None:
+    """Emit a structured log entry for EDL workflows."""
+    extra = {
+        "category": "edl",
+        "device_id": device_id or "-",
+        "method": action,
+    }
+    if details:
+        detail_str = " ".join(f"{key}={value}" for key, value in details.items())
+        message = f"{message} ({detail_str})"
+    if success is None:
+        logger.info(message, extra=extra)
+    elif success:
+        logger.info(message, extra=extra)
+    else:
+        logger.error(message, extra=extra)
