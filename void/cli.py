@@ -31,12 +31,14 @@ from .core.display import DisplayAnalyzer
 from .core.edl import edl_dump, edl_flash
 from .core.files import FileManager
 from .core.frp import FRPEngine
+from .core.launcher import install_start_menu, launcher_status, uninstall_start_menu
 from .core.logcat import LogcatViewer
 from .core.monitor import PSUTIL_AVAILABLE, monitor
 from .core.network import NetworkTools
 from .core.performance import PerformanceAnalyzer
 from .core.report import ReportGenerator
 from .core.screen import ScreenCapture
+from .core.smart import SmartAdvisor
 from .core.system import SystemTweaker
 from .core.tools import check_android_tools, check_mediatek_tools, check_qualcomm_tools
 from .core.utils import SafeSubprocess
@@ -71,6 +73,7 @@ class CLI:
     def run(self) -> None:
         """Run CLI."""
         self._print_banner()
+        self._smart_startup()
 
         while True:
             try:
@@ -151,6 +154,9 @@ class CLI:
                     'db-backup': self._cmd_db_backup,
                     'plugins': self._cmd_plugins,
                     'plugin': lambda: self._cmd_plugin(args),
+                    'smart': lambda: self._cmd_smart(args),
+                    'launcher': lambda: self._cmd_launcher(args),
+                    'start-menu': lambda: self._cmd_launcher(args),
                     'help': self._cmd_help,
                     'exit': lambda: exit(0)
                 }
@@ -254,11 +260,11 @@ class CLI:
 
     def _cmd_backup(self, args: List[str]) -> None:
         """Create backup."""
-        if len(args) < 1:
-            print("Usage: backup <device_id>")
+        device_id = self._resolve_device_id(args, "backup <device_id|smart>")
+        if not device_id:
             return
 
-        result = AutoBackup.create_backup(args[0])
+        result = AutoBackup.create_backup(device_id)
         if result['success']:
             print(f"✅ Backup created: {result['backup_name']}")
             print(f"   Items: {', '.join(result['items'])}")
@@ -268,11 +274,11 @@ class CLI:
 
     def _cmd_screenshot(self, args: List[str]) -> None:
         """Take screenshot."""
-        if len(args) < 1:
-            print("Usage: screenshot <device_id>")
+        device_id = self._resolve_device_id(args, "screenshot <device_id|smart>")
+        if not device_id:
             return
 
-        result = ScreenCapture.take_screenshot(args[0])
+        result = ScreenCapture.take_screenshot(device_id)
         if result['success']:
             print(f"✅ Screenshot saved: {result['path']}")
         else:
@@ -280,12 +286,12 @@ class CLI:
 
     def _cmd_apps(self, args: List[str]) -> None:
         """List apps."""
-        if len(args) < 1:
-            print("Usage: apps <device_id> [system|user|all]")
+        device_id = self._resolve_device_id(args, "apps <device_id|smart> [system|user|all]")
+        if not device_id:
             return
 
         filter_type = args[1] if len(args) > 1 else 'all'
-        apps = AppManager.list_apps(args[0], filter_type)
+        apps = AppManager.list_apps(device_id, filter_type)
 
         print(f"\n📦 {filter_type.title()} Apps ({len(apps)}):")
         for app in apps[:20]:
@@ -296,24 +302,24 @@ class CLI:
 
     def _cmd_display_diagnostics(self, args: List[str]) -> None:
         """Run display diagnostics."""
-        if len(args) < 1:
-            print("Usage: display-diagnostics <device_id>")
+        device_id = self._resolve_device_id(args, "display-diagnostics <device_id|smart>")
+        if not device_id:
             return
 
-        diagnostics = DisplayAnalyzer.analyze(args[0])
+        diagnostics = DisplayAnalyzer.analyze(device_id)
         print(json.dumps(diagnostics, indent=2))
 
     def _cmd_info(self, args: List[str]) -> None:
         """Show device info."""
-        if len(args) < 1:
-            print("Usage: info <device_id>")
+        device_id = self._resolve_device_id(args, "info <device_id|smart>")
+        if not device_id:
             return
 
         devices, _ = DeviceDetector.detect_all()
-        device = next((d for d in devices if d['id'] == args[0]), None)
+        device = next((d for d in devices if d['id'] == device_id), None)
 
         if device:
-            print(f"\n📱 Device Information: {args[0]}\n")
+            print(f"\n📱 Device Information: {device_id}\n")
             for key, value in device.items():
                 if not isinstance(value, dict):
                     print(f"  {key.replace('_', ' ').title()}: {value}")
@@ -500,6 +506,8 @@ class CLI:
             {"label": "Reports", "desc": "List recent reports", "shortcut": "r", "action": self._cmd_reports},
             {"label": "Exports", "desc": "List recent exports", "shortcut": "e", "action": self._cmd_exports},
             {"label": "Environment", "desc": "Runtime environment info", "shortcut": "i", "action": self._cmd_env},
+            {"label": "Smart mode", "desc": "Smart suggestions and toggles", "shortcut": "x", "action": lambda: self._cmd_smart([])},
+            {"label": "Start menu launcher", "desc": "Install or remove launchers", "shortcut": "y", "action": lambda: self._cmd_launcher([])},
         ]
 
     def _prompt(self, label: str) -> str:
@@ -510,8 +518,76 @@ class CLI:
             return ""
         return value
 
+    def _smart_startup(self) -> None:
+        """Provide smart startup diagnostics and suggestions."""
+        if not Config.SMART_ENABLED:
+            return
+
+        devices, errors = SmartAdvisor.snapshot()
+        if Config.SMART_AUTO_DOCTOR and (errors or not devices):
+            print("\n🤖 Smart check: running system diagnostics...")
+            self._cmd_doctor()
+
+        if Config.SMART_SUGGESTIONS:
+            suggestions = SmartAdvisor.recommend_actions(devices, errors)
+            if suggestions:
+                print("\n🤖 Smart suggestions:")
+                for suggestion in suggestions:
+                    print(f"  • {suggestion}")
+
+        if errors:
+            print("\n⚠️  Detection issues:")
+            for error in SmartAdvisor.format_errors(errors):
+                print(f"  • {error}")
+
+    def _smart_select_device(self) -> Optional[str]:
+        if not (Config.SMART_ENABLED and Config.SMART_AUTO_DEVICE):
+            return None
+
+        choice = SmartAdvisor.pick_device(
+            last_device_id=self.last_device_id,
+            prefer_last=Config.SMART_PREFER_LAST_DEVICE,
+        )
+        if not choice:
+            return None
+
+        self.last_device_id = choice.device_id
+        print(f"🤖 Smart-selected device: {SmartAdvisor.summarize_choice(choice)}")
+        return choice.device_id
+
+    def _resolve_device_id(self, args: List[str], usage: str) -> Optional[str]:
+        """Resolve device id, honoring smart defaults."""
+        if args:
+            candidate = args[0]
+            if candidate.lower() in {"smart", "auto"}:
+                device_id = self._smart_select_device()
+                if device_id:
+                    return device_id
+                print("❌ Smart selection failed. Provide a device ID.")
+                return None
+            return candidate
+
+        if Config.SMART_ENABLED and Config.SMART_AUTO_DEVICE:
+            device_id = self._smart_select_device()
+            if device_id:
+                return device_id
+
+        print(f"Usage: {usage}")
+        return None
+
+    def _smart_confirm(self, prompt: str) -> bool:
+        """Confirm risky actions when smart safeguards are enabled."""
+        if not (Config.SMART_ENABLED and Config.SMART_SAFE_GUARDS):
+            return True
+        response = self._prompt(f"{prompt} (y/N)").lower()
+        return response in {"y", "yes"}
+
     def _prompt_device(self) -> Optional[str]:
         """Prompt for device id, defaulting to last device."""
+        smart_device = self._smart_select_device()
+        if smart_device:
+            return smart_device
+
         prompt = "Device ID"
         if self.last_device_id:
             prompt = f"Device ID (Enter for {self.last_device_id})"
@@ -1096,6 +1172,12 @@ class CLI:
         print(f"  Auto Backup: {Config.ENABLE_AUTO_BACKUP}")
         print(f"  Monitoring: {Config.ENABLE_MONITORING}")
         print(f"  Analytics: {Config.ENABLE_ANALYTICS}")
+        print(f"  Smart Mode: {Config.SMART_ENABLED}")
+        print(f"    Smart Auto Device: {Config.SMART_AUTO_DEVICE}")
+        print(f"    Smart Prefer Last Device: {Config.SMART_PREFER_LAST_DEVICE}")
+        print(f"    Smart Auto Doctor: {Config.SMART_AUTO_DOCTOR}")
+        print(f"    Smart Suggestions: {Config.SMART_SUGGESTIONS}")
+        print(f"    Smart Safe Guards: {Config.SMART_SAFE_GUARDS}")
         print(f"  Allow Insecure Crypto: {Config.ALLOW_INSECURE_CRYPTO}")
 
     def _cmd_config_json(self) -> None:
@@ -1124,6 +1206,14 @@ class CLI:
                 "auto_backup": Config.ENABLE_AUTO_BACKUP,
                 "monitoring": Config.ENABLE_MONITORING,
                 "analytics": Config.ENABLE_ANALYTICS,
+                "smart": {
+                    "enabled": Config.SMART_ENABLED,
+                    "auto_device": Config.SMART_AUTO_DEVICE,
+                    "prefer_last_device": Config.SMART_PREFER_LAST_DEVICE,
+                    "auto_doctor": Config.SMART_AUTO_DOCTOR,
+                    "suggestions": Config.SMART_SUGGESTIONS,
+                    "safe_guards": Config.SMART_SAFE_GUARDS,
+                },
             },
             "security": {
                 "max_input_length": Config.MAX_INPUT_LENGTH,
@@ -1134,6 +1224,94 @@ class CLI:
         export_path = Config.EXPORTS_DIR / f"config_{timestamp}.json"
         export_path.write_text(json.dumps(payload, indent=2))
         print(f"✅ Config exported: {export_path}")
+
+    def _cmd_smart(self, args: List[str]) -> None:
+        """Manage smart features and show recommendations."""
+        if not args or args[0] in {"status", "show"}:
+            print("\n🤖 Smart Mode\n")
+            print(f"  Enabled: {Config.SMART_ENABLED}")
+            print(f"  Auto Device: {Config.SMART_AUTO_DEVICE}")
+            print(f"  Prefer Last Device: {Config.SMART_PREFER_LAST_DEVICE}")
+            print(f"  Auto Doctor: {Config.SMART_AUTO_DOCTOR}")
+            print(f"  Suggestions: {Config.SMART_SUGGESTIONS}")
+            print(f"  Safe Guards: {Config.SMART_SAFE_GUARDS}")
+
+            devices, errors = SmartAdvisor.snapshot()
+            if Config.SMART_SUGGESTIONS:
+                suggestions = SmartAdvisor.recommend_actions(devices, errors)
+                if suggestions:
+                    print("\n  Suggestions:")
+                    for suggestion in suggestions:
+                        print(f"   • {suggestion}")
+            if errors:
+                print("\n  Detection issues:")
+                for error in SmartAdvisor.format_errors(errors):
+                    print(f"   • {error}")
+            return
+
+        if len(args) == 1 and args[0] in {"on", "off"}:
+            option = "smart_enabled"
+            enabled = args[0] == "on"
+        elif len(args) >= 2:
+            option = args[0].lower()
+            value = args[1].lower()
+            if value not in {"on", "off"}:
+                print("Usage: smart <on|off|auto-device|prefer-last|auto-doctor|suggest|safety> <on|off>")
+                return
+            enabled = value == "on"
+        else:
+            print("Usage: smart <on|off|auto-device|prefer-last|auto-doctor|suggest|safety> <on|off>")
+            return
+        mapping = {
+            "smart_enabled": "smart_enabled",
+            "auto-device": "smart_auto_device",
+            "prefer-last": "smart_prefer_last_device",
+            "auto-doctor": "smart_auto_doctor",
+            "suggest": "smart_suggestions",
+            "safety": "smart_safe_guards",
+        }
+        if option in {"on", "off"}:
+            option = "smart_enabled"
+        setting_key = mapping.get(option)
+        if not setting_key:
+            print("Usage: smart <on|off|auto-device|prefer-last|auto-doctor|suggest|safety> <on|off>")
+            return
+
+        current = Config.read_config().get("settings", {})
+        current[setting_key] = enabled
+        Config.save_settings(current)
+        print(f"✅ {setting_key} set to {enabled}")
+
+    def _cmd_launcher(self, args: List[str]) -> None:
+        """Install or remove start menu launchers."""
+        action = args[0].lower() if args else "install"
+        if action not in {"install", "uninstall", "status"}:
+            print("Usage: launcher <install|uninstall|status>")
+            return
+
+        if action == "install":
+            result = install_start_menu()
+            for path in result.get("created", []):
+                print(f"✅ Created launcher: {path}")
+            for error in result.get("errors", []):
+                print(f"❌ {error}")
+            return
+
+        if action == "uninstall":
+            result = uninstall_start_menu()
+            for path in result.get("removed", []):
+                print(f"✅ Removed launcher: {path}")
+            for error in result.get("errors", []):
+                print(f"❌ {error}")
+            return
+
+        result = launcher_status()
+        for path in result.get("present", []):
+            print(f"✅ Present: {path}")
+        for path in result.get("missing", []):
+            print(f"⚠️ Missing: {path}")
+        for error in result.get("errors", []):
+            print(f"❌ {error}")
 
     def _cmd_exports_open(self) -> None:
         """Open exports directory."""
@@ -1158,12 +1336,12 @@ class CLI:
 
     def _cmd_analyze(self, args: List[str]) -> None:
         """Analyze device."""
-        if len(args) < 1:
-            print("Usage: analyze <device_id>")
+        device_id = self._resolve_device_id(args, "analyze <device_id|smart>")
+        if not device_id:
             return
 
         print("🔍 Analyzing device...")
-        result = PerformanceAnalyzer.analyze(args[0])
+        result = PerformanceAnalyzer.analyze(device_id)
 
         print("\n📊 Performance Analysis:\n")
         for key, value in result.items():
@@ -1173,10 +1351,20 @@ class CLI:
     def _cmd_recover(self, args: List[str]) -> None:
         """Recover data."""
         if len(args) < 2:
-            print("Usage: recover <device_id> <contacts|sms>")
-            return
-
-        device_id, data_type = args[0], args[1]
+            if Config.SMART_ENABLED and Config.SMART_AUTO_DEVICE:
+                device_id = self._smart_select_device()
+                if not device_id or not args:
+                    print("Usage: recover <device_id|smart> <contacts|sms>")
+                    return
+                data_type = args[0]
+            else:
+                print("Usage: recover <device_id|smart> <contacts|sms>")
+                return
+        else:
+            device_id = self._resolve_device_id([args[0]], "recover <device_id|smart> <contacts|sms>")
+            if not device_id:
+                return
+            data_type = args[1]
 
         print(f"💾 Recovering {data_type}...")
 
@@ -1196,11 +1384,16 @@ class CLI:
 
     def _cmd_tweak(self, args: List[str]) -> None:
         """System tweaks."""
-        if len(args) < 3:
-            print("Usage: tweak <device_id> <dpi|animation|timeout> <value>")
+        if len(args) < 2:
+            print("Usage: tweak <device_id|smart> <dpi|animation|timeout> <value>")
             return
-
-        device_id, tweak_type, value = args[0], args[1], args[2]
+        device_id = self._resolve_device_id([args[0]], "tweak <device_id|smart> <dpi|animation|timeout> <value>")
+        if not device_id:
+            return
+        if len(args) < 3:
+            print("Usage: tweak <device_id|smart> <dpi|animation|timeout> <value>")
+            return
+        tweak_type, value = args[1], args[2]
 
         if tweak_type == 'dpi':
             success = SystemTweaker.set_dpi(device_id, int(value))
@@ -1219,12 +1412,14 @@ class CLI:
 
     def _cmd_usb_debug(self, args: List[str]) -> None:
         """Enable or force USB debugging."""
-        if len(args) < 1:
-            print("Usage: usb-debug <device_id> [force]")
+        device_id = self._resolve_device_id(args, "usb-debug <device_id|smart> [force]")
+        if not device_id:
             return
-
-        device_id = args[0]
         force = len(args) > 1 and args[1].lower() in {"force", "--force", "-f"}
+
+        if force and not self._smart_confirm(f"Force USB debugging on {device_id}?"):
+            print("⚠️  Action cancelled.")
+            return
 
         if force:
             result = SystemTweaker.force_usb_debugging(device_id)
@@ -1258,12 +1453,12 @@ class CLI:
 
     def _cmd_report(self, args: List[str]) -> None:
         """Generate report."""
-        if len(args) < 1:
-            print("Usage: report <device_id>")
+        device_id = self._resolve_device_id(args, "report <device_id|smart>")
+        if not device_id:
             return
 
         print("📄 Generating report...")
-        result = ReportGenerator.generate_device_report(args[0])
+        result = ReportGenerator.generate_device_report(device_id)
 
         if result['success']:
             print(f"✅ Report generated: {result['report_name']}")
@@ -1302,11 +1497,9 @@ class CLI:
 
     def _cmd_logcat(self, args: List[str]) -> None:
         """Start logcat."""
-        if len(args) < 1:
-            print("Usage: logcat <device_id> [filter_tag]")
+        device_id = self._resolve_device_id(args, "logcat <device_id|smart> [filter_tag]")
+        if not device_id:
             return
-
-        device_id = args[0]
         filter_tag = args[1] if len(args) > 1 else None
 
         print("📜 Starting logcat (Ctrl+C to stop)...")
@@ -1324,10 +1517,16 @@ class CLI:
     def _cmd_execute(self, args: List[str]) -> None:
         """Execute FRP method."""
         if len(args) < 2:
-            print("Usage: execute <method> <device_id>")
+            print("Usage: execute <method> <device_id|smart>")
             return
 
-        method_name, device_id = args[0], args[1]
+        method_name = args[0]
+        device_id = self._resolve_device_id([args[1]], "execute <method> <device_id|smart>")
+        if not device_id:
+            return
+        if not self._smart_confirm(f"Run method '{method_name}' on {device_id}?"):
+            print("⚠️  Action cancelled.")
+            return
 
         print(f"⚡ Executing {method_name}...")
 
@@ -1345,10 +1544,13 @@ class CLI:
     def _cmd_files(self, args: List[str]) -> None:
         """File operations."""
         if len(args) < 2:
-            print("Usage: files <device_id> <list|pull|push|delete> [path]")
+            print("Usage: files <device_id|smart> <list|pull|push|delete> [path]")
             return
 
-        device_id, operation = args[0], args[1]
+        device_id = self._resolve_device_id([args[0]], "files <device_id|smart> <list|pull|push|delete> [path]")
+        if not device_id:
+            return
+        operation = args[1]
 
         if operation == 'list':
             path = args[2] if len(args) > 2 else '/sdcard'
@@ -1363,7 +1565,7 @@ class CLI:
 
         elif operation == 'pull':
             if len(args) < 3:
-                print("Usage: files <device_id> pull <remote_path> [local_path]")
+                print("Usage: files <device_id|smart> pull <remote_path> [local_path]")
                 return
 
             local_path = Path(args[3]) if len(args) > 3 else None
@@ -1374,7 +1576,7 @@ class CLI:
                 print("❌ Pull failed")
         elif operation == 'push':
             if len(args) < 4:
-                print("Usage: files <device_id> push <local_path> <remote_path>")
+                print("Usage: files <device_id|smart> push <local_path> <remote_path>")
                 return
 
             result = FileManager.push_file(device_id, Path(args[2]), args[3])
@@ -1384,9 +1586,12 @@ class CLI:
                 print("❌ Push failed")
         elif operation == 'delete':
             if len(args) < 3:
-                print("Usage: files <device_id> delete <remote_path>")
+                print("Usage: files <device_id|smart> delete <remote_path>")
                 return
 
+            if not self._smart_confirm(f"Delete remote file {args[2]} on {device_id}?"):
+                print("⚠️  Action cancelled.")
+                return
             result = FileManager.delete_file(device_id, args[2])
             if result:
                 print("✅ File deleted")
@@ -1419,11 +1624,9 @@ class CLI:
 
     def _cmd_edl_status(self, args: List[str]) -> None:
         """Show EDL mode status and USB IDs."""
-        if not args:
-            print("Usage: edl-status <device_id>")
+        device_id = self._resolve_device_id(args, "edl-status <device_id|smart>")
+        if not device_id:
             return
-
-        device_id = args[0]
         context, _ = self._resolve_device_context(device_id)
         detection = detect_chipset_for_device(context)
 
@@ -1457,11 +1660,9 @@ class CLI:
 
     def _cmd_edl_enter(self, args: List[str]) -> None:
         """Enter EDL mode when supported."""
-        if not args:
-            print("Usage: edl-enter <device_id>")
+        device_id = self._resolve_device_id(args, "edl-enter <device_id|smart>")
+        if not device_id:
             return
-
-        device_id = args[0]
         context, _ = self._resolve_device_context(device_id)
         result = enter_chipset_mode(context, "edl")
 
@@ -1482,10 +1683,13 @@ class CLI:
     def _cmd_edl_flash(self, args: List[str]) -> None:
         """Flash an image via EDL."""
         if len(args) < 3:
-            print("Usage: edl-flash <device_id> <loader> <image>")
+            print("Usage: edl-flash <device_id|smart> <loader> <image>")
             return
 
-        device_id, loader, image = args[0], args[1], args[2]
+        device_id = self._resolve_device_id([args[0]], "edl-flash <device_id|smart> <loader> <image>")
+        if not device_id:
+            return
+        loader, image = args[1], args[2]
         loader_path = Path(loader)
         image_path = Path(image)
 
@@ -1512,6 +1716,10 @@ class CLI:
             )
             return
 
+        if not self._smart_confirm(f"Flash {image_path.name} via EDL on {device_id}?"):
+            print("⚠️  Action cancelled.")
+            return
+
         context, _ = self._resolve_device_context(device_id)
         result = edl_flash(context, str(loader_path), str(image_path))
 
@@ -1534,10 +1742,13 @@ class CLI:
     def _cmd_edl_dump(self, args: List[str]) -> None:
         """Dump a partition via EDL when supported."""
         if len(args) < 2:
-            print("Usage: edl-dump <device_id> <partition>")
+            print("Usage: edl-dump <device_id|smart> <partition>")
             return
 
-        device_id, partition = args[0], args[1]
+        device_id = self._resolve_device_id([args[0]], "edl-dump <device_id|smart> <partition>")
+        if not device_id:
+            return
+        partition = args[1]
         context, _ = self._resolve_device_context(device_id)
         result = edl_dump(context, partition)
 
@@ -1559,11 +1770,9 @@ class CLI:
 
     def _cmd_testpoint_guide(self, args: List[str]) -> None:
         """Show test-point guidance references."""
-        if not args:
-            print("Usage: testpoint-guide <device_id>")
+        device_id = self._resolve_device_id(args, "testpoint-guide <device_id|smart>")
+        if not device_id:
             return
-
-        device_id = args[0]
         context, _ = self._resolve_device_context(device_id)
         detection = detect_chipset_for_device(context)
         chipset = detection.chipset if detection else "Unknown"
@@ -1625,44 +1834,44 @@ class CLI:
 
 DEVICE MANAGEMENT:
   devices                          - List all connected devices
-  info <device_id>                 - Show detailed device info
+  info <device_id|smart>           - Show detailed device info
   summary                          - Show a short device summary
   
 BACKUP & DATA:
-  backup <device_id>               - Create automated backup
-  recover <device_id> <type>       - Recover data (contacts/sms)
-  screenshot <device_id>           - Take screenshot
+  backup <device_id|smart>         - Create automated backup
+  recover <device_id|smart> <type> - Recover data (contacts/sms)
+  screenshot <device_id|smart>     - Take screenshot
   
 APP MANAGEMENT:
-  apps <device_id> [filter]        - List apps (system/user/all)
+  apps <device_id|smart> [filter]  - List apps (system/user/all)
   
 FILE OPERATIONS:
-  files <device_id> list [path]    - List files
-  files <device_id> pull <path> [local] - Pull file from device
-  files <device_id> push <local> <remote> - Push file to device
-  files <device_id> delete <path>  - Delete file on device
+  files <device_id|smart> list [path]    - List files
+  files <device_id|smart> pull <path> [local] - Pull file from device
+  files <device_id|smart> push <local> <remote> - Push file to device
+  files <device_id|smart> delete <path>  - Delete file on device
   
 ANALYSIS:
-  analyze <device_id>              - Performance analysis
-  display-diagnostics <device_id>  - Display + framebuffer diagnostics
-  report <device_id>               - Generate full report
-  logcat <device_id> [tag]         - View real-time logs
+  analyze <device_id|smart>        - Performance analysis
+  display-diagnostics <device_id|smart>  - Display + framebuffer diagnostics
+  report <device_id|smart>         - Generate full report
+  logcat <device_id|smart> [tag]   - View real-time logs
   
 TWEAKS:
-  tweak <device_id> <type> <value> - System tweaks
+  tweak <device_id|smart> <type> <value> - System tweaks
     Types: dpi, animation, timeout
-  usb-debug <device_id> [force]    - Enable or force USB debugging
+  usb-debug <device_id|smart> [force]    - Enable or force USB debugging
 
 FRP BYPASS:
-  execute <method> <device_id>     - Execute bypass method
+  execute <method> <device_id|smart>     - Execute bypass method
     Methods: adb_shell_reset, fastboot_erase, etc.
 
 EDL & TEST-POINT:
-  edl-status <device_id>           - Detect EDL mode + USB VID/PID
-  edl-enter <device_id>            - Enter EDL mode (if supported)
-  edl-flash <device_id> <loader> <image> - Flash via EDL (chipset-specific)
-  edl-dump <device_id> <partition> - Dump a partition via EDL
-  testpoint-guide <device_id>      - Show test-point references
+  edl-status <device_id|smart>           - Detect EDL mode + USB VID/PID
+  edl-enter <device_id|smart>            - Enter EDL mode (if supported)
+  edl-flash <device_id|smart> <loader> <image> - Flash via EDL (chipset-specific)
+  edl-dump <device_id|smart> <partition> - Dump a partition via EDL
+  testpoint-guide <device_id|smart>      - Show test-point references
   
 SYSTEM:
   stats                            - Show suite statistics
@@ -1698,6 +1907,8 @@ SYSTEM:
   db-health                        - Show database health summary
   stats-plus                       - Show extended stats
   reports-json                     - Export reports to JSON
+  smart [status|on|off]            - Show or toggle smart features
+  launcher <install|uninstall|status> - Manage start menu launchers
   reports-open                     - Open reports directory
   recent-reports-json              - Export recent reports to JSON
   config                           - Show configuration values

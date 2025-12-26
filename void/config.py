@@ -75,6 +75,12 @@ class Config:
     ENABLE_REPORTS = True
     ENABLE_MONITORING = True
     ENABLE_ANALYTICS = True
+    SMART_ENABLED = True
+    SMART_AUTO_DEVICE = True
+    SMART_PREFER_LAST_DEVICE = True
+    SMART_AUTO_DOCTOR = True
+    SMART_SUGGESTIONS = True
+    SMART_SAFE_GUARDS = True
 
     # Crypto
     ALLOW_INSECURE_CRYPTO = False
@@ -85,6 +91,12 @@ class Config:
         "enable_analytics": ENABLE_ANALYTICS,
         "exports_dir": str(EXPORTS_DIR),
         "reports_dir": str(REPORTS_DIR),
+        "smart_enabled": SMART_ENABLED,
+        "smart_auto_device": SMART_AUTO_DEVICE,
+        "smart_prefer_last_device": SMART_PREFER_LAST_DEVICE,
+        "smart_auto_doctor": SMART_AUTO_DOCTOR,
+        "smart_suggestions": SMART_SUGGESTIONS,
+        "smart_safe_guards": SMART_SAFE_GUARDS,
     }
 
     @classmethod
@@ -149,6 +161,14 @@ class Config:
             "enable_analytics": bool(merged.get("enable_analytics")),
             "exports_dir": str(exports_dir),
             "reports_dir": str(reports_dir),
+            "smart_enabled": bool(merged.get("smart_enabled", cls.SMART_ENABLED)),
+            "smart_auto_device": bool(merged.get("smart_auto_device", cls.SMART_AUTO_DEVICE)),
+            "smart_prefer_last_device": bool(
+                merged.get("smart_prefer_last_device", cls.SMART_PREFER_LAST_DEVICE)
+            ),
+            "smart_auto_doctor": bool(merged.get("smart_auto_doctor", cls.SMART_AUTO_DOCTOR)),
+            "smart_suggestions": bool(merged.get("smart_suggestions", cls.SMART_SUGGESTIONS)),
+            "smart_safe_guards": bool(merged.get("smart_safe_guards", cls.SMART_SAFE_GUARDS)),
         }
 
         cls.ENABLE_AUTO_BACKUP = normalized["enable_auto_backup"]
@@ -156,6 +176,12 @@ class Config:
         cls.ENABLE_ANALYTICS = normalized["enable_analytics"]
         cls.EXPORTS_DIR = exports_dir
         cls.REPORTS_DIR = reports_dir
+        cls.SMART_ENABLED = normalized["smart_enabled"]
+        cls.SMART_AUTO_DEVICE = normalized["smart_auto_device"]
+        cls.SMART_PREFER_LAST_DEVICE = normalized["smart_prefer_last_device"]
+        cls.SMART_AUTO_DOCTOR = normalized["smart_auto_doctor"]
+        cls.SMART_SUGGESTIONS = normalized["smart_suggestions"]
+        cls.SMART_SAFE_GUARDS = normalized["smart_safe_guards"]
 
         return normalized
 
