@@ -17,6 +17,35 @@ class Config:
     CODENAME = "AUTOMATION"
     APP_NAME = "Void"
 
+    # Theme
+    THEME_NAME = "Veilstorm Protocol"
+    THEME_TAGLINE = "Anonymous ops console with zero-friction automation."
+    THEME_SLOGANS = [
+        "Kali dragon in motion. Anonymous mask on command.",
+        "Operate silent. Execute fast. Leave no trace.",
+        "Encrypted workflows. Shadow-grade automation.",
+    ]
+    GUI_THEME = {
+        "bg": "#070b12",
+        "panel": "#111a28",
+        "panel_alt": "#0c1420",
+        "accent": "#00f5d4",
+        "accent_soft": "#7bffda",
+        "accent_alt": "#7c3aed",
+        "text": "#e6f1ff",
+        "muted": "#9cb1cf",
+        "shadow": "#03050a",
+        "button_bg": "#0f1826",
+        "button_active": "#1b2a3d",
+        "button_text": "#00f5d4",
+        "gradient_start": "#0a1220",
+        "gradient_end": "#16243b",
+        "splash_start": "#04060b",
+        "splash_end": "#1a2540",
+        "dragon": "#00f5d4",
+        "mask": "#e6f1ff",
+    }
+
     # Timeouts
     TIMEOUT_SHORT = 5
     TIMEOUT_MEDIUM = 30
