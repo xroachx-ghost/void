@@ -10,11 +10,19 @@ Unauthorized copying, modification, distribution, or disclosure is prohibited.
 from __future__ import annotations
 
 import threading
+import webbrowser
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 from .config import Config
 from .core.backup import AutoBackup
+from .core.chipsets.base import ChipsetActionResult
+from .core.chipsets.dispatcher import (
+    detect_chipset_for_device,
+    enter_chipset_mode,
+    list_chipsets,
+    recover_chipset_device,
+)
 from .core.device import DeviceDetector
 from .core.performance import PerformanceAnalyzer
 from .core.report import ReportGenerator
@@ -108,6 +116,17 @@ class VoidGUI:
         self.plugin_description_var = tk.StringVar(
             value="Select a plugin to view details."
         )
+        self.chipset_detection_var = tk.StringVar(
+            value="No chipset detection has been run yet."
+        )
+        self.chipset_status_var = tk.StringVar(
+            value="Select a device to view chipset workflow status."
+        )
+        self.testpoint_notes_var = tk.StringVar(
+            value="No model-specific test-point notes available."
+        )
+        self.target_mode_var = tk.StringVar(value="edl")
+        self.chipset_override_var = tk.StringVar(value="Auto-detect")
         self.progress_var = tk.StringVar(value="")
         self.plugin_metadata: List[PluginMetadata] = []
         self._build_layout()
@@ -210,9 +229,11 @@ class VoidGUI:
 
         dashboard = ttk.Frame(notebook, style="Void.TFrame")
         logs = ttk.Frame(notebook, style="Void.TFrame")
+        edl_recovery = ttk.Frame(notebook, style="Void.TFrame")
         help_panel = ttk.Frame(notebook, style="Void.TFrame")
         plugins_panel = ttk.Frame(notebook, style="Void.TFrame")
         notebook.add(dashboard, text="Dashboard")
+        notebook.add(edl_recovery, text="EDL & Recovery")
         notebook.add(logs, text="Operations Log")
         notebook.add(plugins_panel, text="Plugins")
         notebook.add(help_panel, text="What Does This Do?")
@@ -353,6 +374,130 @@ class VoidGUI:
             "Status Bar: Displays the most recent operation summary."
         )
         ttk.Label(help_panel, text=guide, style="Void.TLabel", wraplength=600).pack(anchor="w")
+
+        ttk.Label(edl_recovery, text="Mode Detection", style="Void.TLabel").pack(anchor="w")
+        detection_panel = ttk.Frame(edl_recovery, style="Void.TFrame")
+        detection_panel.pack(fill="x", pady=(6, 10))
+
+        ttk.Label(
+            detection_panel,
+            textvariable=self.chipset_detection_var,
+            style="Void.TLabel",
+            wraplength=600,
+        ).pack(anchor="w")
+
+        detect_button = ttk.Button(
+            detection_panel,
+            text="Detect Chipset Mode",
+            style="Void.TButton",
+            command=self._detect_chipset,
+        )
+        detect_button.pack(anchor="w", pady=(6, 0))
+        Tooltip(detect_button, "Run chipset detection for the selected device.")
+
+        ttk.Label(edl_recovery, text="Tool Selection", style="Void.TLabel").pack(anchor="w", pady=(10, 0))
+        tool_panel = ttk.Frame(edl_recovery, style="Void.TFrame")
+        tool_panel.pack(fill="x", pady=(6, 10))
+
+        ttk.Label(tool_panel, text="Chipset Override", style="Void.TLabel").pack(side="left")
+        chipset_names = ["Auto-detect"]
+        chipset_names.extend(sorted({chipset.name for chipset in list_chipsets()}))
+        override_menu = ttk.Combobox(
+            tool_panel,
+            textvariable=self.chipset_override_var,
+            values=chipset_names,
+            state="readonly",
+            width=18,
+        )
+        override_menu.pack(side="left", padx=(8, 12))
+        Tooltip(override_menu, "Override auto-detection with a manual chipset selection.")
+
+        ttk.Label(tool_panel, text="Target Mode", style="Void.TLabel").pack(side="left")
+        mode_menu = ttk.Combobox(
+            tool_panel,
+            textvariable=self.target_mode_var,
+            values=["edl", "preloader", "download", "bootrom"],
+            state="readonly",
+            width=12,
+        )
+        mode_menu.pack(side="left", padx=(8, 0))
+        Tooltip(mode_menu, "Select the target mode for entry workflows.")
+
+        ttk.Label(edl_recovery, text="Workflows", style="Void.TLabel").pack(anchor="w", pady=(10, 0))
+        workflow_panel = ttk.Frame(edl_recovery, style="Void.TFrame")
+        workflow_panel.pack(fill="x", pady=(6, 12))
+
+        entry_button = ttk.Button(
+            workflow_panel,
+            text="Enter Mode",
+            style="Void.TButton",
+            command=self._enter_chipset_mode,
+        )
+        entry_button.pack(side="left", padx=(0, 8))
+        Tooltip(entry_button, "Attempt to enter the selected chipset mode.")
+
+        flash_button = ttk.Button(
+            workflow_panel,
+            text="Flash",
+            style="Void.TButton",
+            command=lambda: self._recover_chipset_device("Flash"),
+        )
+        flash_button.pack(side="left", padx=(0, 8))
+        Tooltip(flash_button, "Check recovery tooling for flashing workflows.")
+
+        dump_button = ttk.Button(
+            workflow_panel,
+            text="Dump",
+            style="Void.TButton",
+            command=lambda: self._recover_chipset_device("Dump"),
+        )
+        dump_button.pack(side="left")
+        Tooltip(dump_button, "Check recovery tooling for dump workflows.")
+
+        ttk.Label(edl_recovery, text="Test-Point Guidance", style="Void.TLabel").pack(anchor="w")
+        testpoint_panel = ttk.Frame(edl_recovery, style="Void.TFrame")
+        testpoint_panel.pack(fill="x", pady=(6, 0))
+
+        warnings = (
+            "Safety Warnings\n"
+            "• Disconnect power sources before opening the device chassis.\n"
+            "• Use ESD protection and insulated tools to avoid short circuits.\n"
+            "• Confirm test-point locations with official board-level docs.\n"
+            "• Proceed only if you are trained for hardware service."
+        )
+        ttk.Label(testpoint_panel, text=warnings, style="Void.TLabel", wraplength=600).pack(anchor="w")
+
+        links_panel = ttk.Frame(testpoint_panel, style="Void.TFrame")
+        links_panel.pack(anchor="w", pady=(6, 0))
+        ttk.Label(links_panel, text="External Docs:", style="Void.TLabel").pack(side="left")
+
+        doc_links = [
+            ("Qualcomm EDL", "https://www.qualcomm.com/support"),
+            ("MediaTek BootROM", "https://www.mediatek.com/support"),
+            ("Samsung Download Mode", "https://www.samsung.com/support"),
+        ]
+        for label, url in doc_links:
+            link_button = ttk.Button(
+                links_panel,
+                text=label,
+                style="Void.TButton",
+                command=lambda link=url: webbrowser.open(link),
+            )
+            link_button.pack(side="left", padx=(8, 0))
+
+        ttk.Label(
+            testpoint_panel,
+            textvariable=self.testpoint_notes_var,
+            style="Void.TLabel",
+            wraplength=600,
+        ).pack(anchor="w", pady=(8, 0))
+
+        ttk.Label(
+            edl_recovery,
+            textvariable=self.chipset_status_var,
+            style="Void.TLabel",
+            wraplength=600,
+        ).pack(anchor="w", pady=(10, 0))
 
         ttk.Label(plugins_panel, text="Registered Plugins", style="Void.TLabel").pack(anchor="w")
         plugin_controls = ttk.Frame(plugins_panel, style="Void.TFrame")
@@ -500,6 +645,8 @@ class VoidGUI:
         if not selection or selection[0] >= len(self.device_info):
             self.selected_device_var.set("No device selected.")
             self.details_var.set("Device details will appear here.")
+            self.chipset_status_var.set("Select a device to view chipset workflow status.")
+            self.testpoint_notes_var.set("No model-specific test-point notes available.")
             return
 
         info = self.device_info[selection[0]]
@@ -518,20 +665,46 @@ class VoidGUI:
         battery = info.get("battery", {})
         storage = info.get("storage", {})
         mode = info.get("mode", "Unknown")
+        chipset = info.get("chipset", "Unknown")
+        chipset_vendor = info.get("chipset_vendor", "Unknown")
+        chipset_mode = info.get("chipset_mode", "Unknown")
+        chipset_confidence = info.get("chipset_confidence", "Unknown")
+        chipset_notes = ", ".join(info.get("chipset_notes", [])) or "None"
+        usb_id = info.get("usb_id") or info.get("usb") or "Unknown"
+        usb_vid = info.get("usb_vid", "Unknown")
+        usb_pid = info.get("usb_pid", "Unknown")
+        status = info.get("status", "Unknown")
         reachable = "Yes" if info.get("reachable", False) else "No"
         self.selected_device_var.set(f"{device_id} • {manufacturer} {model}")
         self.details_var.set(
             "Device Overview\n"
             f"• Mode: {mode} | Reachable: {reachable}\n"
+            f"• Status: {status}\n"
             f"• Brand: {brand} | Product: {product}\n"
             f"• Android: {android} (SDK {sdk})\n"
             f"• Build: {build_id} ({build_type})\n"
             f"• Hardware: {hardware} | ABI: {cpu_abi}\n"
             f"• Security Patch: {security}\n"
+            f"• Chipset: {chipset} ({chipset_vendor}) | Mode: {chipset_mode}\n"
+            f"• Chipset Confidence: {chipset_confidence} | Notes: {chipset_notes}\n"
+            f"• USB ID: {usb_id} | VID: {usb_vid} PID: {usb_pid}\n"
             f"• Battery Level: {battery.get('level', 'Unknown')}\n"
             f"• Storage Free: {storage.get('available', 'Unknown')}\n"
             f"• Serial: {device_id}"
         )
+        self.chipset_status_var.set(
+            f"Active chipset: {chipset} ({chipset_vendor}) "
+            f"mode={chipset_mode} confidence={chipset_confidence}."
+        )
+
+        testpoint_note = (
+            info.get("testpoint_notes")
+            or info.get("chipset_metadata", {}).get("testpoint_notes")
+        )
+        if testpoint_note:
+            self.testpoint_notes_var.set(f"Model Notes: {testpoint_note}")
+        else:
+            self.testpoint_notes_var.set("No model-specific test-point notes available.")
 
     def refresh_devices(self) -> None:
         """Refresh the device list."""
@@ -581,6 +754,69 @@ class VoidGUI:
         if device_id:
             self._run_task("Screenshot", ScreenCapture.take_screenshot, device_id)
 
+    def _detect_chipset(self) -> None:
+        device_id = self._get_selected_device()
+        if not device_id:
+            return
+        context = self._get_device_context()
+        if context is None:
+            return
+        detection = detect_chipset_for_device(context)
+        if not detection:
+            message = "No chipset detected for the selected device."
+            self.chipset_detection_var.set(message)
+            self.chipset_status_var.set(message)
+            self._log(message, level="WARN")
+            return
+        details = (
+            f"Detected {detection.chipset} ({detection.vendor}) "
+            f"mode={detection.mode} confidence={detection.confidence:.2f}."
+        )
+        notes = " ".join(detection.notes) if detection.notes else "No detection notes."
+        self.chipset_detection_var.set(f"{details}\n{notes}")
+        self.chipset_status_var.set(details)
+        self._log(details)
+
+    def _enter_chipset_mode(self) -> None:
+        context = self._get_device_context()
+        if context is None:
+            return
+        target_mode = self.target_mode_var.get()
+        override = self._get_chipset_override()
+        self._run_task(
+            "Enter Mode",
+            enter_chipset_mode,
+            context,
+            target_mode,
+            override,
+        )
+
+    def _recover_chipset_device(self, label: str) -> None:
+        context = self._get_device_context()
+        if context is None:
+            return
+        override = self._get_chipset_override()
+        self._run_task(
+            f"{label} Workflow",
+            recover_chipset_device,
+            context,
+            override,
+        )
+
+    def _get_chipset_override(self) -> Optional[str]:
+        override = self.chipset_override_var.get().strip()
+        if not override or override.lower() == "auto-detect":
+            return None
+        return override
+
+    def _get_device_context(self) -> Optional[Dict[str, str]]:
+        selection = self.device_list.curselection()
+        if not selection or selection[0] >= len(self.device_info):
+            messagebox.showwarning("Void", "Select a device first.")
+            return None
+        info = self.device_info[selection[0]]
+        return {k: str(v) for k, v in info.items() if v is not None}
+
     def run(self) -> None:
         """Start the GUI event loop."""
         self._log("Void GUI ready.")
@@ -589,6 +825,9 @@ class VoidGUI:
     def _summarize_result(self, label: str, result: Any) -> str:
         """Create a friendly summary of an operation result."""
         if isinstance(result, PluginResult):
+            status = "complete" if result.success else "failed"
+            return f"{label} {status}: {result.message}"
+        if isinstance(result, ChipsetActionResult):
             status = "complete" if result.success else "failed"
             return f"{label} {status}: {result.message}"
         if isinstance(result, dict):
