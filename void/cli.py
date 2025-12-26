@@ -205,6 +205,7 @@ class CLI:
             table = Table(title="Connected Devices")
             table.add_column("ID", style="cyan")
             table.add_column("Mode", style="green")
+            table.add_column("Status", style="white")
             table.add_column("Manufacturer", style="yellow")
             table.add_column("Model", style="blue")
             table.add_column("Android", style="magenta")
@@ -213,6 +214,7 @@ class CLI:
                 table.add_row(
                     device.get('id', 'Unknown'),
                     device.get('mode', 'Unknown'),
+                    device.get('status', 'Unknown'),
                     device.get('manufacturer', 'Unknown'),
                     device.get('model', 'Unknown'),
                     device.get('android_version', 'Unknown')
@@ -222,7 +224,11 @@ class CLI:
         else:
             print("\n📱 Connected Devices:")
             for device in devices:
-                print(f"  • {device.get('id')} - {device.get('manufacturer')} {device.get('model')}")
+                status = device.get('status', 'Unknown')
+                print(
+                    f"  • {device.get('id')} - {device.get('manufacturer')} "
+                    f"{device.get('model')} ({status})"
+                )
 
     def _cmd_backup(self, args: List[str]) -> None:
         """Create backup."""
@@ -298,7 +304,11 @@ class CLI:
             android = device.get('android_version', 'Unknown')
             security = device.get('security_patch', 'Unknown')
             reachable = "Yes" if device.get("reachable") else "No"
-            print(f"• {device_id} — {brand} {model} | Android {android} | Patch {security} | Reachable: {reachable}")
+            status = device.get('status', 'Unknown')
+            print(
+                f"• {device_id} — {brand} {model} | Android {android} | Patch {security} "
+                f"| Status: {status} | Reachable: {reachable}"
+            )
 
     def _cmd_menu(self) -> None:
         """Launch interactive menu."""

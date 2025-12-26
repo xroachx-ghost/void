@@ -43,15 +43,17 @@ class DeviceDetector:
 
                             if status == 'device':
                                 info = DeviceDetector._get_adb_info(device_id)
-                                info.update(DeviceDetector._parse_adb_listing(parts[2:]))
-                                devices.append(
-                                    {
-                                        'id': device_id,
-                                        'mode': 'adb',
-                                        'status': status,
-                                        **info,
-                                    }
-                                )
+                            else:
+                                info = {'reachable': False}
+                            info.update(DeviceDetector._parse_adb_listing(parts[2:]))
+                            devices.append(
+                                {
+                                    'id': device_id,
+                                    'mode': 'adb',
+                                    'status': status,
+                                    **info,
+                                }
+                            )
         except Exception:
             pass
         return devices
