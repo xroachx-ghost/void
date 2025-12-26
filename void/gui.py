@@ -153,6 +153,14 @@ class VoidGUI:
         self._pending_troubleshooting_open = False
         self.notebook: Optional[ttk.Notebook] = None
         self.troubleshooting_panel: Optional[ttk.Frame] = None
+        self.backup_button: Optional[ttk.Button] = None
+        self.report_button: Optional[ttk.Button] = None
+        self.analyze_button: Optional[ttk.Button] = None
+        self.enable_backups_var = tk.BooleanVar(value=Config.ENABLE_AUTO_BACKUP)
+        self.enable_reports_var = tk.BooleanVar(value=Config.ENABLE_REPORTS)
+        self.enable_analytics_var = tk.BooleanVar(value=Config.ENABLE_ANALYTICS)
+        self.exports_dir_var = tk.StringVar(value=str(Config.EXPORTS_DIR))
+        self.reports_dir_var = tk.StringVar(value=str(Config.REPORTS_DIR))
         self._show_splash()
 
     def _show_splash(self) -> None:
@@ -427,23 +435,18 @@ class VoidGUI:
                     ).pack(anchor="w", pady=(2, 0))
 
     def _config_path(self) -> Path:
-        return Config.BASE_DIR / "config.json"
+        return Config.CONFIG_PATH
 
     def _load_app_config(self) -> Dict[str, Any]:
-        path = self._config_path()
-        try:
-            with path.open("r", encoding="utf-8") as handle:
-                data = json.load(handle)
-                return data if isinstance(data, dict) else {}
-        except FileNotFoundError:
+        data = Config.read_config()
+        if not isinstance(data, dict):
             return {}
-        except json.JSONDecodeError:
-            return {}
+        return {key: value for key, value in data.items() if key != "settings"}
 
     def _save_app_config(self, data: Dict[str, Any]) -> None:
-        path = self._config_path()
-        with path.open("w", encoding="utf-8") as handle:
-            json.dump(data, handle, indent=2, sort_keys=True)
+        existing = Config.read_config()
+        merged = {**existing, **data}
+        Config.write_config(merged)
 
     def _is_first_run_complete(self) -> bool:
         return bool(self._app_config.get("first_run_complete", False))
@@ -825,6 +828,12 @@ class VoidGUI:
             padding=(14, 8),
             font=("Consolas", 10, "bold"),
         )
+        style.configure(
+            "Void.TCheckbutton",
+            background=self.theme["panel"],
+            foreground=self.theme["text"],
+            font=("Consolas", 10),
+        )
         style.map(
             "Void.TNotebook.Tab",
             background=[
@@ -915,11 +924,13 @@ class VoidGUI:
         help_panel = ttk.Frame(self.notebook, style="Void.TFrame")
         plugins_panel = ttk.Frame(self.notebook, style="Void.TFrame")
         self.troubleshooting_panel = ttk.Frame(self.notebook, style="Void.TFrame")
+        settings_panel = ttk.Frame(self.notebook, style="Void.TFrame")
         self.notebook.add(dashboard, text="Dashboard")
         self.notebook.add(edl_recovery, text="EDL & Recovery")
         self.notebook.add(logs, text="Operations Log")
         self.notebook.add(plugins_panel, text="Plugins")
         self.notebook.add(help_panel, text="What Does This Do?")
+        self.notebook.add(settings_panel, text="Settings")
         self.notebook.add(self.troubleshooting_panel, text="Troubleshooting")
 
         ttk.Label(dashboard, text="Selected Device", style="Void.TLabel").pack(anchor="w")
@@ -976,51 +987,51 @@ class VoidGUI:
         actions = ttk.Frame(dashboard, style="Void.TFrame")
         actions.pack(fill="x", pady=6)
 
-        backup_button = ttk.Button(
+        self.backup_button = ttk.Button(
             actions,
             text="Create Backup",
             style="Void.TButton",
             command=self._backup
         )
-        backup_button.pack(
+        self.backup_button.pack(
             side="left", padx=(0, 8)
         )
-        Tooltip(backup_button, "Creates a local backup snapshot of device data.")
-        backup_button.bind(
+        Tooltip(self.backup_button, "Creates a local backup snapshot of device data.")
+        self.backup_button.bind(
             "<Enter>",
             lambda _event: self.action_help_var.set(
                 "Create Backup: captures a local snapshot of device data using ADB."
             ),
         )
 
-        analyze_button = ttk.Button(
+        self.analyze_button = ttk.Button(
             actions,
             text="Analyze",
             style="Void.TButton",
             command=self._analyze
         )
-        analyze_button.pack(
+        self.analyze_button.pack(
             side="left", padx=(0, 8)
         )
-        Tooltip(analyze_button, "Collects performance metrics and device diagnostics.")
-        analyze_button.bind(
+        Tooltip(self.analyze_button, "Collects performance metrics and device diagnostics.")
+        self.analyze_button.bind(
             "<Enter>",
             lambda _event: self.action_help_var.set(
                 "Analyze: gathers performance and system diagnostics from the device."
             ),
         )
 
-        report_button = ttk.Button(
+        self.report_button = ttk.Button(
             actions,
             text="Generate Report",
             style="Void.TButton",
             command=self._report
         )
-        report_button.pack(
+        self.report_button.pack(
             side="left", padx=(0, 8)
         )
-        Tooltip(report_button, "Builds an HTML device report with collected metadata.")
-        report_button.bind(
+        Tooltip(self.report_button, "Builds an HTML device report with collected metadata.")
+        self.report_button.bind(
             "<Enter>",
             lambda _event: self.action_help_var.set(
                 "Generate Report: creates an HTML report with device information."
@@ -1127,6 +1138,9 @@ class VoidGUI:
             style="Void.TButton",
             command=self._update_diagnostics,
         ).pack(anchor="w", pady=(8, 0))
+
+        self._build_settings_panel(settings_panel)
+        self._sync_action_buttons()
 
         self._update_diagnostics()
         troubleshoot_text = (
@@ -1685,6 +1699,10 @@ class VoidGUI:
         return "Unknown", self.theme["muted"]
 
     def _backup(self) -> None:
+        if not Config.ENABLE_AUTO_BACKUP:
+            messagebox.showwarning("Backups Disabled", "Enable backups in Settings to use this feature.")
+            self.status_var.set("Backup disabled in settings.")
+            return
         device_id = self._get_selected_device()
         if device_id:
             self._run_task(
@@ -1695,11 +1713,19 @@ class VoidGUI:
             )
 
     def _analyze(self) -> None:
+        if not Config.ENABLE_ANALYTICS:
+            messagebox.showwarning("Analytics Disabled", "Enable analytics in Settings to use Analyze.")
+            self.status_var.set("Analyze disabled in settings.")
+            return
         device_id = self._get_selected_device()
         if device_id:
             self._run_task("Analyze", PerformanceAnalyzer.analyze, device_id)
 
     def _report(self) -> None:
+        if not Config.ENABLE_REPORTS:
+            messagebox.showwarning("Reports Disabled", "Enable reports in Settings to generate reports.")
+            self.status_var.set("Reports disabled in settings.")
+            return
         device_id = self._get_selected_device()
         if device_id:
             self._run_task(
@@ -1713,6 +1739,127 @@ class VoidGUI:
         device_id = self._get_selected_device()
         if device_id:
             self._run_task("Screenshot", ScreenCapture.take_screenshot, device_id)
+
+    def _build_settings_panel(self, panel: ttk.Frame) -> None:
+        ttk.Label(panel, text="Settings", style="Void.TLabel").pack(anchor="w")
+
+        toggles = ttk.Frame(panel, style="Void.Card.TFrame")
+        toggles.pack(fill="x", pady=(6, 12))
+        toggles.configure(padding=12)
+        ttk.Label(toggles, text="Feature Toggles", style="Void.TLabel").pack(anchor="w")
+
+        ttk.Checkbutton(
+            toggles,
+            text="Enable backups",
+            variable=self.enable_backups_var,
+            style="Void.TCheckbutton",
+        ).pack(anchor="w", pady=(6, 0))
+        ttk.Checkbutton(
+            toggles,
+            text="Enable reports",
+            variable=self.enable_reports_var,
+            style="Void.TCheckbutton",
+        ).pack(anchor="w", pady=(4, 0))
+        ttk.Checkbutton(
+            toggles,
+            text="Enable analytics",
+            variable=self.enable_analytics_var,
+            style="Void.TCheckbutton",
+        ).pack(anchor="w", pady=(4, 0))
+
+        export_card = ttk.Frame(panel, style="Void.Card.TFrame")
+        export_card.pack(fill="x", pady=(0, 12))
+        export_card.configure(padding=12)
+        ttk.Label(export_card, text="Export Directories", style="Void.TLabel").pack(anchor="w")
+
+        exports_row = ttk.Frame(export_card, style="Void.TFrame")
+        exports_row.pack(fill="x", pady=(6, 0))
+        ttk.Label(exports_row, text="Exports folder", style="Void.TLabel").pack(side="left")
+        exports_entry = tk.Entry(
+            exports_row,
+            textvariable=self.exports_dir_var,
+            bg=self.theme["panel_alt"],
+            fg=self.theme["text"],
+            insertbackground=self.theme["accent"],
+            relief="flat",
+            font=("Consolas", 10),
+        )
+        exports_entry.pack(side="left", fill="x", expand=True, padx=(8, 6))
+        ttk.Button(
+            exports_row,
+            text="Browse",
+            style="Void.TButton",
+            command=self._browse_exports_dir,
+        ).pack(side="left")
+
+        reports_row = ttk.Frame(export_card, style="Void.TFrame")
+        reports_row.pack(fill="x", pady=(6, 0))
+        ttk.Label(reports_row, text="Reports folder", style="Void.TLabel").pack(side="left")
+        reports_entry = tk.Entry(
+            reports_row,
+            textvariable=self.reports_dir_var,
+            bg=self.theme["panel_alt"],
+            fg=self.theme["text"],
+            insertbackground=self.theme["accent"],
+            relief="flat",
+            font=("Consolas", 10),
+        )
+        reports_entry.pack(side="left", fill="x", expand=True, padx=(8, 6))
+        ttk.Button(
+            reports_row,
+            text="Browse",
+            style="Void.TButton",
+            command=self._browse_reports_dir,
+        ).pack(side="left")
+
+        actions = ttk.Frame(panel, style="Void.TFrame")
+        actions.pack(fill="x")
+        ttk.Button(
+            actions,
+            text="Save Settings",
+            style="Void.TButton",
+            command=self._save_settings,
+        ).pack(side="left")
+        ttk.Label(
+            actions,
+            text="Settings apply immediately to GUI actions.",
+            style="Void.TLabel",
+        ).pack(side="left", padx=(12, 0))
+
+    def _browse_exports_dir(self) -> None:
+        path = filedialog.askdirectory(initialdir=self.exports_dir_var.get() or str(Config.EXPORTS_DIR))
+        if path:
+            self.exports_dir_var.set(path)
+
+    def _browse_reports_dir(self) -> None:
+        path = filedialog.askdirectory(initialdir=self.reports_dir_var.get() or str(Config.REPORTS_DIR))
+        if path:
+            self.reports_dir_var.set(path)
+
+    def _save_settings(self) -> None:
+        settings = {
+            "enable_auto_backup": bool(self.enable_backups_var.get()),
+            "enable_reports": bool(self.enable_reports_var.get()),
+            "enable_analytics": bool(self.enable_analytics_var.get()),
+            "exports_dir": self.exports_dir_var.get().strip(),
+            "reports_dir": self.reports_dir_var.get().strip(),
+        }
+        normalized = Config.save_settings(settings)
+        self.exports_dir_var.set(normalized["exports_dir"])
+        self.reports_dir_var.set(normalized["reports_dir"])
+        self._sync_action_buttons()
+        self.status_var.set("Settings saved.")
+
+    def _sync_action_buttons(self) -> None:
+        if self.backup_button is not None:
+            state = "normal" if Config.ENABLE_AUTO_BACKUP else "disabled"
+            self.backup_button.configure(state=state)
+        if self.report_button is not None:
+            state = "normal" if Config.ENABLE_REPORTS else "disabled"
+            self.report_button.configure(state=state)
+        if self.analyze_button is not None:
+            state = "normal" if Config.ENABLE_ANALYTICS else "disabled"
+            self.analyze_button.configure(state=state)
 
     def _detect_chipset(self) -> None:
         device_id = self._get_selected_device()
