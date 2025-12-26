@@ -9,6 +9,7 @@ Unauthorized copying, modification, distribution, or disclosure is prohibited.
 
 from __future__ import annotations
 
+import csv
 import json
 import platform
 import shutil
@@ -35,6 +36,7 @@ from .core.report import ReportGenerator
 from .core.screen import ScreenCapture
 from .core.system import SystemTweaker
 from .core.utils import SafeSubprocess
+from .logging import get_logger
 from .plugins import PluginContext, discover_plugins, get_registry
 
 try:
@@ -54,6 +56,7 @@ class CLI:
         self.engine = FRPEngine()
         self.logcat = LogcatViewer()
         self.last_device_id: Optional[str] = None
+        self.logger = get_logger(__name__)
         discover_plugins()
         self.plugin_registry = get_registry()
 
@@ -70,7 +73,10 @@ class CLI:
                 if not cmd:
                     continue
                 if len(cmd) > Config.MAX_INPUT_LENGTH:
-                    print(f"❌ Command too long (max {Config.MAX_INPUT_LENGTH} characters)")
+                    self.logger.warning(
+                        f"Command too long (max {Config.MAX_INPUT_LENGTH} characters)",
+                        extra={"category": "cli", "device_id": "-", "method": "-"},
+                    )
                     continue
 
                 parts = cmd.split()
@@ -116,6 +122,7 @@ class CLI:
                     'recent-backups': lambda: self._cmd_recent_backups(args),
                     'recent-reports': lambda: self._cmd_recent_reports(args),
                     'logs-json': self._cmd_logs_json,
+                    'logs-export': lambda: self._cmd_logs_export(args),
                     'backups-json': self._cmd_backups_json,
                     'latest-report': self._cmd_latest_report,
                     'recent-devices': lambda: self._cmd_recent_devices(args),
@@ -139,12 +146,21 @@ class CLI:
                 if command in commands:
                     commands[command]()
                 else:
-                    print(f"Unknown command: {command}")
+                    self.logger.warning(
+                        f"Unknown command: {command}",
+                        extra={"category": "cli", "device_id": "-", "method": "-"},
+                    )
 
             except KeyboardInterrupt:
-                print("\nUse 'exit' to quit")
+                self.logger.info(
+                    "Use 'exit' to quit",
+                    extra={"category": "cli", "device_id": "-", "method": "-"},
+                )
             except Exception as exc:
-                print(f"Error: {exc}")
+                self.logger.exception(
+                    f"Error: {exc}",
+                    extra={"category": "cli", "device_id": "-", "method": "-"},
+                )
 
     def _print_banner(self) -> None:
         """Print banner."""
@@ -795,6 +811,76 @@ Type 'menu' to launch the interactive menu.
         export_path.write_text(json.dumps(rows, indent=2))
         print(f"✅ Logs exported: {export_path}")
 
+    def _cmd_logs_export(self, args: List[str]) -> None:
+        """Export filtered logs to JSON or CSV."""
+        if not args:
+            print(
+                "Usage: logs-export <json|csv> [level=info] [category=core] [device_id=...] "
+                "[method=...] [since=YYYY-MM-DD] [until=YYYY-MM-DD] [limit=500]"
+            )
+            return
+
+        export_format = args[0].lower()
+        if export_format not in {"json", "csv"}:
+            print("Usage: logs-export <json|csv> [filters...]")
+            return
+
+        filters: Dict[str, Optional[str] | int] = {
+            "level": None,
+            "category": None,
+            "device_id": None,
+            "method": None,
+            "since": None,
+            "until": None,
+            "limit": 500,
+        }
+
+        for item in args[1:]:
+            if "=" not in item:
+                print("Usage: logs-export <json|csv> [filters...]")
+                return
+            key, value = item.split("=", 1)
+            key = key.lstrip("-").lower()
+            if key in {"device", "device_id"}:
+                key = "device_id"
+            if key == "limit":
+                try:
+                    filters["limit"] = max(1, int(value))
+                except ValueError:
+                    print("Usage: logs-export <json|csv> [filters...]")
+                    return
+                continue
+            if key not in {"level", "category", "device_id", "method", "since", "until"}:
+                print("Usage: logs-export <json|csv> [filters...]")
+                return
+            filters[key] = value
+
+        rows = db.get_filtered_logs(
+            level=filters["level"],
+            category=filters["category"],
+            device_id=filters["device_id"],
+            method=filters["method"],
+            since=filters["since"],
+            until=filters["until"],
+            limit=filters["limit"],
+        )
+        if not rows:
+            print("❌ No log entries found")
+            return
+
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        export_path = Config.EXPORTS_DIR / f"logs_filtered_{timestamp}.{export_format}"
+        if export_format == "json":
+            export_path.write_text(json.dumps(rows, indent=2))
+        else:
+            fieldnames = ["timestamp", "level", "category", "message", "device_id", "method"]
+            with export_path.open("w", newline="", encoding="utf-8") as handle:
+                writer = csv.DictWriter(handle, fieldnames=fieldnames)
+                writer.writeheader()
+                writer.writerows(rows)
+
+        print(f"✅ Logs exported: {export_path}")
+
     def _cmd_backups_json(self) -> None:
         """Export recent backups to JSON."""
         rows = db.get_recent_backups(limit=200)
@@ -1259,6 +1345,7 @@ SYSTEM:
   recent-backups [count]           - Show recent backup records
   recent-reports [count]           - Show recent report records
   logs-json                        - Export logs to JSON
+  logs-export <json|csv> [filters] - Export filtered logs to JSON/CSV
   backups-json                     - Export backups to JSON
   latest-report                    - Show latest report paths
   recent-devices [count]           - Show recent devices
@@ -1299,6 +1386,7 @@ SYSTEM:
   void> doctor
   void> logtail 100
   void> recent-logs 25
+  void> logs-export json level=error since=2024-01-01
   void> recent-backups 10
   void> recent-reports 10
   void> methods 5

@@ -198,6 +198,55 @@ class Database:
             ).fetchall()
             return [dict(row) for row in rows]
 
+    def get_filtered_logs(
+        self,
+        level: str | None = None,
+        category: str | None = None,
+        device_id: str | None = None,
+        method: str | None = None,
+        since: str | None = None,
+        until: str | None = None,
+        limit: int = 500,
+    ) -> List[Dict[str, Any]]:
+        """Get filtered log entries."""
+        query = (
+            """
+            SELECT timestamp, level, category, message, device_id, method
+            FROM logs
+            """
+        )
+        clauses = []
+        params: List[Any] = []
+
+        if level:
+            clauses.append("level = ?")
+            params.append(level)
+        if category:
+            clauses.append("category = ?")
+            params.append(category)
+        if device_id:
+            clauses.append("device_id = ?")
+            params.append(device_id)
+        if method:
+            clauses.append("method = ?")
+            params.append(method)
+        if since:
+            clauses.append("timestamp >= ?")
+            params.append(since)
+        if until:
+            clauses.append("timestamp <= ?")
+            params.append(until)
+
+        if clauses:
+            query += " WHERE " + " AND ".join(clauses)
+
+        query += " ORDER BY timestamp DESC LIMIT ?"
+        params.append(limit)
+
+        with self._get_connection() as conn:
+            rows = conn.execute(query, tuple(params)).fetchall()
+            return [dict(row) for row in rows]
+
     def get_recent_backups(self, limit: int = 10) -> List[Dict[str, Any]]:
         """Get recent backups."""
         with self._get_connection() as conn:

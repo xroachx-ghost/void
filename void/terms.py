@@ -12,6 +12,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 from .config import Config
+from .logging import get_logger
 
 TERMS_TEXT = (
     "By using Void, you agree to the Terms & Conditions and confirm you have "
@@ -25,6 +26,7 @@ def terms_path() -> Path:
 
 def ensure_terms_acceptance_cli() -> bool:
     """Require user acceptance of Terms & Conditions before use (CLI)."""
+    logger = get_logger(__name__)
     terms_file = terms_path()
     if terms_file.exists():
         try:
@@ -34,11 +36,20 @@ def ensure_terms_acceptance_cli() -> bool:
         except Exception:
             pass
 
-    print("\n⚠️  TERMS & CONDITIONS REQUIRED\n")
-    print(TERMS_TEXT)
+    logger.warning(
+        "TERMS & CONDITIONS REQUIRED",
+        extra={"category": "terms", "device_id": "-", "method": "-"},
+    )
+    logger.info(
+        TERMS_TEXT,
+        extra={"category": "terms", "device_id": "-", "method": "-"},
+    )
     response = input("Type 'accept' to continue or anything else to exit: ").strip().lower()
     if response != "accept":
-        print("Terms not accepted. Exiting.")
+        logger.info(
+            "Terms not accepted. Exiting.",
+            extra={"category": "terms", "device_id": "-", "method": "-"},
+        )
         return False
 
     terms_file.parent.mkdir(parents=True, exist_ok=True)
