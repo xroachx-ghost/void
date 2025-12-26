@@ -9,7 +9,9 @@ Unauthorized copying, modification, distribution, or disclosure is prohibited.
 
 from __future__ import annotations
 
+import csv
 import json
+import platform
 import threading
 import webbrowser
 from pathlib import Path
@@ -18,6 +20,7 @@ from math import sin, pi
 from typing import Any, Callable, Dict, List, Optional
 
 from .config import Config
+from .core.apps import AppManager
 from .core.backup import AutoBackup
 from .core.chipsets.base import ChipsetActionResult
 from .core.chipsets.dispatcher import (
@@ -26,14 +29,23 @@ from .core.chipsets.dispatcher import (
     list_chipsets,
     recover_chipset_device,
 )
+from .core.data_recovery import DataRecovery
+from .core.database import db
 from .core.device import DeviceDetector
 from .core.display import DisplayAnalyzer
+from .core.edl import edl_dump, edl_flash
+from .core.files import FileManager
+from .core.frp import FRPEngine
+from .core.logcat import LogcatViewer
+from .core.monitor import monitor
+from .core.network import NetworkTools
 from .core.performance import PerformanceAnalyzer
 from .core.report import ReportGenerator
 from .core.screen import ScreenCapture
+from .core.system import SystemTweaker
 from .core.tools import check_android_tools, check_mediatek_tools, check_qualcomm_tools
 from .core.tools.android import android_driver_hints, check_usb_debugging_status
-from .core.utils import ToolCheckResult, check_tools
+from .core.utils import SafeSubprocess, ToolCheckResult, check_tools
 from .plugins import PluginContext, PluginMetadata, PluginResult, discover_plugins, get_registry
 from .terms import ensure_terms_acceptance_gui
 
@@ -106,6 +118,10 @@ class VoidGUI:
 
         discover_plugins()
         self.plugin_registry = get_registry()
+        self.frp_engine = FRPEngine()
+        self.logcat_viewer = LogcatViewer()
+        self._logcat_thread: Optional[threading.Thread] = None
+        self._logcat_running = False
 
         self.theme = Config.GUI_THEME
         self.root = tk.Tk()
@@ -169,6 +185,32 @@ class VoidGUI:
         self.enable_analytics_var = tk.BooleanVar(value=Config.ENABLE_ANALYTICS)
         self.exports_dir_var = tk.StringVar(value=str(Config.EXPORTS_DIR))
         self.reports_dir_var = tk.StringVar(value=str(Config.REPORTS_DIR))
+        self.apps_filter_var = tk.StringVar(value="all")
+        self.apps_package_var = tk.StringVar(value="")
+        self.files_list_path_var = tk.StringVar(value="/sdcard")
+        self.files_pull_remote_var = tk.StringVar(value="")
+        self.files_pull_local_var = tk.StringVar(value="")
+        self.files_push_local_var = tk.StringVar(value="")
+        self.files_push_remote_var = tk.StringVar(value="")
+        self.files_delete_remote_var = tk.StringVar(value="")
+        self.tweak_type_var = tk.StringVar(value="dpi")
+        self.tweak_value_var = tk.StringVar(value="")
+        self.usb_force_var = tk.BooleanVar(value=False)
+        self.logcat_filter_var = tk.StringVar(value="")
+        self.monitor_status_var = tk.StringVar(value="Monitoring stopped.")
+        self.edl_loader_var = tk.StringVar(value="")
+        self.edl_image_var = tk.StringVar(value="")
+        self.edl_partition_var = tk.StringVar(value="")
+        self.recent_items_limit_var = tk.StringVar(value="10")
+        self.db_limit_var = tk.StringVar(value="10")
+        self.log_export_format_var = tk.StringVar(value="json")
+        self.log_export_level_var = tk.StringVar(value="")
+        self.log_export_category_var = tk.StringVar(value="")
+        self.log_export_device_var = tk.StringVar(value="")
+        self.log_export_method_var = tk.StringVar(value="")
+        self.log_export_since_var = tk.StringVar(value="")
+        self.log_export_until_var = tk.StringVar(value="")
+        self.log_export_limit_var = tk.StringVar(value="500")
         self._show_splash()
 
     def _show_splash(self) -> None:
@@ -1108,6 +1150,16 @@ class VoidGUI:
         self.notebook.pack(fill="both", expand=True)
 
         dashboard = ttk.Frame(self.notebook, style="Void.TFrame")
+        apps_panel = ttk.Frame(self.notebook, style="Void.TFrame")
+        files_panel = ttk.Frame(self.notebook, style="Void.TFrame")
+        recovery_panel = ttk.Frame(self.notebook, style="Void.TFrame")
+        system_panel = ttk.Frame(self.notebook, style="Void.TFrame")
+        network_panel = ttk.Frame(self.notebook, style="Void.TFrame")
+        logcat_panel = ttk.Frame(self.notebook, style="Void.TFrame")
+        monitor_panel = ttk.Frame(self.notebook, style="Void.TFrame")
+        edl_tools_panel = ttk.Frame(self.notebook, style="Void.TFrame")
+        data_exports_panel = ttk.Frame(self.notebook, style="Void.TFrame")
+        db_tools_panel = ttk.Frame(self.notebook, style="Void.TFrame")
         logs = ttk.Frame(self.notebook, style="Void.TFrame")
         edl_recovery = ttk.Frame(self.notebook, style="Void.TFrame")
         help_panel = ttk.Frame(self.notebook, style="Void.TFrame")
@@ -1115,6 +1167,16 @@ class VoidGUI:
         self.troubleshooting_panel = ttk.Frame(self.notebook, style="Void.TFrame")
         settings_panel = ttk.Frame(self.notebook, style="Void.TFrame")
         self.notebook.add(dashboard, text="Dashboard")
+        self.notebook.add(apps_panel, text="Apps")
+        self.notebook.add(files_panel, text="Files")
+        self.notebook.add(recovery_panel, text="Recovery")
+        self.notebook.add(system_panel, text="System Tweaks")
+        self.notebook.add(network_panel, text="Network")
+        self.notebook.add(logcat_panel, text="Logcat")
+        self.notebook.add(monitor_panel, text="Monitoring")
+        self.notebook.add(edl_tools_panel, text="EDL Flash/Dump")
+        self.notebook.add(data_exports_panel, text="Data/Reports/Exports")
+        self.notebook.add(db_tools_panel, text="DB Tools")
         self.notebook.add(edl_recovery, text="EDL & Recovery")
         self.notebook.add(logs, text="Operations Log")
         self.notebook.add(plugins_panel, text="Plugins")
@@ -1288,6 +1350,17 @@ class VoidGUI:
             self.output.configure(state="disabled")
             self.output.see("end")
             self._pending_log_entries.clear()
+
+        self._build_apps_panel(apps_panel)
+        self._build_files_panel(files_panel)
+        self._build_recovery_panel(recovery_panel)
+        self._build_system_panel(system_panel)
+        self._build_network_panel(network_panel)
+        self._build_logcat_panel(logcat_panel)
+        self._build_monitor_panel(monitor_panel)
+        self._build_edl_tools_panel(edl_tools_panel)
+        self._build_data_exports_panel(data_exports_panel)
+        self._build_db_tools_panel(db_tools_panel)
 
         ttk.Label(help_panel, text="Action Details", style="Void.TLabel").pack(anchor="w")
         ttk.Label(
@@ -2055,6 +2128,692 @@ class VoidGUI:
         message = "\n".join([headline, "", implication, "", *detail_lines])
         return summary, message
 
+    def _build_apps_panel(self, panel: ttk.Frame) -> None:
+        ttk.Label(panel, text="Apps", style="Void.TLabel").pack(anchor="w")
+
+        filters = ttk.Frame(panel, style="Void.Card.TFrame")
+        filters.pack(fill="x", pady=(6, 12))
+        filters.configure(padding=12)
+        ttk.Label(filters, text="List Apps", style="Void.TLabel").pack(anchor="w")
+        filter_row = ttk.Frame(filters, style="Void.TFrame")
+        filter_row.pack(fill="x", pady=(6, 0))
+        ttk.Label(filter_row, text="Filter", style="Void.TLabel").pack(side="left")
+        filter_menu = ttk.Combobox(
+            filter_row,
+            textvariable=self.apps_filter_var,
+            values=["all", "system", "user"],
+            state="readonly",
+            width=12,
+        )
+        filter_menu.pack(side="left", padx=(8, 12))
+        ttk.Button(
+            filter_row,
+            text="List Apps",
+            style="Void.TButton",
+            command=self._list_apps,
+        ).pack(side="left")
+
+        actions = ttk.Frame(panel, style="Void.Card.TFrame")
+        actions.pack(fill="x", pady=(0, 12))
+        actions.configure(padding=12)
+        ttk.Label(actions, text="Package Actions", style="Void.TLabel").pack(anchor="w")
+
+        package_row = ttk.Frame(actions, style="Void.TFrame")
+        package_row.pack(fill="x", pady=(6, 8))
+        ttk.Label(package_row, text="Package", style="Void.TLabel").pack(side="left")
+        package_entry = tk.Entry(
+            package_row,
+            textvariable=self.apps_package_var,
+            bg=self.theme["panel_alt"],
+            fg=self.theme["text"],
+            insertbackground=self.theme["accent"],
+            relief="flat",
+            font=("Consolas", 10),
+        )
+        package_entry.pack(side="left", fill="x", expand=True, padx=(8, 6))
+
+        button_row = ttk.Frame(actions, style="Void.TFrame")
+        button_row.pack(anchor="w")
+        ttk.Button(
+            button_row,
+            text="Disable",
+            style="Void.TButton",
+            command=lambda: self._run_app_action("Disable app", AppManager.disable_app),
+        ).pack(side="left", padx=(0, 6))
+        ttk.Button(
+            button_row,
+            text="Enable",
+            style="Void.TButton",
+            command=lambda: self._run_app_action("Enable app", AppManager.enable_app),
+        ).pack(side="left", padx=(0, 6))
+        ttk.Button(
+            button_row,
+            text="Clear Data",
+            style="Void.TButton",
+            command=lambda: self._run_app_action("Clear app data", AppManager.clear_app_data),
+        ).pack(side="left", padx=(0, 6))
+        ttk.Button(
+            button_row,
+            text="Uninstall",
+            style="Void.TButton",
+            command=lambda: self._run_app_action("Uninstall app", AppManager.uninstall_app),
+        ).pack(side="left", padx=(0, 6))
+        ttk.Button(
+            button_row,
+            text="Backup APK",
+            style="Void.TButton",
+            command=self._backup_app,
+        ).pack(side="left")
+
+    def _build_files_panel(self, panel: ttk.Frame) -> None:
+        ttk.Label(panel, text="Files", style="Void.TLabel").pack(anchor="w")
+
+        list_card = ttk.Frame(panel, style="Void.Card.TFrame")
+        list_card.pack(fill="x", pady=(6, 12))
+        list_card.configure(padding=12)
+        ttk.Label(list_card, text="List Files", style="Void.TLabel").pack(anchor="w")
+        list_row = ttk.Frame(list_card, style="Void.TFrame")
+        list_row.pack(fill="x", pady=(6, 0))
+        ttk.Label(list_row, text="Remote path", style="Void.TLabel").pack(side="left")
+        list_entry = tk.Entry(
+            list_row,
+            textvariable=self.files_list_path_var,
+            bg=self.theme["panel_alt"],
+            fg=self.theme["text"],
+            insertbackground=self.theme["accent"],
+            relief="flat",
+            font=("Consolas", 10),
+        )
+        list_entry.pack(side="left", fill="x", expand=True, padx=(8, 6))
+        ttk.Button(
+            list_row,
+            text="List",
+            style="Void.TButton",
+            command=self._list_files,
+        ).pack(side="left")
+
+        pull_card = ttk.Frame(panel, style="Void.Card.TFrame")
+        pull_card.pack(fill="x", pady=(0, 12))
+        pull_card.configure(padding=12)
+        ttk.Label(pull_card, text="Pull File", style="Void.TLabel").pack(anchor="w")
+        pull_row = ttk.Frame(pull_card, style="Void.TFrame")
+        pull_row.pack(fill="x", pady=(6, 6))
+        ttk.Label(pull_row, text="Remote path", style="Void.TLabel").pack(side="left")
+        pull_remote = tk.Entry(
+            pull_row,
+            textvariable=self.files_pull_remote_var,
+            bg=self.theme["panel_alt"],
+            fg=self.theme["text"],
+            insertbackground=self.theme["accent"],
+            relief="flat",
+            font=("Consolas", 10),
+        )
+        pull_remote.pack(side="left", fill="x", expand=True, padx=(8, 6))
+        pull_row2 = ttk.Frame(pull_card, style="Void.TFrame")
+        pull_row2.pack(fill="x")
+        ttk.Label(pull_row2, text="Local path", style="Void.TLabel").pack(side="left")
+        pull_local = tk.Entry(
+            pull_row2,
+            textvariable=self.files_pull_local_var,
+            bg=self.theme["panel_alt"],
+            fg=self.theme["text"],
+            insertbackground=self.theme["accent"],
+            relief="flat",
+            font=("Consolas", 10),
+        )
+        pull_local.pack(side="left", fill="x", expand=True, padx=(8, 6))
+        ttk.Button(
+            pull_row2,
+            text="Browse",
+            style="Void.TButton",
+            command=lambda: self._browse_save_path(self.files_pull_local_var),
+        ).pack(side="left", padx=(0, 6))
+        ttk.Button(
+            pull_row2,
+            text="Pull",
+            style="Void.TButton",
+            command=self._pull_file,
+        ).pack(side="left")
+
+        push_card = ttk.Frame(panel, style="Void.Card.TFrame")
+        push_card.pack(fill="x", pady=(0, 12))
+        push_card.configure(padding=12)
+        ttk.Label(push_card, text="Push File", style="Void.TLabel").pack(anchor="w")
+        push_row = ttk.Frame(push_card, style="Void.TFrame")
+        push_row.pack(fill="x", pady=(6, 6))
+        ttk.Label(push_row, text="Local path", style="Void.TLabel").pack(side="left")
+        push_local = tk.Entry(
+            push_row,
+            textvariable=self.files_push_local_var,
+            bg=self.theme["panel_alt"],
+            fg=self.theme["text"],
+            insertbackground=self.theme["accent"],
+            relief="flat",
+            font=("Consolas", 10),
+        )
+        push_local.pack(side="left", fill="x", expand=True, padx=(8, 6))
+        ttk.Button(
+            push_row,
+            text="Browse",
+            style="Void.TButton",
+            command=lambda: self._browse_open_path(self.files_push_local_var),
+        ).pack(side="left")
+        push_row2 = ttk.Frame(push_card, style="Void.TFrame")
+        push_row2.pack(fill="x")
+        ttk.Label(push_row2, text="Remote path", style="Void.TLabel").pack(side="left")
+        push_remote = tk.Entry(
+            push_row2,
+            textvariable=self.files_push_remote_var,
+            bg=self.theme["panel_alt"],
+            fg=self.theme["text"],
+            insertbackground=self.theme["accent"],
+            relief="flat",
+            font=("Consolas", 10),
+        )
+        push_remote.pack(side="left", fill="x", expand=True, padx=(8, 6))
+        ttk.Button(
+            push_row2,
+            text="Push",
+            style="Void.TButton",
+            command=self._push_file,
+        ).pack(side="left")
+
+        delete_card = ttk.Frame(panel, style="Void.Card.TFrame")
+        delete_card.pack(fill="x")
+        delete_card.configure(padding=12)
+        ttk.Label(delete_card, text="Delete File", style="Void.TLabel").pack(anchor="w")
+        delete_row = ttk.Frame(delete_card, style="Void.TFrame")
+        delete_row.pack(fill="x", pady=(6, 0))
+        ttk.Label(delete_row, text="Remote path", style="Void.TLabel").pack(side="left")
+        delete_entry = tk.Entry(
+            delete_row,
+            textvariable=self.files_delete_remote_var,
+            bg=self.theme["panel_alt"],
+            fg=self.theme["text"],
+            insertbackground=self.theme["accent"],
+            relief="flat",
+            font=("Consolas", 10),
+        )
+        delete_entry.pack(side="left", fill="x", expand=True, padx=(8, 6))
+        ttk.Button(
+            delete_row,
+            text="Delete",
+            style="Void.TButton",
+            command=self._delete_file,
+        ).pack(side="left")
+
+    def _build_recovery_panel(self, panel: ttk.Frame) -> None:
+        ttk.Label(panel, text="Recovery", style="Void.TLabel").pack(anchor="w")
+
+        data_card = ttk.Frame(panel, style="Void.Card.TFrame")
+        data_card.pack(fill="x", pady=(6, 12))
+        data_card.configure(padding=12)
+        ttk.Label(data_card, text="Data Recovery", style="Void.TLabel").pack(anchor="w")
+        data_actions = ttk.Frame(data_card, style="Void.TFrame")
+        data_actions.pack(anchor="w", pady=(6, 0))
+        ttk.Button(
+            data_actions,
+            text="Recover Contacts",
+            style="Void.TButton",
+            command=self._recover_contacts,
+        ).pack(side="left", padx=(0, 6))
+        ttk.Button(
+            data_actions,
+            text="Recover SMS",
+            style="Void.TButton",
+            command=self._recover_sms,
+        ).pack(side="left")
+
+        frp_card = ttk.Frame(panel, style="Void.Card.TFrame")
+        frp_card.pack(fill="x")
+        frp_card.configure(padding=12)
+        ttk.Label(frp_card, text="FRP Bypass", style="Void.TLabel").pack(anchor="w")
+        frp_row = ttk.Frame(frp_card, style="Void.TFrame")
+        frp_row.pack(fill="x", pady=(6, 0))
+        ttk.Label(frp_row, text="Method", style="Void.TLabel").pack(side="left")
+        frp_methods = sorted(self.frp_engine.methods.keys())
+        self.frp_method_var = tk.StringVar(value=frp_methods[0] if frp_methods else "")
+        frp_menu = ttk.Combobox(
+            frp_row,
+            textvariable=self.frp_method_var,
+            values=frp_methods,
+            state="readonly",
+            width=24,
+        )
+        frp_menu.pack(side="left", padx=(8, 12))
+        ttk.Button(
+            frp_row,
+            text="Execute",
+            style="Void.TButton",
+            command=self._run_frp_method,
+        ).pack(side="left")
+
+    def _build_system_panel(self, panel: ttk.Frame) -> None:
+        ttk.Label(panel, text="System Tweaks", style="Void.TLabel").pack(anchor="w")
+
+        tweak_card = ttk.Frame(panel, style="Void.Card.TFrame")
+        tweak_card.pack(fill="x", pady=(6, 12))
+        tweak_card.configure(padding=12)
+        ttk.Label(tweak_card, text="Apply Tweak", style="Void.TLabel").pack(anchor="w")
+        tweak_row = ttk.Frame(tweak_card, style="Void.TFrame")
+        tweak_row.pack(fill="x", pady=(6, 0))
+        ttk.Label(tweak_row, text="Type", style="Void.TLabel").pack(side="left")
+        tweak_menu = ttk.Combobox(
+            tweak_row,
+            textvariable=self.tweak_type_var,
+            values=["dpi", "animation", "timeout"],
+            state="readonly",
+            width=12,
+        )
+        tweak_menu.pack(side="left", padx=(8, 12))
+        ttk.Label(tweak_row, text="Value", style="Void.TLabel").pack(side="left")
+        tweak_entry = tk.Entry(
+            tweak_row,
+            textvariable=self.tweak_value_var,
+            bg=self.theme["panel_alt"],
+            fg=self.theme["text"],
+            insertbackground=self.theme["accent"],
+            relief="flat",
+            font=("Consolas", 10),
+            width=12,
+        )
+        tweak_entry.pack(side="left", padx=(8, 12))
+        ttk.Button(
+            tweak_row,
+            text="Apply",
+            style="Void.TButton",
+            command=self._apply_tweak,
+        ).pack(side="left")
+
+        usb_card = ttk.Frame(panel, style="Void.Card.TFrame")
+        usb_card.pack(fill="x")
+        usb_card.configure(padding=12)
+        ttk.Label(usb_card, text="USB Debugging", style="Void.TLabel").pack(anchor="w")
+        usb_row = ttk.Frame(usb_card, style="Void.TFrame")
+        usb_row.pack(fill="x", pady=(6, 0))
+        ttk.Checkbutton(
+            usb_row,
+            text="Force mode (engineering builds)",
+            variable=self.usb_force_var,
+            style="Void.TCheckbutton",
+        ).pack(side="left", padx=(0, 12))
+        ttk.Button(
+            usb_row,
+            text="Enable USB Debugging",
+            style="Void.TButton",
+            command=self._enable_usb_debugging,
+        ).pack(side="left")
+
+    def _build_network_panel(self, panel: ttk.Frame) -> None:
+        ttk.Label(panel, text="Network", style="Void.TLabel").pack(anchor="w")
+
+        net_card = ttk.Frame(panel, style="Void.Card.TFrame")
+        net_card.pack(fill="x", pady=(6, 12))
+        net_card.configure(padding=12)
+        ttk.Label(net_card, text="Connectivity Check", style="Void.TLabel").pack(anchor="w")
+        ttk.Button(
+            net_card,
+            text="Check Internet",
+            style="Void.TButton",
+            command=self._check_internet,
+        ).pack(anchor="w", pady=(6, 0))
+
+    def _build_logcat_panel(self, panel: ttk.Frame) -> None:
+        ttk.Label(panel, text="Logcat", style="Void.TLabel").pack(anchor="w")
+
+        logcat_card = ttk.Frame(panel, style="Void.Card.TFrame")
+        logcat_card.pack(fill="x", pady=(6, 12))
+        logcat_card.configure(padding=12)
+        ttk.Label(logcat_card, text="Stream Logs", style="Void.TLabel").pack(anchor="w")
+        logcat_row = ttk.Frame(logcat_card, style="Void.TFrame")
+        logcat_row.pack(fill="x", pady=(6, 0))
+        ttk.Label(logcat_row, text="Filter tag", style="Void.TLabel").pack(side="left")
+        logcat_entry = tk.Entry(
+            logcat_row,
+            textvariable=self.logcat_filter_var,
+            bg=self.theme["panel_alt"],
+            fg=self.theme["text"],
+            insertbackground=self.theme["accent"],
+            relief="flat",
+            font=("Consolas", 10),
+        )
+        logcat_entry.pack(side="left", fill="x", expand=True, padx=(8, 6))
+        ttk.Button(
+            logcat_row,
+            text="Start",
+            style="Void.TButton",
+            command=self._start_logcat,
+        ).pack(side="left", padx=(0, 6))
+        ttk.Button(
+            logcat_row,
+            text="Stop",
+            style="Void.TButton",
+            command=self._stop_logcat,
+        ).pack(side="left")
+
+    def _build_monitor_panel(self, panel: ttk.Frame) -> None:
+        ttk.Label(panel, text="Monitoring", style="Void.TLabel").pack(anchor="w")
+
+        monitor_card = ttk.Frame(panel, style="Void.Card.TFrame")
+        monitor_card.pack(fill="x", pady=(6, 12))
+        monitor_card.configure(padding=12)
+        ttk.Label(monitor_card, text="System Monitor", style="Void.TLabel").pack(anchor="w")
+        ttk.Label(
+            monitor_card,
+            textvariable=self.monitor_status_var,
+            style="Void.TLabel",
+        ).pack(anchor="w", pady=(4, 0))
+        monitor_actions = ttk.Frame(monitor_card, style="Void.TFrame")
+        monitor_actions.pack(anchor="w", pady=(6, 0))
+        ttk.Button(
+            monitor_actions,
+            text="Start Monitoring",
+            style="Void.TButton",
+            command=self._start_monitoring,
+        ).pack(side="left", padx=(0, 6))
+        ttk.Button(
+            monitor_actions,
+            text="Stop Monitoring",
+            style="Void.TButton",
+            command=self._stop_monitoring,
+        ).pack(side="left", padx=(0, 6))
+        ttk.Button(
+            monitor_actions,
+            text="Snapshot Stats",
+            style="Void.TButton",
+            command=self._snapshot_monitor,
+        ).pack(side="left")
+
+    def _build_edl_tools_panel(self, panel: ttk.Frame) -> None:
+        ttk.Label(panel, text="EDL Flash/Dump", style="Void.TLabel").pack(anchor="w")
+
+        flash_card = ttk.Frame(panel, style="Void.Card.TFrame")
+        flash_card.pack(fill="x", pady=(6, 12))
+        flash_card.configure(padding=12)
+        ttk.Label(flash_card, text="EDL Flash", style="Void.TLabel").pack(anchor="w")
+        loader_row = ttk.Frame(flash_card, style="Void.TFrame")
+        loader_row.pack(fill="x", pady=(6, 6))
+        ttk.Label(loader_row, text="Loader", style="Void.TLabel").pack(side="left")
+        loader_entry = tk.Entry(
+            loader_row,
+            textvariable=self.edl_loader_var,
+            bg=self.theme["panel_alt"],
+            fg=self.theme["text"],
+            insertbackground=self.theme["accent"],
+            relief="flat",
+            font=("Consolas", 10),
+        )
+        loader_entry.pack(side="left", fill="x", expand=True, padx=(8, 6))
+        ttk.Button(
+            loader_row,
+            text="Browse",
+            style="Void.TButton",
+            command=lambda: self._browse_open_path(self.edl_loader_var),
+        ).pack(side="left")
+        image_row = ttk.Frame(flash_card, style="Void.TFrame")
+        image_row.pack(fill="x")
+        ttk.Label(image_row, text="Image", style="Void.TLabel").pack(side="left")
+        image_entry = tk.Entry(
+            image_row,
+            textvariable=self.edl_image_var,
+            bg=self.theme["panel_alt"],
+            fg=self.theme["text"],
+            insertbackground=self.theme["accent"],
+            relief="flat",
+            font=("Consolas", 10),
+        )
+        image_entry.pack(side="left", fill="x", expand=True, padx=(8, 6))
+        ttk.Button(
+            image_row,
+            text="Browse",
+            style="Void.TButton",
+            command=lambda: self._browse_open_path(self.edl_image_var),
+        ).pack(side="left", padx=(0, 6))
+        ttk.Button(
+            image_row,
+            text="Flash",
+            style="Void.TButton",
+            command=self._edl_flash,
+        ).pack(side="left")
+
+        dump_card = ttk.Frame(panel, style="Void.Card.TFrame")
+        dump_card.pack(fill="x")
+        dump_card.configure(padding=12)
+        ttk.Label(dump_card, text="EDL Dump", style="Void.TLabel").pack(anchor="w")
+        dump_row = ttk.Frame(dump_card, style="Void.TFrame")
+        dump_row.pack(fill="x", pady=(6, 0))
+        ttk.Label(dump_row, text="Partition", style="Void.TLabel").pack(side="left")
+        dump_entry = tk.Entry(
+            dump_row,
+            textvariable=self.edl_partition_var,
+            bg=self.theme["panel_alt"],
+            fg=self.theme["text"],
+            insertbackground=self.theme["accent"],
+            relief="flat",
+            font=("Consolas", 10),
+        )
+        dump_entry.pack(side="left", fill="x", expand=True, padx=(8, 6))
+        ttk.Button(
+            dump_row,
+            text="Dump",
+            style="Void.TButton",
+            command=self._edl_dump,
+        ).pack(side="left")
+
+    def _build_data_exports_panel(self, panel: ttk.Frame) -> None:
+        ttk.Label(panel, text="Data / Reports / Exports", style="Void.TLabel").pack(anchor="w")
+
+        list_card = ttk.Frame(panel, style="Void.Card.TFrame")
+        list_card.pack(fill="x", pady=(6, 12))
+        list_card.configure(padding=12)
+        ttk.Label(list_card, text="Recent Items", style="Void.TLabel").pack(anchor="w")
+        limit_row = ttk.Frame(list_card, style="Void.TFrame")
+        limit_row.pack(fill="x", pady=(6, 6))
+        ttk.Label(limit_row, text="Limit", style="Void.TLabel").pack(side="left")
+        limit_entry = tk.Entry(
+            limit_row,
+            textvariable=self.recent_items_limit_var,
+            bg=self.theme["panel_alt"],
+            fg=self.theme["text"],
+            insertbackground=self.theme["accent"],
+            relief="flat",
+            font=("Consolas", 10),
+            width=8,
+        )
+        limit_entry.pack(side="left", padx=(8, 12))
+        ttk.Button(
+            limit_row,
+            text="List Backups",
+            style="Void.TButton",
+            command=self._list_backups,
+        ).pack(side="left", padx=(0, 6))
+        ttk.Button(
+            limit_row,
+            text="List Reports",
+            style="Void.TButton",
+            command=self._list_reports,
+        ).pack(side="left", padx=(0, 6))
+        ttk.Button(
+            limit_row,
+            text="List Exports",
+            style="Void.TButton",
+            command=self._list_exports,
+        ).pack(side="left")
+
+        export_card = ttk.Frame(panel, style="Void.Card.TFrame")
+        export_card.pack(fill="x", pady=(0, 12))
+        export_card.configure(padding=12)
+        ttk.Label(export_card, text="Export Helpers", style="Void.TLabel").pack(anchor="w")
+        export_row = ttk.Frame(export_card, style="Void.TFrame")
+        export_row.pack(anchor="w", pady=(6, 0))
+        ttk.Button(
+            export_row,
+            text="Devices JSON",
+            style="Void.TButton",
+            command=self._export_devices_json,
+        ).pack(side="left", padx=(0, 6))
+        ttk.Button(
+            export_row,
+            text="Stats JSON",
+            style="Void.TButton",
+            command=self._export_stats_json,
+        ).pack(side="left", padx=(0, 6))
+        ttk.Button(
+            export_row,
+            text="Logs JSON",
+            style="Void.TButton",
+            command=self._export_logs_json,
+        ).pack(side="left", padx=(0, 6))
+        ttk.Button(
+            export_row,
+            text="Reports JSON",
+            style="Void.TButton",
+            command=self._export_reports_json,
+        ).pack(side="left", padx=(0, 6))
+        ttk.Button(
+            export_row,
+            text="Backups JSON",
+            style="Void.TButton",
+            command=self._export_backups_json,
+        ).pack(side="left")
+
+        open_row = ttk.Frame(export_card, style="Void.TFrame")
+        open_row.pack(anchor="w", pady=(8, 0))
+        ttk.Button(
+            open_row,
+            text="Open Reports Folder",
+            style="Void.TButton",
+            command=self._open_reports_dir,
+        ).pack(side="left", padx=(0, 6))
+        ttk.Button(
+            open_row,
+            text="Open Exports Folder",
+            style="Void.TButton",
+            command=self._open_exports_dir,
+        ).pack(side="left")
+
+    def _build_db_tools_panel(self, panel: ttk.Frame) -> None:
+        ttk.Label(panel, text="Database Tools", style="Void.TLabel").pack(anchor="w")
+
+        health_card = ttk.Frame(panel, style="Void.Card.TFrame")
+        health_card.pack(fill="x", pady=(6, 12))
+        health_card.configure(padding=12)
+        ttk.Label(health_card, text="Health & Stats", style="Void.TLabel").pack(anchor="w")
+        ttk.Button(
+            health_card,
+            text="DB Health",
+            style="Void.TButton",
+            command=self._db_health,
+        ).pack(anchor="w", pady=(6, 0))
+
+        records_card = ttk.Frame(panel, style="Void.Card.TFrame")
+        records_card.pack(fill="x", pady=(0, 12))
+        records_card.configure(padding=12)
+        ttk.Label(records_card, text="Recent Records", style="Void.TLabel").pack(anchor="w")
+        records_row = ttk.Frame(records_card, style="Void.TFrame")
+        records_row.pack(fill="x", pady=(6, 0))
+        ttk.Label(records_row, text="Limit", style="Void.TLabel").pack(side="left")
+        records_entry = tk.Entry(
+            records_row,
+            textvariable=self.db_limit_var,
+            bg=self.theme["panel_alt"],
+            fg=self.theme["text"],
+            insertbackground=self.theme["accent"],
+            relief="flat",
+            font=("Consolas", 10),
+            width=8,
+        )
+        records_entry.pack(side="left", padx=(8, 12))
+        ttk.Button(
+            records_row,
+            text="Recent Logs",
+            style="Void.TButton",
+            command=self._show_recent_logs,
+        ).pack(side="left", padx=(0, 6))
+        ttk.Button(
+            records_row,
+            text="Recent Backups",
+            style="Void.TButton",
+            command=self._show_recent_backups,
+        ).pack(side="left", padx=(0, 6))
+        ttk.Button(
+            records_row,
+            text="Recent Reports",
+            style="Void.TButton",
+            command=self._show_recent_reports,
+        ).pack(side="left", padx=(0, 6))
+        ttk.Button(
+            records_row,
+            text="Recent Devices",
+            style="Void.TButton",
+            command=self._show_recent_devices,
+        ).pack(side="left", padx=(0, 6))
+        ttk.Button(
+            records_row,
+            text="Top Methods",
+            style="Void.TButton",
+            command=self._show_top_methods,
+        ).pack(side="left")
+
+        export_card = ttk.Frame(panel, style="Void.Card.TFrame")
+        export_card.pack(fill="x")
+        export_card.configure(padding=12)
+        ttk.Label(export_card, text="Logs Export", style="Void.TLabel").pack(anchor="w")
+        export_row = ttk.Frame(export_card, style="Void.TFrame")
+        export_row.pack(fill="x", pady=(6, 6))
+        ttk.Label(export_row, text="Format", style="Void.TLabel").pack(side="left")
+        format_menu = ttk.Combobox(
+            export_row,
+            textvariable=self.log_export_format_var,
+            values=["json", "csv"],
+            state="readonly",
+            width=8,
+        )
+        format_menu.pack(side="left", padx=(8, 12))
+        ttk.Label(export_row, text="Limit", style="Void.TLabel").pack(side="left")
+        limit_entry = tk.Entry(
+            export_row,
+            textvariable=self.log_export_limit_var,
+            bg=self.theme["panel_alt"],
+            fg=self.theme["text"],
+            insertbackground=self.theme["accent"],
+            relief="flat",
+            font=("Consolas", 10),
+            width=8,
+        )
+        limit_entry.pack(side="left", padx=(8, 12))
+        ttk.Button(
+            export_row,
+            text="Export Logs",
+            style="Void.TButton",
+            command=self._export_filtered_logs,
+        ).pack(side="left")
+
+        filter_row = ttk.Frame(export_card, style="Void.TFrame")
+        filter_row.pack(fill="x")
+        for label, var in [
+            ("Level", self.log_export_level_var),
+            ("Category", self.log_export_category_var),
+            ("Device", self.log_export_device_var),
+            ("Method", self.log_export_method_var),
+            ("Since", self.log_export_since_var),
+            ("Until", self.log_export_until_var),
+        ]:
+            item = ttk.Frame(filter_row, style="Void.TFrame")
+            item.pack(side="left", padx=(0, 8))
+            ttk.Label(item, text=label, style="Void.TLabel").pack(anchor="w")
+            entry = tk.Entry(
+                item,
+                textvariable=var,
+                bg=self.theme["panel_alt"],
+                fg=self.theme["text"],
+                insertbackground=self.theme["accent"],
+                relief="flat",
+                font=("Consolas", 9),
+                width=12,
+            )
+            entry.pack(anchor="w")
+
     def _build_settings_panel(self, panel: ttk.Frame) -> None:
         ttk.Label(panel, text="Settings", style="Void.TLabel").pack(anchor="w")
 
@@ -2140,6 +2899,732 @@ class VoidGUI:
             text="Settings apply immediately to GUI actions.",
             style="Void.TLabel",
         ).pack(side="left", padx=(12, 0))
+
+    def _browse_open_path(self, target: tk.StringVar) -> None:
+        path = filedialog.askopenfilename()
+        if path:
+            target.set(path)
+
+    def _browse_save_path(self, target: tk.StringVar) -> None:
+        path = filedialog.asksaveasfilename()
+        if path:
+            target.set(path)
+
+    def _list_apps(self) -> None:
+        device_id = self._get_selected_device()
+        if not device_id:
+            return
+        filter_type = self.apps_filter_var.get().strip().lower() or "all"
+
+        def runner() -> Dict[str, Any]:
+            apps = AppManager.list_apps(device_id, filter_type)
+            self._log(f"Apps ({filter_type}) found: {len(apps)}")
+            for app in apps[:20]:
+                self._log(f"• {app.get('package', 'unknown')}", level="DATA")
+            if len(apps) > 20:
+                self._log(f"... and {len(apps) - 20} more apps.", level="DATA")
+            return {"success": True, "message": f"{len(apps)} apps listed."}
+
+        self._run_task("Apps list", runner)
+
+    def _run_app_action(self, label: str, action: Callable[[str, str], bool]) -> None:
+        device_id = self._get_selected_device()
+        if not device_id:
+            return
+        package = self.apps_package_var.get().strip()
+        if not package:
+            messagebox.showwarning("Void", "Enter a package name first.")
+            return
+
+        def runner() -> Dict[str, Any]:
+            success = action(device_id, package)
+            message = f"{label} {'succeeded' if success else 'failed'} for {package}."
+            self._log(message)
+            return {"success": success, "message": message}
+
+        self._run_task(label, runner)
+
+    def _backup_app(self) -> None:
+        if not Config.ENABLE_AUTO_BACKUP:
+            messagebox.showwarning("Backups Disabled", "Enable backups in Settings to use this feature.")
+            self.status_var.set("Backup disabled in settings.")
+            return
+        device_id = self._get_selected_device()
+        if not device_id:
+            return
+        package = self.apps_package_var.get().strip()
+        if not package:
+            messagebox.showwarning("Void", "Enter a package name first.")
+            return
+
+        def runner() -> Dict[str, Any]:
+            result = AppManager.backup_app(device_id, package)
+            if result.get("success"):
+                self._log(f"APK backup created: {result.get('path')}")
+                message = f"Backup saved: {result.get('path')}"
+            else:
+                message = "Backup failed."
+            return {
+                "success": bool(result.get("success")),
+                "message": message,
+            }
+
+        self._run_task("Backup APK", runner)
+
+    def _list_files(self) -> None:
+        device_id = self._get_selected_device()
+        if not device_id:
+            return
+        path = self.files_list_path_var.get().strip() or "/sdcard"
+
+        def runner() -> Dict[str, Any]:
+            files = FileManager.list_files(device_id, path)
+            self._log(f"Files in {path}: {len(files)}")
+            for file in files[:20]:
+                self._log(
+                    f"{file.get('permissions', '')} {file.get('size', '')} {file.get('date', '')} "
+                    f"{file.get('name', '')}",
+                    level="DATA",
+                )
+            if len(files) > 20:
+                self._log(f"... and {len(files) - 20} more files.", level="DATA")
+            return {"success": True, "message": f"{len(files)} files listed."}
+
+        self._run_task("Files list", runner)
+
+    def _pull_file(self) -> None:
+        device_id = self._get_selected_device()
+        if not device_id:
+            return
+        remote_path = self.files_pull_remote_var.get().strip()
+        if not remote_path:
+            messagebox.showwarning("Void", "Enter a remote path to pull.")
+            return
+        local_path = self.files_pull_local_var.get().strip()
+
+        def runner() -> Dict[str, Any]:
+            result = FileManager.pull_file(
+                device_id,
+                remote_path,
+                Path(local_path) if local_path else None,
+            )
+            message = (
+                f"Pulled file to {result.get('path')}" if result.get("success") else "Pull failed."
+            )
+            if result.get("path"):
+                self._log(message)
+            return {"success": bool(result.get("success")), "message": message}
+
+        self._run_task("Pull file", runner)
+
+    def _push_file(self) -> None:
+        device_id = self._get_selected_device()
+        if not device_id:
+            return
+        local_path = self.files_push_local_var.get().strip()
+        remote_path = self.files_push_remote_var.get().strip()
+        if not local_path or not remote_path:
+            messagebox.showwarning("Void", "Enter both local and remote paths.")
+            return
+
+        def runner() -> Dict[str, Any]:
+            success = FileManager.push_file(device_id, Path(local_path), remote_path)
+            message = "File pushed successfully." if success else "Push failed."
+            self._log(message)
+            return {"success": success, "message": message}
+
+        self._run_task("Push file", runner)
+
+    def _delete_file(self) -> None:
+        device_id = self._get_selected_device()
+        if not device_id:
+            return
+        remote_path = self.files_delete_remote_var.get().strip()
+        if not remote_path:
+            messagebox.showwarning("Void", "Enter a remote path to delete.")
+            return
+
+        def runner() -> Dict[str, Any]:
+            success = FileManager.delete_file(device_id, remote_path)
+            message = "File deleted successfully." if success else "Delete failed."
+            self._log(message)
+            return {"success": success, "message": message}
+
+        self._run_task("Delete file", runner)
+
+    def _recover_contacts(self) -> None:
+        device_id = self._get_selected_device()
+        if not device_id:
+            return
+
+        def runner() -> Dict[str, Any]:
+            result = DataRecovery.recover_contacts(device_id)
+            if result.get("success"):
+                self._log(f"Recovered {result.get('count', 0)} contacts.")
+                self._log(f"Saved to: {result.get('json_path')}")
+            return {
+                "success": bool(result.get("success")),
+                "message": (
+                    f"Recovered {result.get('count', 0)} contacts."
+                    if result.get("success")
+                    else "Contacts recovery failed."
+                ),
+            }
+
+        self._run_task("Recover contacts", runner)
+
+    def _recover_sms(self) -> None:
+        device_id = self._get_selected_device()
+        if not device_id:
+            return
+
+        def runner() -> Dict[str, Any]:
+            result = DataRecovery.recover_sms(device_id)
+            if result.get("success"):
+                self._log(f"Recovered {result.get('count', 0)} SMS messages.")
+                self._log(f"Saved to: {result.get('path')}")
+            return {
+                "success": bool(result.get("success")),
+                "message": (
+                    f"Recovered {result.get('count', 0)} SMS messages."
+                    if result.get("success")
+                    else "SMS recovery failed."
+                ),
+            }
+
+        self._run_task("Recover SMS", runner)
+
+    def _run_frp_method(self) -> None:
+        device_id = self._get_selected_device()
+        if not device_id:
+            return
+        method_name = self.frp_method_var.get().strip()
+        if not method_name:
+            messagebox.showwarning("Void", "Select an FRP method first.")
+            return
+        method = self.frp_engine.methods.get(method_name)
+        if not method:
+            messagebox.showwarning("Void", "Invalid FRP method selection.")
+            return
+
+        def runner() -> Dict[str, Any]:
+            result = method(device_id)
+            message = result.get("message") or "FRP method complete."
+            self._log(f"{method_name}: {message}")
+            return {
+                "success": bool(result.get("success")),
+                "message": message,
+            }
+
+        self._run_task(f"FRP {method_name}", runner)
+
+    def _apply_tweak(self) -> None:
+        device_id = self._get_selected_device()
+        if not device_id:
+            return
+        tweak_type = self.tweak_type_var.get().strip().lower()
+        value = self.tweak_value_var.get().strip()
+        if not value:
+            messagebox.showwarning("Void", "Enter a value for the tweak.")
+            return
+
+        def runner() -> Dict[str, Any]:
+            success = False
+            if tweak_type == "dpi":
+                success = SystemTweaker.set_dpi(device_id, int(value))
+            elif tweak_type == "animation":
+                success = SystemTweaker.set_animation_scale(device_id, float(value))
+            elif tweak_type == "timeout":
+                success = SystemTweaker.set_screen_timeout(device_id, int(value))
+            else:
+                return {"success": False, "message": "Unknown tweak type."}
+            message = f"{tweak_type.title()} updated." if success else f"{tweak_type.title()} update failed."
+            self._log(message)
+            return {"success": success, "message": message}
+
+        self._run_task("System tweak", runner)
+
+    def _enable_usb_debugging(self) -> None:
+        device_id = self._get_selected_device()
+        if not device_id:
+            return
+        force = bool(self.usb_force_var.get())
+
+        def runner() -> Dict[str, Any]:
+            if force:
+                result = SystemTweaker.force_usb_debugging(device_id)
+            else:
+                result = {
+                    "steps": [
+                        {
+                            "step": "enable_developer_options",
+                            "success": SystemTweaker.enable_developer_options(device_id),
+                            "detail": None,
+                        },
+                        {
+                            "step": "enable_usb_debugging_setting",
+                            "success": SystemTweaker.enable_usb_debugging(device_id),
+                            "detail": None,
+                        },
+                    ]
+                }
+                result["success"] = all(step["success"] for step in result["steps"])
+            status = "forced" if force else "enabled"
+            self._log(f"USB debugging {status}: {'success' if result['success'] else 'failed'}.")
+            for step in result.get("steps", []):
+                icon = "✅" if step.get("success") else "❌"
+                detail = f" ({step['detail']})" if step.get("detail") else ""
+                self._log(f"{icon} {step.get('step')}{detail}", level="DATA")
+            if result.get("usb_config"):
+                self._log(f"USB config: {result['usb_config']}", level="DATA")
+            return {
+                "success": bool(result.get("success")),
+                "message": f"USB debugging {status}.",
+            }
+
+        self._run_task("USB debugging", runner)
+
+    def _check_internet(self) -> None:
+        def runner() -> Dict[str, Any]:
+            online = NetworkTools.check_internet()
+            message = f"Internet status: {'Online' if online else 'Offline'}."
+            self._log(message)
+            return {"success": True, "message": message}
+
+        self._run_task("Network check", runner)
+
+    def _start_logcat(self) -> None:
+        device_id = self._get_selected_device()
+        if not device_id:
+            return
+        if self._logcat_running:
+            messagebox.showinfo("Void", "Logcat is already running.")
+            return
+        filter_tag = self.logcat_filter_var.get().strip() or None
+
+        def runner() -> Dict[str, Any]:
+            self.logcat_viewer.start(device_id, filter_tag, progress_callback=self._log)
+            self._logcat_running = True
+            self._logcat_thread = threading.Thread(target=self._stream_logcat, daemon=True)
+            self._logcat_thread.start()
+            return {"success": True, "message": "Logcat streaming started."}
+
+        self._run_task("Logcat start", runner)
+
+    def _stream_logcat(self) -> None:
+        while self._logcat_running and self.logcat_viewer.running:
+            line = self.logcat_viewer.read_line()
+            if line:
+                self._log(line.strip(), level="LOGCAT")
+
+    def _stop_logcat(self) -> None:
+        if not self._logcat_running:
+            messagebox.showinfo("Void", "Logcat is not running.")
+            return
+
+        def runner() -> Dict[str, Any]:
+            self._logcat_running = False
+            self.logcat_viewer.stop(progress_callback=self._log)
+            return {"success": True, "message": "Logcat stopped."}
+
+        self._run_task("Logcat stop", runner)
+
+    def _start_monitoring(self) -> None:
+        if not Config.ENABLE_MONITORING:
+            messagebox.showwarning("Monitoring Disabled", "Enable monitoring in configuration to use this feature.")
+            self.status_var.set("Monitoring disabled in settings.")
+            return
+
+        def runner() -> Dict[str, Any]:
+            monitor.start()
+            self.monitor_status_var.set("Monitoring active.")
+            return {"success": True, "message": "Monitoring started."}
+
+        self._run_task("Monitoring start", runner)
+
+    def _stop_monitoring(self) -> None:
+        def runner() -> Dict[str, Any]:
+            monitor.stop()
+            self.monitor_status_var.set("Monitoring stopped.")
+            return {"success": True, "message": "Monitoring stopped."}
+
+        self._run_task("Monitoring stop", runner)
+
+    def _snapshot_monitor(self) -> None:
+        def runner() -> Dict[str, Any]:
+            stats = monitor.get_stats()
+            if not stats:
+                return {"success": False, "message": "Monitoring not available."}
+            self._log(
+                f"CPU: {stats.get('cpu_percent', 0):.1f}% | "
+                f"Memory: {stats.get('memory_percent', 0):.1f}% | "
+                f"Disk: {stats.get('disk_usage', 0):.1f}%"
+            )
+            return {"success": True, "message": "Monitoring snapshot captured."}
+
+        self._run_task("Monitoring snapshot", runner)
+
+    def _edl_flash(self) -> None:
+        context = self._get_device_context()
+        if context is None:
+            return
+        loader = self.edl_loader_var.get().strip()
+        image = self.edl_image_var.get().strip()
+        if not loader or not image:
+            messagebox.showwarning("Void", "Select both loader and image paths.")
+            return
+        if not Path(loader).exists():
+            messagebox.showwarning("Void", f"Loader not found: {loader}")
+            return
+        if not Path(image).exists():
+            messagebox.showwarning("Void", f"Image not found: {image}")
+            return
+
+        def runner() -> ChipsetActionResult:
+            result = edl_flash(context, loader, image)
+            if result.data.get("command"):
+                self._log(f"Command: {result.data['command']}", level="DATA")
+            return result
+
+        self._run_task("EDL flash", runner)
+
+    def _edl_dump(self) -> None:
+        context = self._get_device_context()
+        if context is None:
+            return
+        partition = self.edl_partition_var.get().strip()
+        if not partition:
+            messagebox.showwarning("Void", "Enter a partition name.")
+            return
+
+        def runner() -> ChipsetActionResult:
+            result = edl_dump(context, partition)
+            if result.data.get("output"):
+                self._log(f"Output: {result.data['output']}", level="DATA")
+            if result.data.get("command"):
+                self._log(f"Command: {result.data['command']}", level="DATA")
+            return result
+
+        self._run_task("EDL dump", runner)
+
+    def _parse_limit(self, value: str, fallback: int = 10) -> int:
+        try:
+            return max(1, int(value))
+        except ValueError:
+            return fallback
+
+    def _list_backups(self) -> None:
+        limit = self._parse_limit(self.recent_items_limit_var.get(), 10)
+
+        def runner() -> Dict[str, Any]:
+            items = sorted(Config.BACKUP_DIR.glob("*"), key=lambda p: p.stat().st_mtime, reverse=True)
+            self._log(f"Recent backups ({min(limit, len(items))} shown):")
+            for item in items[:limit]:
+                size = item.stat().st_size if item.is_file() else 0
+                label = "dir" if item.is_dir() else "file"
+                self._log(f"{item.name} ({label}, {size:,} bytes)", level="DATA")
+            return {"success": True, "message": f"Listed {min(limit, len(items))} backups."}
+
+        self._run_task("List backups", runner)
+
+    def _list_reports(self) -> None:
+        if not Config.ENABLE_REPORTS:
+            messagebox.showwarning("Reports Disabled", "Enable reports in Settings to use this feature.")
+            self.status_var.set("Reports disabled in settings.")
+            return
+        limit = self._parse_limit(self.recent_items_limit_var.get(), 10)
+
+        def runner() -> Dict[str, Any]:
+            items = sorted(Config.REPORTS_DIR.glob("*"), key=lambda p: p.stat().st_mtime, reverse=True)
+            self._log(f"Recent reports ({min(limit, len(items))} shown):")
+            for item in items[:limit]:
+                size = item.stat().st_size if item.is_file() else 0
+                label = "dir" if item.is_dir() else "file"
+                self._log(f"{item.name} ({label}, {size:,} bytes)", level="DATA")
+            return {"success": True, "message": f"Listed {min(limit, len(items))} reports."}
+
+        self._run_task("List reports", runner)
+
+    def _list_exports(self) -> None:
+        limit = self._parse_limit(self.recent_items_limit_var.get(), 10)
+
+        def runner() -> Dict[str, Any]:
+            items = sorted(Config.EXPORTS_DIR.glob("*"), key=lambda p: p.stat().st_mtime, reverse=True)
+            self._log(f"Recent exports ({min(limit, len(items))} shown):")
+            for item in items[:limit]:
+                size = item.stat().st_size if item.is_file() else 0
+                label = "dir" if item.is_dir() else "file"
+                self._log(f"{item.name} ({label}, {size:,} bytes)", level="DATA")
+            return {"success": True, "message": f"Listed {min(limit, len(items))} exports."}
+
+        self._run_task("List exports", runner)
+
+    def _export_devices_json(self) -> None:
+        def runner() -> Dict[str, Any]:
+            devices, _ = DeviceDetector.detect_all()
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            export_path = Config.EXPORTS_DIR / f"devices_{timestamp}.json"
+            export_path.write_text(json.dumps(devices, indent=2))
+            self._log(f"Devices exported: {export_path}")
+            return {"success": True, "message": f"Devices exported: {export_path}"}
+
+        self._run_task("Export devices", runner)
+
+    def _export_stats_json(self) -> None:
+        def runner() -> Dict[str, Any]:
+            stats = db.get_statistics()
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            export_path = Config.EXPORTS_DIR / f"stats_{timestamp}.json"
+            export_path.write_text(json.dumps(stats, indent=2))
+            self._log(f"Stats exported: {export_path}")
+            return {"success": True, "message": f"Stats exported: {export_path}"}
+
+        self._run_task("Export stats", runner)
+
+    def _export_logs_json(self) -> None:
+        def runner() -> Dict[str, Any]:
+            rows = db.get_recent_logs(limit=200)
+            if not rows:
+                return {"success": False, "message": "No log entries found."}
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            export_path = Config.EXPORTS_DIR / f"logs_{timestamp}.json"
+            export_path.write_text(json.dumps(rows, indent=2))
+            self._log(f"Logs exported: {export_path}")
+            return {"success": True, "message": f"Logs exported: {export_path}"}
+
+        self._run_task("Export logs", runner)
+
+    def _export_reports_json(self) -> None:
+        if not Config.ENABLE_REPORTS:
+            messagebox.showwarning("Reports Disabled", "Enable reports in Settings to use this feature.")
+            self.status_var.set("Reports disabled in settings.")
+            return
+
+        def runner() -> Dict[str, Any]:
+            rows = db.get_recent_reports(limit=200)
+            if not rows:
+                return {"success": False, "message": "No report records found."}
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            export_path = Config.EXPORTS_DIR / f"reports_{timestamp}.json"
+            export_path.write_text(json.dumps(rows, indent=2))
+            self._log(f"Reports exported: {export_path}")
+            return {"success": True, "message": f"Reports exported: {export_path}"}
+
+        self._run_task("Export reports", runner)
+
+    def _export_backups_json(self) -> None:
+        def runner() -> Dict[str, Any]:
+            rows = db.get_recent_backups(limit=200)
+            if not rows:
+                return {"success": False, "message": "No backup records found."}
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            export_path = Config.EXPORTS_DIR / f"backups_{timestamp}.json"
+            export_path.write_text(json.dumps(rows, indent=2))
+            self._log(f"Backups exported: {export_path}")
+            return {"success": True, "message": f"Backups exported: {export_path}"}
+
+        self._run_task("Export backups", runner)
+
+    def _open_reports_dir(self) -> None:
+        def runner() -> Dict[str, Any]:
+            target = str(Config.REPORTS_DIR)
+            if platform.system() == "Darwin":
+                SafeSubprocess.run(["open", target])
+            elif platform.system() == "Windows":
+                SafeSubprocess.run(["explorer", target])
+            else:
+                SafeSubprocess.run(["xdg-open", target])
+            return {"success": True, "message": f"Opened: {target}"}
+
+        self._run_task("Open reports", runner)
+
+    def _open_exports_dir(self) -> None:
+        def runner() -> Dict[str, Any]:
+            target = str(Config.EXPORTS_DIR)
+            if platform.system() == "Darwin":
+                SafeSubprocess.run(["open", target])
+            elif platform.system() == "Windows":
+                SafeSubprocess.run(["explorer", target])
+            else:
+                SafeSubprocess.run(["xdg-open", target])
+            return {"success": True, "message": f"Opened: {target}"}
+
+        self._run_task("Open exports", runner)
+
+    def _db_health(self) -> None:
+        def runner() -> Dict[str, Any]:
+            stats = db.get_statistics()
+            db_size = Config.DB_PATH.stat().st_size if Config.DB_PATH.exists() else 0
+            self._log(f"DB Path: {Config.DB_PATH}")
+            self._log(f"DB Size: {db_size:,} bytes")
+            self._log(f"Devices: {stats.get('total_devices', 0)}", level="DATA")
+            self._log(f"Logs: {stats.get('total_logs', 0)}", level="DATA")
+            self._log(f"Backups: {stats.get('total_backups', 0)}", level="DATA")
+            self._log(f"Methods: {stats.get('total_methods', 0)}", level="DATA")
+            self._log(f"Reports: {stats.get('total_reports', 0)}", level="DATA")
+            return {"success": True, "message": "Database health summarized."}
+
+        self._run_task("DB health", runner)
+
+    def _show_recent_logs(self) -> None:
+        limit = self._parse_limit(self.db_limit_var.get(), 10)
+
+        def runner() -> Dict[str, Any]:
+            rows = db.get_recent_logs(limit=limit)
+            if not rows:
+                return {"success": False, "message": "No log entries found."}
+            self._log(f"Recent logs ({len(rows)}):")
+            for row in rows:
+                timestamp = row.get("timestamp", "")
+                level = row.get("level", "").upper()
+                category = row.get("category", "")
+                message = row.get("message", "")
+                self._log(f"[{timestamp}] {level} {category}: {message}", level="DATA")
+            return {"success": True, "message": f"Listed {len(rows)} log entries."}
+
+        self._run_task("Recent logs", runner)
+
+    def _show_recent_backups(self) -> None:
+        limit = self._parse_limit(self.db_limit_var.get(), 10)
+
+        def runner() -> Dict[str, Any]:
+            rows = db.get_recent_backups(limit=limit)
+            if not rows:
+                return {"success": False, "message": "No backup records found."}
+            self._log(f"Recent backups ({len(rows)}):")
+            for row in rows:
+                name = row.get("backup_name", "Unknown")
+                device_id = row.get("device_id", "Unknown")
+                created = row.get("created", "")
+                size = row.get("backup_size", 0)
+                backup_type = row.get("backup_type", "Unknown")
+                self._log(
+                    f"{name} ({backup_type}) - {device_id} - {created} - {size:,} bytes",
+                    level="DATA",
+                )
+            return {"success": True, "message": f"Listed {len(rows)} backup records."}
+
+        self._run_task("Recent backups", runner)
+
+    def _show_recent_reports(self) -> None:
+        if not Config.ENABLE_REPORTS:
+            messagebox.showwarning("Reports Disabled", "Enable reports in Settings to use this feature.")
+            self.status_var.set("Reports disabled in settings.")
+            return
+        limit = self._parse_limit(self.db_limit_var.get(), 10)
+
+        def runner() -> Dict[str, Any]:
+            rows = db.get_recent_reports(limit=limit)
+            if not rows:
+                return {"success": False, "message": "No report records found."}
+            self._log(f"Recent reports ({len(rows)}):")
+            for row in rows:
+                timestamp = row.get("timestamp", "")
+                device_id = row.get("device_id", "Unknown")
+                event_data = row.get("event_data", "{}")
+                try:
+                    payload = json.loads(event_data)
+                except json.JSONDecodeError:
+                    payload = {}
+                report_name = payload.get("report_name", "Unknown")
+                self._log(f"{report_name} - {device_id} - {timestamp}", level="DATA")
+            return {"success": True, "message": f"Listed {len(rows)} report records."}
+
+        self._run_task("Recent reports", runner)
+
+    def _show_recent_devices(self) -> None:
+        limit = self._parse_limit(self.db_limit_var.get(), 10)
+
+        def runner() -> Dict[str, Any]:
+            rows = db.get_recent_devices(limit=limit)
+            if not rows:
+                return {"success": False, "message": "No device records found."}
+            self._log(f"Recent devices ({len(rows)}):")
+            for row in rows:
+                device_id = row.get("id", "Unknown")
+                manufacturer = row.get("manufacturer", "Unknown")
+                model = row.get("model", "Unknown")
+                android = row.get("android_version", "Unknown")
+                last_seen = row.get("last_seen", "")
+                count = row.get("connection_count", 0)
+                self._log(
+                    f"{device_id} - {manufacturer} {model} (Android {android}) "
+                    f"- last seen {last_seen} ({count}x)",
+                    level="DATA",
+                )
+            return {"success": True, "message": f"Listed {len(rows)} device records."}
+
+        self._run_task("Recent devices", runner)
+
+    def _show_top_methods(self) -> None:
+        limit = self._parse_limit(self.db_limit_var.get(), 5)
+
+        def runner() -> Dict[str, Any]:
+            rows = db.get_top_methods(limit=limit)
+            if not rows:
+                return {"success": False, "message": "No method records found."}
+            self._log(f"Top methods ({len(rows)}):")
+            for row in rows:
+                name = row.get("name", "Unknown")
+                success = row.get("success_count", 0)
+                total = row.get("total_count", 0)
+                avg = row.get("avg_duration", 0)
+                last_success = row.get("last_success", "")
+                rate = (success / total * 100) if total else 0
+                self._log(
+                    f"{name}: {rate:.1f}% ({success}/{total}) avg {avg:.2f}s last {last_success}",
+                    level="DATA",
+                )
+            return {"success": True, "message": f"Listed {len(rows)} methods."}
+
+        self._run_task("Top methods", runner)
+
+    def _export_filtered_logs(self) -> None:
+        export_format = self.log_export_format_var.get().strip().lower()
+        if export_format not in {"json", "csv"}:
+            messagebox.showwarning("Void", "Select a valid export format (json/csv).")
+            return
+        try:
+            limit = max(1, int(self.log_export_limit_var.get() or "500"))
+        except ValueError:
+            messagebox.showwarning("Void", "Limit must be a number.")
+            return
+        filters = {
+            "level": self.log_export_level_var.get().strip() or None,
+            "category": self.log_export_category_var.get().strip() or None,
+            "device_id": self.log_export_device_var.get().strip() or None,
+            "method": self.log_export_method_var.get().strip() or None,
+            "since": self.log_export_since_var.get().strip() or None,
+            "until": self.log_export_until_var.get().strip() or None,
+            "limit": limit,
+        }
+
+        def runner() -> Dict[str, Any]:
+            rows = db.get_filtered_logs(
+                level=filters["level"],
+                category=filters["category"],
+                device_id=filters["device_id"],
+                method=filters["method"],
+                since=filters["since"],
+                until=filters["until"],
+                limit=filters["limit"],
+            )
+            if not rows:
+                return {"success": False, "message": "No log entries found."}
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            export_path = Config.EXPORTS_DIR / f"logs_filtered_{timestamp}.{export_format}"
+            if export_format == "json":
+                export_path.write_text(json.dumps(rows, indent=2))
+            else:
+                fieldnames = ["timestamp", "level", "category", "message", "device_id", "method"]
+                with export_path.open("w", newline="", encoding="utf-8") as handle:
+                    writer = csv.DictWriter(handle, fieldnames=fieldnames)
+                    writer.writeheader()
+                    writer.writerows(rows)
+            self._log(f"Logs exported: {export_path}")
+            return {"success": True, "message": f"Logs exported: {export_path}"}
+
+        self._run_task("Export logs", runner)
 
     def _browse_exports_dir(self) -> None:
         path = filedialog.askdirectory(initialdir=self.exports_dir_var.get() or str(Config.EXPORTS_DIR))
