@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import re
 from pathlib import Path
 from typing import Dict, Optional
 
@@ -14,6 +15,9 @@ class RomValidator:
         "sha256": hashlib.sha256,
         "sha512": hashlib.sha512,
     }
+    _CHECKSUM_PATTERN = re.compile(
+        r"\b([a-fA-F0-9]{32}|[a-fA-F0-9]{40}|[a-fA-F0-9]{64}|[a-fA-F0-9]{128})\b"
+    )
 
     @staticmethod
     def calculate_checksum(path: Path, algorithm: str = "sha256") -> str:
@@ -34,7 +38,19 @@ class RomValidator:
         return length_map.get(len(checksum), "sha256")
 
     @staticmethod
-    def load_expected_checksum(checksum_input: str, rom_path: Optional[Path] = None) -> Optional[str]:
+    def _extract_checksum_from_line(line: str) -> Optional[str]:
+        """Extract a checksum from a line of text."""
+        if not line:
+            return None
+        match = RomValidator._CHECKSUM_PATTERN.search(line)
+        if match:
+            return match.group(1)
+        return None
+
+    @staticmethod
+    def load_expected_checksum(
+        checksum_input: str, rom_path: Optional[Path] = None
+    ) -> Optional[str]:
         """Load checksum from a literal string or checksum file."""
         candidate = checksum_input.strip()
         if not candidate:
@@ -42,15 +58,21 @@ class RomValidator:
 
         checksum_path = Path(candidate)
         if checksum_path.exists() and checksum_path.is_file():
-            lines = checksum_path.read_text(encoding="utf-8", errors="ignore").splitlines()
+            lines = checksum_path.read_text(
+                encoding="utf-8", errors="ignore"
+            ).splitlines()
             if rom_path:
                 for line in lines:
                     if rom_path.name in line:
-                        return line.split()[0]
+                        extracted = RomValidator._extract_checksum_from_line(line)
+                        if extracted:
+                            return extracted
             for line in lines:
                 line = line.strip()
                 if line:
-                    return line.split()[0]
+                    extracted = RomValidator._extract_checksum_from_line(line)
+                    if extracted:
+                        return extracted
             return None
 
         return candidate
