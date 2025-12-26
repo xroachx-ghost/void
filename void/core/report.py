@@ -9,6 +9,7 @@ from ..config import Config
 from .apps import AppManager
 from .database import db
 from .device import DeviceDetector
+from .display import DisplayAnalyzer
 from .logging import logger
 from .network import NetworkAnalyzer
 from .performance import PerformanceAnalyzer
@@ -50,6 +51,11 @@ class ReportGenerator:
         if progress_callback:
             progress_callback("Analyzing network...")
         report['sections']['network'] = NetworkAnalyzer.analyze(device_id)
+
+        # Display diagnostics
+        if progress_callback:
+            progress_callback("Analyzing display...")
+        report['sections']['display'] = DisplayAnalyzer.analyze(device_id)
 
         # App list
         if progress_callback:
@@ -166,6 +172,21 @@ class ReportGenerator:
                     label = key.replace('_', ' ').title()
                     html += f"<tr><td><strong>{label}</strong></td><td>{value}</td></tr>"
 
+            html += """            </table>
+        </div>
+"""
+
+        # Display diagnostics
+        if 'display' in report['sections']:
+            display = report['sections']['display']
+            html += """        <div class=\"section\">
+            <h2>Display Diagnostics</h2>
+            <table>
+"""
+            for key, value in display.items():
+                if not isinstance(value, (dict, list)):
+                    label = key.replace('_', ' ').title()
+                    html += f"<tr><td><strong>{label}</strong></td><td>{value}</td></tr>"
             html += """            </table>
         </div>
 """

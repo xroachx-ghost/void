@@ -27,6 +27,7 @@ from .core.chipsets.dispatcher import (
     recover_chipset_device,
 )
 from .core.device import DeviceDetector
+from .core.display import DisplayAnalyzer
 from .core.performance import PerformanceAnalyzer
 from .core.report import ReportGenerator
 from .core.screen import ScreenCapture
@@ -406,6 +407,41 @@ class VoidGUI:
                 "links": driver_status.get("links", []),
             }
         )
+
+        if self.selected_device_id:
+            display = DisplayAnalyzer.analyze(self.selected_device_id)
+            status = "pass"
+            if display.get("surfaceflinger_ok") is False:
+                status = "fail"
+            elif display.get("black_frame_detected"):
+                status = "warn"
+            elif not display.get("screen_state"):
+                status = "warn"
+
+            detail_parts = [
+                f"screen={display.get('screen_state') or 'unknown'}",
+                f"power={display.get('display_power') or 'n/a'}",
+                f"brightness={display.get('display_brightness') or 'n/a'}",
+                f"refresh={display.get('refresh_rate') or 'n/a'}",
+                f"black_frame={display.get('black_frame_detected')}",
+            ]
+            items.append(
+                {
+                    "label": "Display state / framebuffer",
+                    "status": status,
+                    "detail": ", ".join(detail_parts),
+                    "links": [],
+                }
+            )
+        else:
+            items.append(
+                {
+                    "label": "Display state / framebuffer",
+                    "status": "warn",
+                    "detail": "Select a device to analyze display diagnostics.",
+                    "links": [],
+                }
+            )
         return items
 
     def _update_diagnostics(self) -> None:
