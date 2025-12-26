@@ -104,6 +104,27 @@ def test_parse_adb_listing(tmp_path, monkeypatch):
     }
 
 
+def test_classify_usb_device_mapping(tmp_path, monkeypatch):
+    core = load_core(tmp_path, monkeypatch)
+
+    mapping = core.DeviceDetector._classify_usb_device("05c6", "9008")
+
+    assert mapping["mode"] == "edl"
+    assert mapping["usb_vendor"] == "Qualcomm"
+    assert mapping["chipset_vendor_hint"] == "Qualcomm"
+
+
+def test_classify_usb_device_fallback(tmp_path, monkeypatch):
+    core = load_core(tmp_path, monkeypatch)
+
+    mapping = core.DeviceDetector._classify_usb_device("05c6", "1234")
+
+    assert mapping["mode"] == "usb-unknown"
+    assert mapping["usb_vendor"] == "Qualcomm"
+
+    assert core.DeviceDetector._classify_usb_device("ffff", "0001") is None
+
+
 def test_check_adb_ready(tmp_path, monkeypatch):
     core = load_core(tmp_path, monkeypatch)
 

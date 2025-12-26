@@ -43,6 +43,19 @@ class MediaTekChipset:
                     metadata={"usb_vid": vid, "usb_pid": pid},
                 )
 
+        if match_any(
+            context.get("usb_vendor") or context.get("chipset_vendor") or context.get("chipset_vendor_hint"),
+            ("mediatek", "mtk"),
+        ):
+            return ChipsetDetection(
+                chipset=self.name,
+                vendor=self.vendor,
+                mode=normalize_text(context.get("mode")) or "usb-unknown",
+                confidence=0.5,
+                notes=("Matched MediaTek USB vendor hint.",),
+                metadata={"usb_vendor": normalize_text(context.get("usb_vendor"))},
+            )
+
         for key in ("chipset", "hardware", "product", "device", "bootloader"):
             if match_any(context.get(key), self._PLATFORM_TOKENS):
                 return ChipsetDetection(
