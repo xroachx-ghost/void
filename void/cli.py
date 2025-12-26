@@ -98,6 +98,7 @@ class CLI:
                     'analyze': lambda: self._cmd_analyze(args),
                     'recover': lambda: self._cmd_recover(args),
                     'tweak': lambda: self._cmd_tweak(args),
+                    'usb-debug': lambda: self._cmd_usb_debug(args),
                     'report': lambda: self._cmd_report(args),
                     'stats': self._cmd_stats,
                     'monitor': self._cmd_monitor,
@@ -1190,6 +1191,45 @@ class CLI:
         else:
             print("❌ Tweak failed")
 
+    def _cmd_usb_debug(self, args: List[str]) -> None:
+        """Enable or force USB debugging."""
+        if len(args) < 1:
+            print("Usage: usb-debug <device_id> [force]")
+            return
+
+        device_id = args[0]
+        force = len(args) > 1 and args[1].lower() in {"force", "--force", "-f"}
+
+        if force:
+            result = SystemTweaker.force_usb_debugging(device_id)
+        else:
+            result = {
+                "steps": [
+                    {
+                        "step": "enable_developer_options",
+                        "success": SystemTweaker.enable_developer_options(device_id),
+                        "detail": None,
+                    },
+                    {
+                        "step": "enable_usb_debugging_setting",
+                        "success": SystemTweaker.enable_usb_debugging(device_id),
+                        "detail": None,
+                    },
+                ]
+            }
+            result["success"] = all(step["success"] for step in result["steps"])
+            result["adb_enabled"] = result["success"]
+            result["usb_config"] = None
+
+        status = "✅" if result["success"] else "⚠️"
+        print(f"{status} USB debugging {'forced' if force else 'enabled'} for {device_id}")
+        for step in result["steps"]:
+            icon = "✅" if step["success"] else "❌"
+            detail = f" ({step['detail']})" if step.get("detail") else ""
+            print(f"  {icon} {step['step']}{detail}")
+        if result.get("usb_config"):
+            print(f"  🔧 USB config: {result['usb_config']}")
+
     def _cmd_report(self, args: List[str]) -> None:
         """Generate report."""
         if len(args) < 1:
@@ -1584,7 +1624,8 @@ ANALYSIS:
 TWEAKS:
   tweak <device_id> <type> <value> - System tweaks
     Types: dpi, animation, timeout
-  
+  usb-debug <device_id> [force]    - Enable or force USB debugging
+
 FRP BYPASS:
   execute <method> <device_id>     - Execute bypass method
     Methods: adb_shell_reset, fastboot_erase, etc.
@@ -1652,6 +1693,7 @@ SYSTEM:
   void> analyze emulator-5554
   void> recover emulator-5554 contacts
   void> tweak emulator-5554 dpi 320
+  void> usb-debug emulator-5554 force
   void> report emulator-5554
   void> execute adb_shell_reset emulator-5554
   void> edl-status usb-05c6:9008

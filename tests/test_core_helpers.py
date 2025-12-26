@@ -93,7 +93,7 @@ def test_parse_adb_listing(tmp_path, monkeypatch):
     core = load_core(tmp_path, monkeypatch)
 
     info = core.DeviceDetector._parse_adb_listing(
-        ["product:sailfish", "model:Pixel", "device:marlin", "transport_id:1"]
+        ["product:sailfish", "model:Pixel", "device:marlin", "transport_id:1", "usb:1-1"]
     )
 
     assert info == {
@@ -101,6 +101,7 @@ def test_parse_adb_listing(tmp_path, monkeypatch):
         "model": "Pixel",
         "device": "marlin",
         "transport_id": "1",
+        "usb_path": "1-1",
     }
 
 

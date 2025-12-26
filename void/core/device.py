@@ -209,6 +209,9 @@ class DeviceDetector:
         # Screen info
         info['screen'] = DeviceDetector._get_screen_info(device_id)
 
+        if "serial" not in info and device_id:
+            info["serial"] = device_id
+
         return info
 
     @staticmethod
@@ -231,8 +234,11 @@ class DeviceDetector:
                 continue
             key, value = part.split(':', 1)
             key = key.strip().lower()
-            if key in {"product", "model", "device", "transport_id"}:
-                info[key] = value.strip()
+            value = value.strip()
+            if key == "usb":
+                info["usb_path"] = value
+            elif key in {"product", "model", "device", "transport_id"}:
+                info[key] = value
         return info
 
     @staticmethod
@@ -294,11 +300,18 @@ class DeviceDetector:
                         parts = line.split()
                         if len(parts) >= 2:
                             device_id = parts[0]
-                            device = {'id': device_id, 'mode': 'fastboot', 'status': parts[1]}
+                            device = {
+                                'id': device_id,
+                                'mode': 'fastboot',
+                                'status': parts[1],
+                                'serial': device_id,
+                            }
                             metadata, error = DeviceDetector._get_fastboot_metadata(device_id)
                             if metadata:
                                 device['fastboot_vars'] = metadata
                                 DeviceDetector._normalize_fastboot_metadata(device, metadata)
+                                if metadata.get("serialno"):
+                                    device["serial"] = metadata["serialno"]
                             if error:
                                 device['fastboot_metadata_error'] = error
                             devices.append(device)
@@ -390,6 +403,7 @@ class DeviceDetector:
                     if ":" not in usb_id:
                         continue
                     vid, pid = usb_id.split(":", 1)
+                    usb_product = " ".join(parts[id_index + 2 :]).strip()
                     classification = DeviceDetector._classify_usb_device(vid.lower(), pid.lower())
                     if not classification:
                         continue
@@ -401,6 +415,7 @@ class DeviceDetector:
                             "usb_vid": vid.lower(),
                             "usb_pid": pid.lower(),
                             "usb_id": usb_id.lower(),
+                            "usb_product": usb_product if usb_product else None,
                             "usb_vendor": classification.get("usb_vendor"),
                             "chipset_vendor_hint": classification.get("chipset_vendor_hint"),
                         }
