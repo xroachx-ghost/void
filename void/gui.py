@@ -30,8 +30,9 @@ from .core.device import DeviceDetector
 from .core.performance import PerformanceAnalyzer
 from .core.report import ReportGenerator
 from .core.screen import ScreenCapture
-from .core.tools import android_driver_hints, check_android_tools, check_usb_debugging_status
-from .core.utils import check_tools
+from .core.tools import check_android_tools, check_mediatek_tools, check_qualcomm_tools
+from .core.tools.android import android_driver_hints, check_usb_debugging_status
+from .core.utils import ToolCheckResult, check_tools
 from .plugins import PluginContext, PluginMetadata, PluginResult, discover_plugins, get_registry
 from .terms import ensure_terms_acceptance_gui
 
@@ -136,6 +137,9 @@ class VoidGUI:
         self.chipset_status_var = tk.StringVar(
             value="Select a device to view chipset workflow status."
         )
+        self.edl_preflight_var = tk.StringVar(
+            value="Run a readiness check before entering recovery workflows."
+        )
         self.testpoint_notes_var = tk.StringVar(
             value="No model-specific test-point notes available."
         )
@@ -144,6 +148,7 @@ class VoidGUI:
         self.progress_var = tk.StringVar(value="")
         self.diagnostics_status_var: Optional[tk.StringVar] = None
         self.diagnostics_links_frame: Optional[ttk.Frame] = None
+        self.edl_links_frame: Optional[ttk.Frame] = None
         self.plugin_metadata: List[PluginMetadata] = []
         self._splash_window: Optional[tk.Toplevel] = None
         self._splash_canvas: Optional[tk.Canvas] = None
@@ -429,6 +434,152 @@ class VoidGUI:
                         continue
                     ttk.Button(
                         self.diagnostics_links_frame,
+                        text=label,
+                        style="Void.TButton",
+                        command=lambda target=url: webbrowser.open(target),
+                    ).pack(anchor="w", pady=(2, 0))
+
+    def _format_tool_checks(self, results: List[ToolCheckResult], label_prefix: str) -> List[Dict[str, Any]]:
+        items: List[Dict[str, Any]] = []
+        for tool in results:
+            status = "pass" if tool.available else "fail"
+            detail = tool.version or tool.path or "Detected."
+            if not tool.available:
+                detail = tool.error.get("message") if tool.error else "Not found in PATH."
+            elif tool.error:
+                status = "warn"
+                detail = tool.error.get("message") or detail
+            items.append(
+                {
+                    "label": f"{label_prefix} {tool.name}".strip(),
+                    "status": status,
+                    "detail": detail,
+                    "links": [],
+                }
+            )
+        return items
+
+    def _collect_edl_preflight_items(self) -> List[Dict[str, Any]]:
+        items: List[Dict[str, Any]] = []
+        context = self._get_device_context(show_warning=False)
+        if context is None:
+            items.append(
+                {
+                    "label": "Device selection",
+                    "status": "warn",
+                    "detail": "Select a device before running recovery workflows.",
+                    "links": [],
+                }
+            )
+            return items
+
+        override = self._get_chipset_override()
+        detection = detect_chipset_for_device(context)
+        chipset_name = override or (detection.chipset if detection else "Unknown")
+        mode = context.get("mode", "Unknown")
+
+        items.append(
+            {
+                "label": "Device mode",
+                "status": "pass" if mode.lower() in {"adb", "fastboot", "edl"} else "warn",
+                "detail": f"Detected mode: {mode}.",
+                "links": [],
+            }
+        )
+        items.append(
+            {
+                "label": "Chipset detection",
+                "status": "pass" if chipset_name != "Unknown" else "warn",
+                "detail": f"Chipset: {chipset_name}.",
+                "links": [],
+            }
+        )
+
+        android_tools = check_android_tools()
+        items.extend(self._format_tool_checks(android_tools, "Platform tool"))
+
+        usb_status = check_usb_debugging_status(android_tools)
+        items.append(
+            {
+                "label": "USB debugging status",
+                "status": usb_status.get("status", "warn"),
+                "detail": f"{usb_status.get('message') or ''} {usb_status.get('detail') or ''}".strip(),
+                "links": usb_status.get("links", []),
+            }
+        )
+
+        driver_status = android_driver_hints()
+        items.append(
+            {
+                "label": "OS driver guidance",
+                "status": driver_status.get("status", "info"),
+                "detail": f"{driver_status.get('message') or ''} {driver_status.get('detail') or ''}".strip(),
+                "links": driver_status.get("links", []),
+            }
+        )
+
+        if chipset_name.lower() == "qualcomm":
+            items.extend(self._format_tool_checks(check_qualcomm_tools(), "Qualcomm tool"))
+        elif chipset_name.lower() == "mediatek":
+            items.extend(self._format_tool_checks(check_mediatek_tools(), "MediaTek tool"))
+        elif chipset_name.lower() == "samsung":
+            items.append(
+                {
+                    "label": "Samsung tooling",
+                    "status": "info",
+                    "detail": "Use OEM download tooling (e.g., Odin) as required.",
+                    "links": [],
+                }
+            )
+        else:
+            items.append(
+                {
+                    "label": "Chipset tooling",
+                    "status": "info",
+                    "detail": "No chipset-specific tooling detected; verify OEM guidance.",
+                    "links": [],
+                }
+            )
+
+        if self.target_mode_var.get().lower() == "edl" and mode.lower() != "adb":
+            items.append(
+                {
+                    "label": "EDL entry prerequisites",
+                    "status": "warn",
+                    "detail": "EDL entry from GUI requires ADB; otherwise use test-point guidance.",
+                    "links": [],
+                }
+            )
+        return items
+
+    def _update_edl_preflight(self) -> None:
+        items = self._collect_edl_preflight_items()
+        lines = []
+        for item in items:
+            icon = self._diagnostic_icon(str(item.get("status", "")))
+            detail = item.get("detail") or ""
+            lines.append(f"{icon} {item.get('label')}: {detail}".strip())
+        self.edl_preflight_var.set("\n".join(lines))
+
+        if self.edl_links_frame is not None:
+            for child in self.edl_links_frame.winfo_children():
+                child.destroy()
+            for item in items:
+                links = item.get("links") or []
+                if not links:
+                    continue
+                ttk.Label(
+                    self.edl_links_frame,
+                    text=f"{item.get('label')} remediation:",
+                    style="Void.TLabel",
+                ).pack(anchor="w", pady=(4, 0))
+                for link in links:
+                    label = link.get("label", "Open link")
+                    url = link.get("url")
+                    if not url:
+                        continue
+                    ttk.Button(
+                        self.edl_links_frame,
                         text=label,
                         style="Void.TButton",
                         command=lambda target=url: webbrowser.open(target),
@@ -1191,6 +1342,28 @@ class VoidGUI:
         detect_button.pack(anchor="w", pady=(6, 0))
         Tooltip(detect_button, "Run chipset detection for the selected device.")
 
+        ttk.Label(edl_recovery, text="Readiness Check", style="Void.TLabel").pack(anchor="w")
+        readiness_panel = ttk.Frame(edl_recovery, style="Void.TFrame")
+        readiness_panel.pack(fill="x", pady=(6, 10))
+
+        ttk.Label(
+            readiness_panel,
+            textvariable=self.edl_preflight_var,
+            style="Void.TLabel",
+            wraplength=600,
+            justify="left",
+        ).pack(anchor="w")
+
+        self.edl_links_frame = ttk.Frame(readiness_panel, style="Void.TFrame")
+        self.edl_links_frame.pack(fill="x", pady=(6, 0))
+
+        ttk.Button(
+            readiness_panel,
+            text="Run Readiness Check",
+            style="Void.TButton",
+            command=self._update_edl_preflight,
+        ).pack(anchor="w", pady=(6, 0))
+
         ttk.Label(edl_recovery, text="Tool Selection", style="Void.TLabel").pack(anchor="w", pady=(10, 0))
         tool_panel = ttk.Frame(edl_recovery, style="Void.TFrame")
         tool_panel.pack(fill="x", pady=(6, 10))
@@ -1234,21 +1407,21 @@ class VoidGUI:
 
         flash_button = ttk.Button(
             workflow_panel,
-            text="Flash",
+            text="Flash Readiness",
             style="Void.TButton",
-            command=lambda: self._recover_chipset_device("Flash"),
+            command=lambda: self._recover_chipset_device("Flash readiness"),
         )
         flash_button.pack(side="left", padx=(0, 8))
-        Tooltip(flash_button, "Check recovery tooling for flashing workflows.")
+        Tooltip(flash_button, "Validate flashing tool availability for the selected chipset.")
 
         dump_button = ttk.Button(
             workflow_panel,
-            text="Dump",
+            text="Dump Readiness",
             style="Void.TButton",
-            command=lambda: self._recover_chipset_device("Dump"),
+            command=lambda: self._recover_chipset_device("Dump readiness"),
         )
         dump_button.pack(side="left")
-        Tooltip(dump_button, "Check recovery tooling for dump workflows.")
+        Tooltip(dump_button, "Validate dump tool availability for the selected chipset.")
 
         ttk.Label(edl_recovery, text="Test-Point Guidance", style="Void.TLabel").pack(anchor="w")
         testpoint_panel = ttk.Frame(edl_recovery, style="Void.TFrame")
@@ -1350,6 +1523,7 @@ class VoidGUI:
             length=260
         )
         self.progress.pack(anchor="w", pady=(6, 0))
+        self._update_edl_preflight()
 
     def _log(self, message: str, level: str = "INFO") -> None:
         """Write a log line to the GUI console."""
@@ -1462,6 +1636,12 @@ class VoidGUI:
             self._clear_device_sections()
             self.chipset_status_var.set("Select a device to view chipset workflow status.")
             self.testpoint_notes_var.set("No model-specific test-point notes available.")
+            self.edl_preflight_var.set(
+                "Run a readiness check before entering recovery workflows."
+            )
+            if self.edl_links_frame is not None:
+                for child in self.edl_links_frame.winfo_children():
+                    child.destroy()
             return
 
         info = self.device_info[selection[0]]
@@ -1556,6 +1736,7 @@ class VoidGUI:
             self.testpoint_notes_var.set(f"Model Notes: {testpoint_note}")
         else:
             self.testpoint_notes_var.set("No model-specific test-point notes available.")
+        self._update_edl_preflight()
 
     def refresh_devices(self) -> None:
         """Refresh the device list."""
@@ -1888,7 +2069,24 @@ class VoidGUI:
         context = self._get_device_context()
         if context is None:
             return
+        self._update_edl_preflight()
         target_mode = self.target_mode_var.get()
+        mode = context.get("mode", "unknown")
+        if target_mode.lower() == "edl" and mode.lower() != "adb":
+            proceed = messagebox.askyesno(
+                "EDL Entry Warning",
+                "The selected device is not currently in ADB mode. "
+                "EDL entry may require a manual test-point trigger.\n\n"
+                "Continue with the workflow?",
+            )
+            if not proceed:
+                return
+        proceed = messagebox.askyesno(
+            "Confirm Mode Entry",
+            f"Attempt to enter {target_mode.upper()} mode for the selected device?",
+        )
+        if not proceed:
+            return
         override = self._get_chipset_override()
         self._run_task(
             "Enter Mode",
@@ -1902,6 +2100,7 @@ class VoidGUI:
         context = self._get_device_context()
         if context is None:
             return
+        self._update_edl_preflight()
         override = self._get_chipset_override()
         self._run_task(
             f"{label} Workflow",
@@ -1916,10 +2115,11 @@ class VoidGUI:
             return None
         return override
 
-    def _get_device_context(self) -> Optional[Dict[str, str]]:
+    def _get_device_context(self, show_warning: bool = True) -> Optional[Dict[str, str]]:
         selection = self.device_list.curselection()
         if not selection or selection[0] >= len(self.device_info):
-            messagebox.showwarning("Void", "Select a device first.")
+            if show_warning:
+                messagebox.showwarning("Void", "Select a device first.")
             return None
         info = self.device_info[selection[0]]
         return {k: str(v) for k, v in info.items() if v is not None}
