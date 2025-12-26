@@ -2,7 +2,12 @@
 
 from __future__ import annotations
 
-from .android import check_android_tools, resolve_android_fallback
+from .android import (
+    android_driver_hints,
+    check_android_tools,
+    check_usb_debugging_status,
+    resolve_android_fallback,
+)
 from .mediatek import (
     build_sp_flash_script_command,
     check_mediatek_tools,
@@ -12,7 +17,9 @@ from .qualcomm import check_qualcomm_tools, resolve_qualcomm_recovery_tool
 
 __all__ = [
     "build_sp_flash_script_command",
+    "android_driver_hints",
     "check_android_tools",
+    "check_usb_debugging_status",
     "check_mediatek_tools",
     "check_qualcomm_tools",
     "resolve_android_fallback",
