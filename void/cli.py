@@ -10,6 +10,7 @@ Unauthorized copying, modification, distribution, or disclosure is prohibited.
 from __future__ import annotations
 
 import csv
+import difflib
 import json
 import platform
 import shutil
@@ -157,10 +158,13 @@ class CLI:
                 if command in commands:
                     commands[command]()
                 else:
+                    suggestions = self._suggest_commands(command, list(commands.keys()))
                     self.logger.warning(
                         f"Unknown command: {command}",
                         extra={"category": "cli", "device_id": "-", "method": "-"},
                     )
+                    if suggestions:
+                        print(f"Did you mean: {', '.join(suggestions)}?")
 
             except KeyboardInterrupt:
                 self.logger.info(
@@ -172,6 +176,17 @@ class CLI:
                     f"Error: {exc}",
                     extra={"category": "cli", "device_id": "-", "method": "-"},
                 )
+
+    def _suggest_commands(self, command: str, options: List[str]) -> List[str]:
+        """Suggest similar commands for typos or partial input."""
+        if not command:
+            return []
+
+        prefix_matches = [option for option in options if option.startswith(command)]
+        if prefix_matches:
+            return sorted(prefix_matches)[:5]
+
+        return difflib.get_close_matches(command, options, n=5, cutoff=0.5)
 
     def _print_banner(self) -> None:
         """Print banner."""
