@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from .base import ChipsetActionResult, ChipsetDetection
 from .utils import extract_usb_ids, match_any, normalize_text
+from ..tools.mediatek import resolve_mediatek_recovery_tool
 from ..utils import SafeSubprocess
 
 
@@ -68,16 +69,18 @@ class MediaTekChipset:
         )
 
     def recover(self, context: dict[str, str]) -> ChipsetActionResult:
-        for tool in ("mtkclient", "spflashtool"):
-            code, stdout, stderr = SafeSubprocess.run(["which", tool])
-            if code == 0 and stdout.strip():
-                return ChipsetActionResult(
-                    success=True,
-                    message=f"MediaTek recovery tool '{tool}' is available for preloader/bootrom flows.",
-                    data={"tool": tool},
-                )
+        tool_name, metadata = resolve_mediatek_recovery_tool()
+        if tool_name:
+            return ChipsetActionResult(
+                success=True,
+                message=f"MediaTek recovery tool '{tool_name}' is available for preloader/bootrom flows.",
+                data={"tool": tool_name, **metadata},
+            )
 
+        error = metadata.get("error", {})
+        message = error.get("message", "No MediaTek recovery tools found (mtkclient/SP Flash Tool).")
         return ChipsetActionResult(
             success=False,
-            message="No MediaTek recovery tools found (mtkclient/spflashtool).",
+            message=message,
+            data={"error": error, **metadata},
         )

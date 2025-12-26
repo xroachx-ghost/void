@@ -35,6 +35,7 @@ from .core.performance import PerformanceAnalyzer
 from .core.report import ReportGenerator
 from .core.screen import ScreenCapture
 from .core.system import SystemTweaker
+from .core.tools import check_android_tools, check_mediatek_tools, check_qualcomm_tools
 from .core.utils import SafeSubprocess
 from .logging import get_logger
 from .plugins import PluginContext, discover_plugins, get_registry
@@ -591,16 +592,37 @@ Type 'menu' to launch the interactive menu.
         internet_status = "Online" if NetworkTools.check_internet() else "Offline"
         print(f"  Internet: {internet_status}")
 
-        code, stdout, stderr = SafeSubprocess.run(['adb', 'version'])
-        if code == 0:
-            first_line = stdout.strip().splitlines()[0] if stdout else "ADB available"
-            print(f"  ADB: {first_line}")
+        android_tools = check_android_tools()
+        adb_result = next((tool for tool in android_tools if tool.name == "adb"), None)
+        if adb_result and adb_result.available:
+            version = adb_result.version or "ADB available"
+            if adb_result.error:
+                version = f"{version} (version unknown)"
+            print(f"  ADB: {version}")
         else:
-            message = stderr.strip() or "ADB not available"
+            message = (adb_result.error.get("message") if adb_result else "ADB not available")
             print(f"  ADB: {message}")
 
         print(f"  Monitoring: {'Available' if PSUTIL_AVAILABLE else 'Unavailable (install psutil)'}")
         print(f"  DB Path: {Config.DB_PATH}")
+
+        print("\n🧰 Tooling\n")
+        tool_groups = [
+            ("Android", android_tools),
+            ("Qualcomm", check_qualcomm_tools()),
+            ("MediaTek", check_mediatek_tools()),
+        ]
+        for label, tools in tool_groups:
+            print(f"  {label}:")
+            for tool in tools:
+                if tool.available:
+                    version = tool.version or "available"
+                    if tool.error:
+                        version = f"{version} (version unknown)"
+                    print(f"    - {tool.name}: {version}")
+                else:
+                    message = tool.error.get("message", "missing")
+                    print(f"    - {tool.name}: {message}")
 
     def _cmd_logs(self) -> None:
         """List recent log files."""
