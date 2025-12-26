@@ -17,4 +17,10 @@ gui = []
 void = "void.main:main"
 
 [tool.setuptools]
-packages = ["void"]
+packages = [
+    "void",
+    "void.core",
+    "void.core.chipsets",
+    "void.core.tools",
+    "void.plugins",
+]
