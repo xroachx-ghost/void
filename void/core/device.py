@@ -95,6 +95,9 @@ class DeviceDetector:
             except Exception:
                 pass
 
+        # Bootloader/OEM unlock status
+        info['bootloader_status'] = DeviceDetector.get_bootloader_status(device_id)
+
         # Get IMEI
         try:
             code, stdout, _ = SafeSubprocess.run(
@@ -117,6 +120,38 @@ class DeviceDetector:
         info['screen'] = DeviceDetector._get_screen_info(device_id)
 
         return info
+
+    @staticmethod
+    def get_bootloader_status(device_id: str) -> Dict[str, str]:
+        """Get bootloader/OEM unlock status properties."""
+        props = {
+            'verified_boot_state': 'ro.boot.verifiedbootstate',
+            'vbmeta_device_state': 'ro.boot.vbmeta.device_state',
+            'bootloader_locked': 'ro.boot.flash.locked',
+            'oem_unlock_supported': 'ro.oem_unlock_supported',
+            'oem_unlock_allowed': 'sys.oem_unlock_allowed',
+            'warranty_bit': 'ro.boot.warranty_bit',
+            'verity_mode': 'ro.boot.veritymode',
+        }
+
+        status: Dict[str, str] = {}
+        for key, prop in props.items():
+            try:
+                code, stdout, _ = SafeSubprocess.run(
+                    ['adb', '-s', device_id, 'shell', 'getprop', prop]
+                )
+                if code == 0 and stdout.strip():
+                    status[key] = stdout.strip()
+            except Exception:
+                pass
+
+        raw_lock = status.get('bootloader_locked', '').lower()
+        if raw_lock in {'1', 'true', 'locked', 'yes'}:
+            status['bootloader_lock_state'] = 'locked'
+        elif raw_lock in {'0', 'false', 'unlocked', 'no'}:
+            status['bootloader_lock_state'] = 'unlocked'
+
+        return status
 
     @staticmethod
     def _check_adb_ready(device_id: str) -> bool:

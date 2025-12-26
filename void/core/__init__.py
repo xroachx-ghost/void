@@ -22,6 +22,9 @@ from .screen import ScreenCapture
 from .system import SystemTweaker
 from .utils import SafeSubprocess
 from .files import FileManager
+from .partitions import PartitionManager
+from .recovery import RecoveryWorkflow
+from .rom_validation import RomValidator
 
 __all__ = [
     'AppManager',
@@ -31,6 +34,9 @@ __all__ = [
     'DeviceDetector',
     'FRPEngine',
     'FileManager',
+    'PartitionManager',
+    'RecoveryWorkflow',
+    'RomValidator',
     'LogcatViewer',
     'Logger',
     'NetworkAnalyzer',

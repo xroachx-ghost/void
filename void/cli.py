@@ -26,6 +26,9 @@ from .core.backup import AutoBackup
 from .core.data_recovery import DataRecovery
 from .core.database import db
 from .core.device import DeviceDetector
+from .core.partitions import PartitionManager
+from .core.recovery import RecoveryWorkflow
+from .core.rom_validation import RomValidator
 from .core.files import FileManager
 from .core.frp import FRPEngine
 from .core.logcat import LogcatViewer
@@ -87,6 +90,10 @@ class CLI:
                 commands = {
                     'devices': self._cmd_devices,
                     'info': lambda: self._cmd_info(args),
+                    'bootstatus': lambda: self._cmd_bootstatus(args),
+                    'partitions': lambda: self._cmd_partitions(args),
+                    'rom-validate': lambda: self._cmd_rom_validate(args),
+                    'recovery': lambda: self._cmd_recovery(args),
                     'summary': self._cmd_summary,
                     'backup': lambda: self._cmd_backup(args),
                     'screenshot': lambda: self._cmd_screenshot(args),
@@ -264,10 +271,130 @@ Type 'menu' to launch the interactive menu.
         if device:
             print(f"\n📱 Device Information: {args[0]}\n")
             for key, value in device.items():
-                if not isinstance(value, dict):
-                    print(f"  {key.replace('_', ' ').title()}: {value}")
+                if isinstance(value, dict):
+                    if key == 'bootloader_status' and value:
+                        print("  Bootloader Status:")
+                        for status_key, status_value in value.items():
+                            print(
+                                f"    {status_key.replace('_', ' ').title()}: {status_value}"
+                            )
+                    continue
+                print(f"  {key.replace('_', ' ').title()}: {value}")
         else:
             print("❌ Device not found")
+
+    def _cmd_bootstatus(self, args: List[str]) -> None:
+        """Show bootloader/OEM unlock status."""
+        if len(args) < 1:
+            print("Usage: bootstatus <device_id>")
+            return
+
+        status = DeviceDetector.get_bootloader_status(args[0])
+        if not status:
+            print("❌ Unable to query bootloader status")
+            return
+
+        print(f"\n🔐 Bootloader Status: {args[0]}\n")
+        for key, value in status.items():
+            print(f"  {key.replace('_', ' ').title()}: {value}")
+
+    def _cmd_partitions(self, args: List[str]) -> None:
+        """Manage partitions (list, dump, hash)."""
+        if len(args) < 2:
+            print("Usage: partitions <device_id> <list|dump|hash> [partition] [output]")
+            return
+
+        device_id, operation = args[0], args[1]
+        mode = PartitionManager.detect_device_mode(device_id)
+
+        if operation == 'list':
+            partitions = PartitionManager.list_partitions(device_id, mode=mode)
+            if not partitions:
+                print("❌ No partitions found")
+                return
+            print(f"\n🧩 Partitions ({mode}):\n")
+            for part in partitions:
+                details = part.get('name', '')
+                if part.get('size'):
+                    details += f" size={part.get('size')}"
+                if part.get('type'):
+                    details += f" type={part.get('type')}"
+                print(f"  • {details}")
+            return
+
+        if operation in {'dump', 'hash'} and len(args) < 3:
+            print("Usage: partitions <device_id> <dump|hash> <partition> [output]")
+            return
+
+        partition = args[2] if len(args) > 2 else ''
+        if operation == 'dump':
+            Config.setup()
+            output_path = Path(args[3]) if len(args) > 3 else Config.EXPORTS_DIR / f"{device_id}_{partition}.img"
+            result = PartitionManager.dump_partition(device_id, partition, output_path, mode=mode)
+            if result.get('success'):
+                print(f"✅ Partition dumped: {result.get('path')}")
+            else:
+                print(f"❌ Dump failed: {result.get('message', 'Unknown error')}")
+            return
+
+        if operation == 'hash':
+            result = PartitionManager.hash_partition(device_id, partition, mode=mode)
+            if result.get('success'):
+                print(f"✅ {partition} sha256: {result.get('hash')}")
+            else:
+                print(f"❌ Hash failed: {result.get('message', 'Unknown error')}")
+            return
+
+        print("❌ Unknown partition operation")
+
+    def _cmd_rom_validate(self, args: List[str]) -> None:
+        """Validate a ROM checksum."""
+        if len(args) < 2:
+            print("Usage: rom-validate <rom_path> <checksum|checksum_file> [algorithm]")
+            return
+
+        rom_path = Path(args[0])
+        if not rom_path.exists():
+            print("❌ ROM file not found")
+            return
+
+        checksum_input = args[1]
+        algorithm = args[2] if len(args) > 2 else None
+        result = RomValidator.validate_checksum(rom_path, checksum_input, algorithm)
+        if result.get('success'):
+            print(f"✅ {result.get('message')} ({result.get('algorithm')})")
+        else:
+            print(f"❌ {result.get('message')}")
+        if 'expected' in result and 'actual' in result:
+            print(f"Expected: {result.get('expected')}")
+            print(f"Actual:   {result.get('actual')}")
+
+    def _cmd_recovery(self, args: List[str]) -> None:
+        """Run recovery workflows."""
+        if len(args) < 2:
+            print("Usage: recovery <device_id> <reboot|bootloader|system|sideload> [package]")
+            return
+
+        device_id, action = args[0], args[1]
+        if action == 'reboot':
+            result = RecoveryWorkflow.reboot_to_recovery(device_id)
+        elif action == 'bootloader':
+            result = RecoveryWorkflow.reboot_to_bootloader(device_id)
+        elif action == 'system':
+            result = RecoveryWorkflow.reboot_to_system(device_id)
+        elif action == 'sideload':
+            if len(args) < 3:
+                print("Usage: recovery <device_id> sideload <package_path>")
+                return
+            result = RecoveryWorkflow.sideload_update(device_id, Path(args[2]))
+        else:
+            print("❌ Unknown recovery action")
+            return
+
+        if result.get('success'):
+            print(f"✅ {result.get('message')}")
+        else:
+            print(f"❌ {result.get('message', 'Recovery action failed.')}")
 
     def _cmd_summary(self) -> None:
         """Show a short device summary."""
@@ -1292,6 +1419,22 @@ DEVICE MANAGEMENT:
   devices                          - List all connected devices
   info <device_id>                 - Show detailed device info
   summary                          - Show a short device summary
+  
+  bootstatus <device_id>           - Show bootloader/OEM unlock status
+
+PARTITION TOOLS:
+  partitions <device_id> list      - List partitions
+  partitions <device_id> dump <partition> [output] - Dump a partition image
+  partitions <device_id> hash <partition> - Hash a partition (SHA-256)
+
+ROM VALIDATION:
+  rom-validate <rom> <checksum> [algorithm] - Validate ROM checksum
+
+RECOVERY:
+  recovery <device_id> reboot      - Reboot to recovery
+  recovery <device_id> bootloader  - Reboot to bootloader
+  recovery <device_id> system      - Reboot to system
+  recovery <device_id> sideload <package> - Sideload update package
   
 BACKUP & DATA:
   backup <device_id>               - Create automated backup
