@@ -6,6 +6,7 @@ from typing import Any, Dict, List
 from .chipsets.dispatcher import detect_chipset_for_device
 from .database import db
 from .utils import SafeSubprocess
+from ..config import Config
 
 
 class DeviceDetector:
@@ -200,10 +201,81 @@ class DeviceDetector:
                     if line.strip():
                         parts = line.split()
                         if len(parts) >= 2:
-                            devices.append({'id': parts[0], 'mode': 'fastboot', 'status': parts[1]})
+                            device_id = parts[0]
+                            device = {'id': device_id, 'mode': 'fastboot', 'status': parts[1]}
+                            metadata, error = DeviceDetector._get_fastboot_metadata(device_id)
+                            if metadata:
+                                device['fastboot_vars'] = metadata
+                                DeviceDetector._normalize_fastboot_metadata(device, metadata)
+                            if error:
+                                device['fastboot_metadata_error'] = error
+                            devices.append(device)
         except Exception:
             pass
         return devices
+
+    @staticmethod
+    def _get_fastboot_metadata(device_id: str) -> tuple[Dict[str, str], str | None]:
+        """Fetch and parse fastboot getvar metadata."""
+        try:
+            code, stdout, stderr = SafeSubprocess.run(
+                ['fastboot', '-s', device_id, 'getvar', 'all'],
+                timeout=Config.TIMEOUT_SHORT,
+            )
+        except Exception as exc:
+            return {}, str(exc)
+
+        output = "\n".join(part for part in (stdout, stderr) if part).strip()
+        metadata = DeviceDetector._parse_fastboot_metadata(output)
+        error = None
+        if code != 0:
+            error = (stderr or stdout).strip() or "fastboot getvar failed"
+        elif not metadata and output:
+            error = output
+        return metadata, error
+
+    @staticmethod
+    def _parse_fastboot_metadata(output: str) -> Dict[str, str]:
+        """Parse fastboot getvar output into metadata."""
+        metadata: Dict[str, str] = {}
+        for line in output.splitlines():
+            cleaned = line.strip()
+            if not cleaned:
+                continue
+            cleaned = re.sub(r"^\([^)]+\)\s*", "", cleaned)
+            if cleaned.lower().startswith("all:"):
+                cleaned = cleaned[4:].strip()
+            if cleaned.lower().startswith("finished") or cleaned.lower().startswith("total time"):
+                continue
+            match = re.match(r"([A-Za-z0-9_.-]+)\s*:\s*(.*)", cleaned)
+            if not match:
+                continue
+            key = match.group(1).strip().lower()
+            value = match.group(2).strip().strip("'\"")
+            if not key or not value:
+                continue
+            metadata[key] = value
+        return metadata
+
+    @staticmethod
+    def _normalize_fastboot_metadata(device: Dict[str, Any], metadata: Dict[str, str]) -> None:
+        """Populate common device fields from fastboot metadata."""
+        field_map = {
+            "manufacturer": ["manufacturer", "brand", "oem", "vendor", "product-manufacturer"],
+            "model": ["model", "product-model"],
+            "product": ["product", "product-name"],
+            "device": ["device", "product-device"],
+            "bootloader": ["bootloader", "version-bootloader"],
+        }
+
+        for target, keys in field_map.items():
+            if device.get(target):
+                continue
+            for key in keys:
+                value = metadata.get(key)
+                if value:
+                    device[target] = value
+                    break
 
     @staticmethod
     def _detect_usb_modes() -> List[Dict[str, Any]]:
