@@ -16,6 +16,7 @@ from .authorized_device_auditor import AuthorizedDeviceAuditor
 from .backup import AutoBackup
 from .data_recovery import DataRecovery
 from .database import Database, db
+from .display import DisplayAnalyzer
 from .device import DeviceDetector
 from .firmware_integrity import (
     dump_partition_via_adb,
@@ -46,6 +47,7 @@ __all__ = [
     'AutoBackup',
     'DataRecovery',
     'Database',
+    'DisplayAnalyzer',
     'DeviceDetector',
     'dump_partition_via_adb',
     'enable_debugging_settings',

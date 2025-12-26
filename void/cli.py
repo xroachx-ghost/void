@@ -26,6 +26,7 @@ from .core.backup import AutoBackup
 from .core.data_recovery import DataRecovery
 from .core.database import db
 from .core.device import DeviceDetector
+from .core.display import DisplayAnalyzer
 from .core.edl import edl_dump, edl_flash
 from .core.files import FileManager
 from .core.frp import FRPEngine
@@ -96,6 +97,7 @@ class CLI:
                     'apps': lambda: self._cmd_apps(args),
                     'files': lambda: self._cmd_files(args),
                     'analyze': lambda: self._cmd_analyze(args),
+                    'display-diagnostics': lambda: self._cmd_display_diagnostics(args),
                     'recover': lambda: self._cmd_recover(args),
                     'tweak': lambda: self._cmd_tweak(args),
                     'usb-debug': lambda: self._cmd_usb_debug(args),
@@ -276,6 +278,15 @@ class CLI:
 
         if len(apps) > 20:
             print(f"  ... and {len(apps) - 20} more")
+
+    def _cmd_display_diagnostics(self, args: List[str]) -> None:
+        """Run display diagnostics."""
+        if len(args) < 1:
+            print("Usage: display-diagnostics <device_id>")
+            return
+
+        diagnostics = DisplayAnalyzer.analyze(args[0])
+        print(json.dumps(diagnostics, indent=2))
 
     def _cmd_info(self, args: List[str]) -> None:
         """Show device info."""
@@ -1618,6 +1629,7 @@ FILE OPERATIONS:
   
 ANALYSIS:
   analyze <device_id>              - Performance analysis
+  display-diagnostics <device_id>  - Display + framebuffer diagnostics
   report <device_id>               - Generate full report
   logcat <device_id> [tag]         - View real-time logs
   
@@ -1691,6 +1703,7 @@ SYSTEM:
   void> screenshot emulator-5554
   void> apps emulator-5554 user
   void> analyze emulator-5554
+  void> display-diagnostics emulator-5554
   void> recover emulator-5554 contacts
   void> tweak emulator-5554 dpi 320
   void> usb-debug emulator-5554 force
