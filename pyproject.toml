@@ -15,3 +15,6 @@ gui = []
 
 [project.scripts]
 void = "void.main:main"
+
+[tool.setuptools]
+packages = ["void"]
