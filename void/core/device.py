@@ -12,6 +12,25 @@ from ..config import Config
 class DeviceDetector:
     """Comprehensive device detection"""
 
+    _USB_VID_PID_MAP: Dict[tuple[str, str], Dict[str, str]] = {
+        ("05c6", "9008"): {"mode": "edl", "vendor": "Qualcomm"},
+        ("05c6", "900e"): {"mode": "edl", "vendor": "Qualcomm"},
+        ("05c6", "9006"): {"mode": "edl", "vendor": "Qualcomm"},
+        ("0e8d", "2000"): {"mode": "preloader", "vendor": "MediaTek"},
+        ("0e8d", "2001"): {"mode": "preloader", "vendor": "MediaTek"},
+        ("0e8d", "2003"): {"mode": "preloader", "vendor": "MediaTek"},
+        ("0e8d", "0003"): {"mode": "bootrom", "vendor": "MediaTek"},
+        ("04e8", "685d"): {"mode": "download", "vendor": "Samsung"},
+        ("04e8", "685e"): {"mode": "download", "vendor": "Samsung"},
+        ("04e8", "6860"): {"mode": "download", "vendor": "Samsung"},
+        ("04e8", "6861"): {"mode": "download", "vendor": "Samsung"},
+    }
+    _USB_VID_VENDOR_MAP: Dict[str, str] = {
+        "05c6": "Qualcomm",
+        "0e8d": "MediaTek",
+        "04e8": "Samsung",
+    }
+
     @staticmethod
     def detect_all() -> List[Dict[str, Any]]:
         """Detect all devices"""
@@ -300,17 +319,19 @@ class DeviceDetector:
                     if ":" not in usb_id:
                         continue
                     vid, pid = usb_id.split(":", 1)
-                    mode = DeviceDetector._classify_usb_mode(vid.lower(), pid.lower())
-                    if not mode:
+                    classification = DeviceDetector._classify_usb_device(vid.lower(), pid.lower())
+                    if not classification:
                         continue
                     devices.append(
                         {
                             "id": f"usb-{usb_id.lower()}",
-                            "mode": mode,
+                            "mode": classification["mode"],
                             "status": "detected",
                             "usb_vid": vid.lower(),
                             "usb_pid": pid.lower(),
                             "usb_id": usb_id.lower(),
+                            "usb_vendor": classification.get("usb_vendor"),
+                            "chipset_vendor_hint": classification.get("chipset_vendor_hint"),
                         }
                     )
         except Exception:
@@ -318,16 +339,25 @@ class DeviceDetector:
         return devices
 
     @staticmethod
-    def _classify_usb_mode(vid: str, pid: str) -> str | None:
-        """Classify USB VID/PID into a known chipset mode."""
-        if vid == "05c6" and pid in {"9008", "900e"}:
-            return "edl"
-        if vid == "0e8d" and pid in {"2000", "2001"}:
-            return "preloader"
-        if vid == "0e8d" and pid == "0003":
-            return "bootrom"
-        if vid == "04e8" and pid in {"685d", "6860"}:
-            return "download"
+    def _classify_usb_device(vid: str, pid: str) -> Dict[str, str] | None:
+        """Classify USB VID/PID into a known chipset mode with vendor hints."""
+        usb_key = (vid, pid)
+        usb_mapping = DeviceDetector._USB_VID_PID_MAP.get(usb_key)
+        if usb_mapping:
+            vendor = usb_mapping["vendor"]
+            return {
+                "mode": usb_mapping["mode"],
+                "usb_vendor": vendor,
+                "chipset_vendor_hint": vendor,
+            }
+
+        vendor = DeviceDetector._USB_VID_VENDOR_MAP.get(vid)
+        if vendor:
+            return {
+                "mode": "usb-unknown",
+                "usb_vendor": vendor,
+                "chipset_vendor_hint": vendor,
+            }
         return None
 
     @staticmethod
