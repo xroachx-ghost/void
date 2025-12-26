@@ -12,6 +12,7 @@ from __future__ import annotations
 import threading
 import webbrowser
 from datetime import datetime
+from math import sin, pi
 from typing import Any, Dict, List, Optional
 
 from .config import Config
@@ -100,10 +101,12 @@ class VoidGUI:
         discover_plugins()
         self.plugin_registry = get_registry()
 
+        self.theme = Config.GUI_THEME
         self.root = tk.Tk()
         self.root.title(Config.APP_NAME)
         self.root.geometry("980x640")
-        self.root.configure(bg="#0b0f14")
+        self.root.configure(bg=self.theme["bg"])
+        self.root.withdraw()
 
         self.device_ids: List[str] = []
         self.device_info: List[Dict[str, Any]] = []
@@ -129,12 +132,298 @@ class VoidGUI:
         self.chipset_override_var = tk.StringVar(value="Auto-detect")
         self.progress_var = tk.StringVar(value="")
         self.plugin_metadata: List[PluginMetadata] = []
+        self._splash_window: Optional[tk.Toplevel] = None
+        self._splash_canvas: Optional[tk.Canvas] = None
+        self._splash_step = 0
+        self._splash_total_frames = 48
+        self._show_splash()
+
+    def _show_splash(self) -> None:
+        """Display the animated splash screen before loading the main UI."""
+        self._splash_window = tk.Toplevel(self.root)
+        self._splash_window.overrideredirect(True)
+        self._splash_window.configure(bg=self.theme["bg"])
+        width, height = 560, 340
+        screen_w = self._splash_window.winfo_screenwidth()
+        screen_h = self._splash_window.winfo_screenheight()
+        x = int((screen_w - width) / 2)
+        y = int((screen_h - height) / 2)
+        self._splash_window.geometry(f"{width}x{height}+{x}+{y}")
+
+        self._splash_canvas = tk.Canvas(
+            self._splash_window,
+            width=width,
+            height=height,
+            highlightthickness=0,
+            bd=0,
+        )
+        self._splash_canvas.pack(fill="both", expand=True)
+        self._animate_splash()
+
+    def _animate_splash(self) -> None:
+        """Animate the splash screen (dragon flapping -> mask reveal)."""
+        if not self._splash_canvas:
+            return
+
+        self._splash_canvas.delete("all")
+        width = int(self._splash_canvas["width"])
+        height = int(self._splash_canvas["height"])
+        self._draw_gradient(
+            self._splash_canvas,
+            width,
+            height,
+            self.theme["splash_start"],
+            self.theme["splash_end"],
+            steps=24,
+        )
+
+        if self._splash_step < 28:
+            wing_phase = sin(self._splash_step / 4 * pi)
+            self._draw_dragon_frame(width, height, wing_phase)
+            subtitle = "KALI DRAGON ONLINE"
+        else:
+            progress = (self._splash_step - 28) / (self._splash_total_frames - 28)
+            self._draw_mask_frame(width, height, progress)
+            subtitle = "ANONYMOUS MASK ENGAGED"
+
+        self._splash_canvas.create_text(
+            width / 2,
+            height * 0.78,
+            text="VOID",
+            fill=self.theme["text"],
+            font=("Consolas", 28, "bold"),
+        )
+        self._splash_canvas.create_text(
+            width / 2,
+            height * 0.86,
+            text=subtitle,
+            fill=self.theme["accent_soft"],
+            font=("Consolas", 11, "bold"),
+        )
+        self._splash_canvas.create_text(
+            width / 2,
+            height * 0.92,
+            text=Config.THEME_SLOGANS[0],
+            fill=self.theme["muted"],
+            font=("Consolas", 9),
+        )
+
+        self._splash_step += 1
+        if self._splash_step <= self._splash_total_frames:
+            self._splash_canvas.after(70, self._animate_splash)
+        else:
+            self._finish_startup()
+
+    def _finish_startup(self) -> None:
+        """Tear down splash and build the main interface."""
+        if self._splash_window:
+            self._splash_window.destroy()
         self._build_layout()
+        self.root.deiconify()
         if not ensure_terms_acceptance_gui(messagebox):
             self.root.destroy()
             raise SystemExit(0)
         self.refresh_devices()
         self._load_plugins()
+
+    def _draw_dragon_frame(self, width: int, height: int, wing_phase: float) -> None:
+        """Draw a simplified Kali dragon with animated wings."""
+        if not self._splash_canvas:
+            return
+        center_x = width / 2
+        center_y = height / 2.7
+        wing_span = 140 + wing_phase * 30
+        wing_lift = 20 + wing_phase * 14
+        body_color = self.theme["dragon"]
+
+        # Wings
+        left_wing = [
+            center_x - 20,
+            center_y,
+            center_x - wing_span,
+            center_y - wing_lift,
+            center_x - wing_span + 40,
+            center_y + wing_lift,
+        ]
+        right_wing = [
+            center_x + 20,
+            center_y,
+            center_x + wing_span,
+            center_y - wing_lift,
+            center_x + wing_span - 40,
+            center_y + wing_lift,
+        ]
+        self._splash_canvas.create_polygon(
+            left_wing,
+            fill=body_color,
+            outline=self.theme["accent_soft"],
+            width=2,
+        )
+        self._splash_canvas.create_polygon(
+            right_wing,
+            fill=body_color,
+            outline=self.theme["accent_soft"],
+            width=2,
+        )
+
+        # Body
+        self._splash_canvas.create_oval(
+            center_x - 40,
+            center_y - 30,
+            center_x + 40,
+            center_y + 40,
+            fill=body_color,
+            outline=self.theme["accent_soft"],
+            width=2,
+        )
+        self._splash_canvas.create_polygon(
+            center_x + 10,
+            center_y - 40,
+            center_x + 70,
+            center_y - 20,
+            center_x + 20,
+            center_y,
+            fill=body_color,
+            outline=self.theme["accent_soft"],
+            width=2,
+        )
+
+    def _draw_mask_frame(self, width: int, height: int, progress: float) -> None:
+        """Draw an anonymous mask reveal."""
+        if not self._splash_canvas:
+            return
+        center_x = width / 2
+        center_y = height / 2.6
+        mask_color = self._blend_hex(self.theme["bg"], self.theme["mask"], progress)
+        glow_color = self._blend_hex(self.theme["accent_alt"], self.theme["accent"], progress)
+
+        self._splash_canvas.create_oval(
+            center_x - 60,
+            center_y - 70,
+            center_x + 60,
+            center_y + 70,
+            fill=mask_color,
+            outline=glow_color,
+            width=3,
+        )
+        self._splash_canvas.create_oval(
+            center_x - 35,
+            center_y - 10,
+            center_x - 5,
+            center_y + 10,
+            fill=self.theme["bg"],
+            outline="",
+        )
+        self._splash_canvas.create_oval(
+            center_x + 5,
+            center_y - 10,
+            center_x + 35,
+            center_y + 10,
+            fill=self.theme["bg"],
+            outline="",
+        )
+        self._splash_canvas.create_arc(
+            center_x - 30,
+            center_y + 10,
+            center_x + 30,
+            center_y + 45,
+            start=200,
+            extent=140,
+            style="arc",
+            outline=self._blend_hex(self.theme["accent_soft"], self.theme["mask"], progress),
+            width=3,
+        )
+
+    def _draw_gradient(
+        self,
+        canvas: tk.Canvas,
+        width: int,
+        height: int,
+        start_color: str,
+        end_color: str,
+        steps: int = 20,
+    ) -> None:
+        """Draw a vertical gradient onto the given canvas."""
+        start_rgb = self._hex_to_rgb(start_color)
+        end_rgb = self._hex_to_rgb(end_color)
+        for step in range(steps):
+            ratio = step / max(steps - 1, 1)
+            color = self._rgb_to_hex(
+                (
+                    int(start_rgb[0] + (end_rgb[0] - start_rgb[0]) * ratio),
+                    int(start_rgb[1] + (end_rgb[1] - start_rgb[1]) * ratio),
+                    int(start_rgb[2] + (end_rgb[2] - start_rgb[2]) * ratio),
+                )
+            )
+            y0 = int(height * step / steps)
+            y1 = int(height * (step + 1) / steps)
+            canvas.create_rectangle(0, y0, width, y1, outline="", fill=color)
+
+    @staticmethod
+    def _hex_to_rgb(value: str) -> tuple[int, int, int]:
+        value = value.lstrip("#")
+        return tuple(int(value[i:i + 2], 16) for i in (0, 2, 4))
+
+    @staticmethod
+    def _rgb_to_hex(rgb: tuple[int, int, int]) -> str:
+        return f"#{rgb[0]:02x}{rgb[1]:02x}{rgb[2]:02x}"
+
+    def _blend_hex(self, start: str, end: str, ratio: float) -> str:
+        ratio = max(0.0, min(1.0, ratio))
+        start_rgb = self._hex_to_rgb(start)
+        end_rgb = self._hex_to_rgb(end)
+        blended = (
+            int(start_rgb[0] + (end_rgb[0] - start_rgb[0]) * ratio),
+            int(start_rgb[1] + (end_rgb[1] - start_rgb[1]) * ratio),
+            int(start_rgb[2] + (end_rgb[2] - start_rgb[2]) * ratio),
+        )
+        return self._rgb_to_hex(blended)
+
+    def _render_header(self, canvas: tk.Canvas, width: int, height: int) -> None:
+        canvas.delete("all")
+        self._draw_gradient(
+            canvas,
+            width,
+            height,
+            self.theme["gradient_start"],
+            self.theme["gradient_end"],
+            steps=30,
+        )
+        title_x = 26
+        title_y = 32
+        shadow_color = self.theme["shadow"]
+        canvas.create_text(
+            title_x + 2,
+            title_y + 2,
+            text="VOID",
+            fill=shadow_color,
+            anchor="w",
+            font=("Consolas", 24, "bold"),
+        )
+        canvas.create_text(
+            title_x,
+            title_y,
+            text="VOID",
+            fill=self.theme["accent"],
+            anchor="w",
+            font=("Consolas", 24, "bold"),
+        )
+        canvas.create_text(
+            title_x,
+            title_y + 30,
+            text=Config.THEME_TAGLINE,
+            fill=self.theme["text"],
+            anchor="w",
+            font=("Consolas", 11),
+        )
+        canvas.create_text(
+            width - 24,
+            title_y + 8,
+            text=Config.THEME_NAME,
+            fill=self.theme["accent_soft"],
+            anchor="e",
+            font=("Consolas", 10, "bold"),
+        )
 
     def _build_layout(self) -> None:
         """Build the themed layout."""
@@ -142,46 +431,54 @@ class VoidGUI:
         style.theme_use("clam")
         style.configure(
             "Void.TFrame",
-            background="#0b0f14"
+            background=self.theme["bg"]
+        )
+        style.configure(
+            "Void.Card.TFrame",
+            background=self.theme["panel"],
+            relief="raised",
+            borderwidth=1,
         )
         style.configure(
             "Void.TLabel",
-            background="#0b0f14",
-            foreground="#e6f1ff",
+            background=self.theme["bg"],
+            foreground=self.theme["text"],
             font=("Consolas", 11)
         )
         style.configure(
             "Void.Title.TLabel",
-            background="#0b0f14",
-            foreground="#00ff9c",
-            font=("Consolas", 20, "bold")
+            background=self.theme["bg"],
+            foreground=self.theme["accent"],
+            font=("Consolas", 20, "bold"),
         )
         style.configure(
             "Void.TButton",
-            background="#111923",
-            foreground="#00ff9c",
+            background=self.theme["button_bg"],
+            foreground=self.theme["button_text"],
             font=("Consolas", 11, "bold"),
-            borderwidth=1
+            borderwidth=1,
+            relief="raised",
         )
         style.map(
             "Void.TButton",
-            background=[("active", "#1a2633")],
-            foreground=[("active", "#7bffce")]
+            background=[("active", self.theme["button_active"])],
+            foreground=[("active", self.theme["accent_soft"])],
+            relief=[("pressed", "sunken")],
         )
 
-        header = ttk.Frame(self.root, style="Void.TFrame")
+        header = tk.Canvas(
+            self.root,
+            height=96,
+            highlightthickness=0,
+            bd=0,
+            bg=self.theme["bg"],
+        )
         header.pack(fill="x", padx=20, pady=(20, 10))
+        header.bind("<Configure>", lambda event: self._render_header(header, event.width, event.height))
 
-        ttk.Label(header, text="VOID", style="Void.Title.TLabel").pack(anchor="w")
-        ttk.Label(
-            header,
-            text="Anonymous Ops Console • Proprietary to Roach Labs",
-            style="Void.TLabel"
-        ).pack(anchor="w")
-
-        menu = tk.Menu(self.root, bg="#0b0f14", fg="#e6f1ff", tearoff=0)
+        menu = tk.Menu(self.root, bg=self.theme["bg"], fg=self.theme["text"], tearoff=0)
         self.root.config(menu=menu)
-        app_menu = tk.Menu(menu, tearoff=0, bg="#0b0f14", fg="#e6f1ff")
+        app_menu = tk.Menu(menu, tearoff=0, bg=self.theme["bg"], fg=self.theme["text"])
         app_menu.add_command(label="About", command=self._show_about)
         app_menu.add_command(label="Export Log", command=self._export_log)
         app_menu.add_separator()
@@ -191,18 +488,19 @@ class VoidGUI:
         body = ttk.Frame(self.root, style="Void.TFrame")
         body.pack(fill="both", expand=True, padx=20, pady=10)
 
-        left = ttk.Frame(body, style="Void.TFrame")
+        left = ttk.Frame(body, style="Void.Card.TFrame")
         left.pack(side="left", fill="y", padx=(0, 15))
+        left.configure(padding=12)
 
         ttk.Label(left, text="Connected Devices", style="Void.TLabel").pack(anchor="w")
         self.device_list = tk.Listbox(
             left,
             width=36,
             height=18,
-            bg="#0f141b",
-            fg="#00ff9c",
-            selectbackground="#1a2633",
-            selectforeground="#e6f1ff",
+            bg=self.theme["panel_alt"],
+            fg=self.theme["accent"],
+            selectbackground=self.theme["button_active"],
+            selectforeground=self.theme["text"],
             highlightthickness=0,
             font=("Consolas", 10)
         )
@@ -351,9 +649,9 @@ class VoidGUI:
         self.output = scrolledtext.ScrolledText(
             logs,
             height=18,
-            bg="#0f141b",
-            fg="#e6f1ff",
-            insertbackground="#00ff9c",
+            bg=self.theme["panel_alt"],
+            fg=self.theme["text"],
+            insertbackground=self.theme["accent"],
             font=("Consolas", 10),
             state="disabled"
         )
@@ -507,10 +805,10 @@ class VoidGUI:
             plugin_controls,
             width=36,
             height=12,
-            bg="#0f141b",
-            fg="#00ff9c",
-            selectbackground="#1a2633",
-            selectforeground="#e6f1ff",
+            bg=self.theme["panel_alt"],
+            fg=self.theme["accent"],
+            selectbackground=self.theme["button_active"],
+            selectforeground=self.theme["text"],
             highlightthickness=0,
             font=("Consolas", 10),
         )

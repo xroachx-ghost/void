@@ -174,17 +174,23 @@ class CLI:
         """Print banner."""
         features_count = 200  # Total automated features
 
-        banner = f"""
-╔══════════════════════════════════════════════════════════════╗
-║  VOID v{Config.VERSION} - {Config.CODENAME}                             ║
-║  Ultimate Android Toolkit - {features_count}+ Automated Features      ║
-╚══════════════════════════════════════════════════════════════╝
+        box_width = 62
 
-✨ All features work automatically - zero manual setup required!
+        def pad(text: str) -> str:
+            return text.ljust(box_width)
 
-Type 'help' to see all available commands.
-Type 'menu' to launch the interactive menu.
-"""
+        slogan_lines = Config.THEME_SLOGANS[:2]
+        banner = (
+            f"╔{'═' * box_width}╗\n"
+            f"║ {pad(f'VOID v{Config.VERSION} - {Config.CODENAME}')} ║\n"
+            f"║ {pad(Config.THEME_TAGLINE)} ║\n"
+            f"║ {pad(f'{features_count}+ automated features • {Config.THEME_NAME}')} ║\n"
+            f"╚{'═' * box_width}╝\n\n"
+            f"✨ {slogan_lines[0]}\n"
+            f"✨ {slogan_lines[1]}\n\n"
+            "Type 'help' to see all available commands.\n"
+            "Type 'menu' to launch the interactive menu.\n"
+        )
         print(banner)
 
     def _cmd_devices(self) -> None:
