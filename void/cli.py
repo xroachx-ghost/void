@@ -204,16 +204,18 @@ class CLI:
         if self.console:
             table = Table(title="Connected Devices")
             table.add_column("ID", style="cyan")
-            table.add_column("Mode", style="green")
+            table.add_column("Modes", style="green")
             table.add_column("Status", style="white")
             table.add_column("Manufacturer", style="yellow")
             table.add_column("Model", style="blue")
             table.add_column("Android", style="magenta")
 
             for device in devices:
+                modes = device.get("modes") or [device.get("mode", "Unknown")]
+                mode_label = ", ".join(modes) if isinstance(modes, list) else str(modes)
                 table.add_row(
                     device.get('id', 'Unknown'),
-                    device.get('mode', 'Unknown'),
+                    mode_label,
                     device.get('status', 'Unknown'),
                     device.get('manufacturer', 'Unknown'),
                     device.get('model', 'Unknown'),
@@ -225,9 +227,11 @@ class CLI:
             print("\n📱 Connected Devices:")
             for device in devices:
                 status = device.get('status', 'Unknown')
+                modes = device.get("modes") or [device.get("mode", "Unknown")]
+                mode_label = ", ".join(modes) if isinstance(modes, list) else str(modes)
                 print(
                     f"  • {device.get('id')} - {device.get('manufacturer')} "
-                    f"{device.get('model')} ({status})"
+                    f"{device.get('model')} ({status}) [{mode_label}]"
                 )
 
     def _cmd_backup(self, args: List[str]) -> None:
@@ -305,9 +309,11 @@ class CLI:
             security = device.get('security_patch', 'Unknown')
             reachable = "Yes" if device.get("reachable") else "No"
             status = device.get('status', 'Unknown')
+            modes = device.get("modes") or [device.get("mode", "Unknown")]
+            mode_label = ", ".join(modes) if isinstance(modes, list) else str(modes)
             print(
                 f"• {device_id} — {brand} {model} | Android {android} | Patch {security} "
-                f"| Status: {status} | Reachable: {reachable}"
+                f"| Status: {status} | Modes: {mode_label} | Reachable: {reachable}"
             )
 
     def _cmd_menu(self) -> None:
