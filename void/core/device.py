@@ -3,6 +3,7 @@ from __future__ import annotations
 import re
 from typing import Any, Dict, List
 
+from .chipsets.dispatcher import detect_chipset_for_device
 from .database import db
 from .utils import SafeSubprocess
 
@@ -16,9 +17,11 @@ class DeviceDetector:
         devices = []
         devices.extend(DeviceDetector._detect_adb())
         devices.extend(DeviceDetector._detect_fastboot())
+        devices.extend(DeviceDetector._detect_usb_modes())
 
         # Update database
         for device in devices:
+            DeviceDetector._attach_chipset_metadata(device)
             db.update_device(device)
 
         return devices
@@ -201,3 +204,67 @@ class DeviceDetector:
         except Exception:
             pass
         return devices
+
+    @staticmethod
+    def _detect_usb_modes() -> List[Dict[str, Any]]:
+        """Detect USB devices in low-level modes (EDL/preloader/download)."""
+        devices: List[Dict[str, Any]] = []
+        try:
+            code, stdout, _ = SafeSubprocess.run(["lsusb"])
+            if code == 0:
+                for line in stdout.strip().split("\n"):
+                    if "ID" not in line:
+                        continue
+                    parts = line.split()
+                    try:
+                        id_index = parts.index("ID")
+                    except ValueError:
+                        continue
+                    if id_index + 1 >= len(parts):
+                        continue
+                    usb_id = parts[id_index + 1].strip()
+                    if ":" not in usb_id:
+                        continue
+                    vid, pid = usb_id.split(":", 1)
+                    mode = DeviceDetector._classify_usb_mode(vid.lower(), pid.lower())
+                    if not mode:
+                        continue
+                    devices.append(
+                        {
+                            "id": f"usb-{usb_id.lower()}",
+                            "mode": mode,
+                            "status": "detected",
+                            "usb_vid": vid.lower(),
+                            "usb_pid": pid.lower(),
+                            "usb_id": usb_id.lower(),
+                        }
+                    )
+        except Exception:
+            pass
+        return devices
+
+    @staticmethod
+    def _classify_usb_mode(vid: str, pid: str) -> str | None:
+        """Classify USB VID/PID into a known chipset mode."""
+        if vid == "05c6" and pid in {"9008", "900e"}:
+            return "edl"
+        if vid == "0e8d" and pid in {"2000", "2001"}:
+            return "preloader"
+        if vid == "0e8d" and pid == "0003":
+            return "bootrom"
+        if vid == "04e8" and pid in {"685d", "6860"}:
+            return "download"
+        return None
+
+    @staticmethod
+    def _attach_chipset_metadata(device: Dict[str, Any]) -> None:
+        """Populate chipset detection metadata into the device record."""
+        detection = detect_chipset_for_device({k: str(v) for k, v in device.items()})
+        if not detection:
+            return
+        device["chipset"] = detection.chipset
+        device["chipset_vendor"] = detection.vendor
+        device["chipset_mode"] = detection.mode
+        device["chipset_confidence"] = detection.confidence
+        device["chipset_notes"] = list(detection.notes)
+        device["chipset_metadata"] = detection.metadata
