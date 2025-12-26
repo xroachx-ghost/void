@@ -34,10 +34,11 @@ class DeviceDetector:
     @staticmethod
     def detect_all() -> List[Dict[str, Any]]:
         """Detect all devices"""
-        devices = []
+        devices: List[Dict[str, Any]] = []
         devices.extend(DeviceDetector._detect_adb())
         devices.extend(DeviceDetector._detect_fastboot())
         devices.extend(DeviceDetector._detect_usb_modes())
+        devices = DeviceDetector._merge_devices(devices)
 
         # Update database
         for device in devices:
@@ -45,6 +46,76 @@ class DeviceDetector:
             db.update_device(device)
 
         return devices
+
+    @staticmethod
+    def _device_merge_key(device: Dict[str, Any]) -> str:
+        """Return a stable grouping key for device records."""
+        serial = device.get("serial")
+        if serial:
+            return str(serial)
+        device_id = device.get("id")
+        if device_id and not str(device_id).startswith("usb-"):
+            return str(device_id)
+        usb_id = device.get("usb_id")
+        if usb_id:
+            return f"usb:{usb_id}"
+        return str(device_id) if device_id else "unknown"
+
+    @staticmethod
+    def _device_priority(device: Dict[str, Any]) -> int:
+        """Return merge priority (ADB > fastboot > usb)."""
+        mode = str(device.get("mode", "")).lower()
+        if mode == "adb":
+            return 3
+        if mode == "fastboot":
+            return 2
+        return 1
+
+    @staticmethod
+    def _dedupe_list(values: List[Any]) -> List[Any]:
+        seen = set()
+        result = []
+        for value in values:
+            if value in seen:
+                continue
+            seen.add(value)
+            result.append(value)
+        return result
+
+    @staticmethod
+    def _merge_devices(devices: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """Merge device records from multiple detection sources."""
+        grouped: Dict[str, List[Dict[str, Any]]] = {}
+        order: List[str] = []
+        for device in devices:
+            key = DeviceDetector._device_merge_key(device)
+            if key not in grouped:
+                grouped[key] = []
+                order.append(key)
+            grouped[key].append(device)
+
+        merged_devices: List[Dict[str, Any]] = []
+        for key in order:
+            group = grouped[key]
+            group_sorted = sorted(group, key=DeviceDetector._device_priority, reverse=True)
+            merged: Dict[str, Any] = {}
+            for device in group_sorted:
+                for field, value in device.items():
+                    if field in {"modes", "statuses"}:
+                        continue
+                    if field not in merged or merged[field] in (None, "", [], {}):
+                        merged[field] = value
+
+            merged["mode"] = group_sorted[0].get("mode", merged.get("mode"))
+            merged["modes"] = DeviceDetector._dedupe_list(
+                [item for item in (d.get("mode") for d in group) if item]
+            )
+            merged["statuses"] = DeviceDetector._dedupe_list(
+                [item for item in (d.get("status") for d in group) if item]
+            )
+            merged_devices.append(merged)
+
+        return merged_devices
 
     @staticmethod
     def _detect_adb() -> List[Dict[str, Any]]:

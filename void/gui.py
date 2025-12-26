@@ -987,6 +987,8 @@ class VoidGUI:
         battery = info.get("battery", {})
         storage = info.get("storage", {})
         mode = info.get("mode", "Unknown")
+        modes = info.get("modes") or [mode]
+        mode_label = ", ".join(modes) if isinstance(modes, list) else str(modes)
         chipset = info.get("chipset", "Unknown")
         chipset_vendor = info.get("chipset_vendor", "Unknown")
         chipset_mode = info.get("chipset_mode", "Unknown")
@@ -996,12 +998,15 @@ class VoidGUI:
         usb_vid = info.get("usb_vid", "Unknown")
         usb_pid = info.get("usb_pid", "Unknown")
         status = info.get("status", "Unknown")
+        statuses = info.get("statuses") or [status]
+        status_label = ", ".join(statuses) if isinstance(statuses, list) else str(statuses)
         reachable = "Yes" if info.get("reachable", False) else "No"
         self.selected_device_var.set(f"{device_id} • {manufacturer} {model}")
         self.details_var.set(
             "Device Overview\n"
             f"• Mode: {mode} | Reachable: {reachable}\n"
-            f"• Status: {status}\n"
+            f"• Modes: {mode_label}\n"
+            f"• Status: {status} | Statuses: {status_label}\n"
             f"• Brand: {brand} | Product: {product}\n"
             f"• Android: {android} (SDK {sdk})\n"
             f"• Build: {build_id} ({build_type})\n"
@@ -1045,8 +1050,10 @@ class VoidGUI:
         for device in devices:
             device_id = device.get("id", "unknown")
             reachable = "✓" if device.get("reachable") else "!"
+            modes = device.get("modes") or [device.get("mode", "Unknown")]
+            mode_label = ", ".join(modes) if isinstance(modes, list) else str(modes)
             label = (
-                f"{reachable} {device_id} • "
+                f"{reachable} {device_id} • {mode_label} • "
                 f"{device.get('manufacturer', 'Unknown')} {device.get('model', '')}"
             )
             self.device_list.insert(tk.END, label.strip())
