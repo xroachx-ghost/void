@@ -113,9 +113,12 @@ class VoidGUI:
 
         self.device_ids: List[str] = []
         self.device_info: List[Dict[str, Any]] = []
+        self.all_device_info: List[Dict[str, Any]] = []
+        self.selected_device_id: Optional[str] = None
         self.status_var = tk.StringVar(value="Ready.")
         self.selected_device_var = tk.StringVar(value="No device selected.")
         self.details_var = tk.StringVar(value="Device details will appear here.")
+        self.device_search_var = tk.StringVar(value="")
         self.action_help_var = tk.StringVar(
             value="Select an action to see a description."
         )
@@ -684,6 +687,19 @@ class VoidGUI:
         left.configure(padding=12)
 
         ttk.Label(left, text="Connected Devices", style="Void.TLabel").pack(anchor="w")
+        ttk.Label(left, text="Search", style="Void.TLabel").pack(anchor="w", pady=(6, 0))
+        search_entry = tk.Entry(
+            left,
+            textvariable=self.device_search_var,
+            bg=self.theme["panel_alt"],
+            fg=self.theme["text"],
+            insertbackground=self.theme["accent"],
+            relief="flat",
+            font=("Consolas", 10),
+        )
+        search_entry.pack(fill="x", pady=(4, 6))
+        Tooltip(search_entry, "Filter devices by ID, manufacturer, model, mode, or status.")
+        self.device_search_var.trace_add("write", lambda *_: self._apply_device_filter())
         self.device_list = tk.Listbox(
             left,
             width=36,
@@ -1170,6 +1186,7 @@ class VoidGUI:
         """Update dashboard detail view when a device is selected."""
         selection = self.device_list.curselection()
         if not selection or selection[0] >= len(self.device_info):
+            self.selected_device_id = None
             self.selected_device_var.set("No device selected.")
             self.details_var.set("Device details will appear here.")
             self.chipset_status_var.set("Select a device to view chipset workflow status.")
@@ -1178,6 +1195,7 @@ class VoidGUI:
 
         info = self.device_info[selection[0]]
         device_id = info.get("id", "unknown")
+        self.selected_device_id = device_id
         manufacturer = info.get("manufacturer", "Unknown")
         model = info.get("model", "Unknown")
         brand = info.get("brand", "Unknown")
@@ -1240,33 +1258,117 @@ class VoidGUI:
 
     def refresh_devices(self) -> None:
         """Refresh the device list."""
-        self.device_list.delete(0, tk.END)
         devices = DeviceDetector.detect_all()
+        self.all_device_info = devices
+        self._apply_device_filter(log_refresh=True)
+
+    def _apply_device_filter(self, log_refresh: bool = False) -> None:
+        """Filter the device list based on the search query."""
+        query = self.device_search_var.get().strip().lower()
+        self.device_list.delete(0, tk.END)
         self.device_ids = []
         self.device_info = []
 
-        if not devices:
+        if not self.all_device_info:
             self.device_list.insert(tk.END, "No devices detected")
-            self._log("No devices detected", level="WARN")
+            if log_refresh:
+                self._log("No devices detected", level="WARN")
             self.selected_device_var.set("No device selected.")
             self.details_var.set("Device details will appear here.")
+            self.status_var.set("No devices detected.")
+            self.selected_device_id = None
             return
 
-        for device in devices:
+        filtered = [
+            device for device in self.all_device_info
+            if self._matches_device_filter(device, query)
+        ]
+
+        if not filtered:
+            self.device_list.insert(tk.END, "No devices match this filter")
+            self.status_var.set("0 devices shown.")
+            return
+
+        for device in filtered:
             device_id = device.get("id", "unknown")
-            reachable = "✓" if device.get("reachable") else "!"
-            modes = device.get("modes") or [device.get("mode", "Unknown")]
-            mode_label = ", ".join(modes) if isinstance(modes, list) else str(modes)
-            label = (
-                f"{reachable} {device_id} • {mode_label} • "
-                f"{device.get('manufacturer', 'Unknown')} {device.get('model', '')}"
-            )
-            self.device_list.insert(tk.END, label.strip())
+            label, color = self._format_device_label(device)
+            index = self.device_list.size()
+            self.device_list.insert(tk.END, label)
+            self.device_list.itemconfig(index, fg=color)
             self.device_ids.append(device_id)
             self.device_info.append(device)
 
-        self._log(f"Detected {len(self.device_ids)} device(s).")
-        self.status_var.set(f"{len(self.device_ids)} device(s) ready.")
+        total = len(self.all_device_info)
+        shown = len(self.device_ids)
+        if shown == total:
+            self.status_var.set(f"{shown} device(s) ready.")
+        else:
+            self.status_var.set(f"{shown} device(s) shown (of {total}).")
+
+        if self.selected_device_id and self.selected_device_id in self.device_ids:
+            selected_index = self.device_ids.index(self.selected_device_id)
+            self.device_list.selection_set(selected_index)
+            self.device_list.activate(selected_index)
+            self.device_list.see(selected_index)
+
+        if log_refresh:
+            self._log(f"Detected {len(self.all_device_info)} device(s).")
+
+    def _matches_device_filter(self, device: Dict[str, Any], query: str) -> bool:
+        """Return True if the device matches the current filter query."""
+        if not query:
+            return True
+        modes = device.get("modes") or [device.get("mode", "")]
+        statuses = device.get("statuses") or [device.get("status", "")]
+        searchable = " ".join(
+            str(value)
+            for value in [
+                device.get("id", ""),
+                device.get("manufacturer", ""),
+                device.get("model", ""),
+                device.get("mode", ""),
+                " ".join(mode for mode in modes if mode),
+                " ".join(status for status in statuses if status),
+            ]
+            if value
+        ).lower()
+        return query in searchable
+
+    def _format_device_label(self, device: Dict[str, Any]) -> tuple[str, str]:
+        """Return list label and status color for a device."""
+        device_id = device.get("id", "unknown")
+        manufacturer = device.get("manufacturer", "Unknown")
+        model = device.get("model", "Unknown")
+        modes = device.get("modes") or [device.get("mode", "Unknown")]
+        mode_label = ", ".join(m.title() for m in modes if m)
+        status_label, status_color = self._device_status_badge(device)
+        label = (
+            f"{device_id} • {manufacturer} {model} • "
+            f"{mode_label} [{status_label}]"
+        ).strip()
+        return label, status_color
+
+    def _device_status_badge(self, device: Dict[str, Any]) -> tuple[str, str]:
+        """Return status badge text and color for a device."""
+        modes = [mode.lower() for mode in (device.get("modes") or []) if mode]
+        mode = (device.get("mode") or "").lower()
+        status = (device.get("status") or "").lower()
+        statuses = [s.lower() for s in (device.get("statuses") or []) if s]
+        status_set = set(statuses + ([status] if status else []))
+
+        if "unauthorized" in status_set:
+            return "Unauthorized", "#f59e0b"
+        if "offline" in status_set:
+            return "Offline", "#ef4444"
+        if "fastboot" in modes or mode == "fastboot":
+            return "Fastboot", self.theme["accent_alt"]
+        if mode and mode not in {"adb", "fastboot"}:
+            return mode.upper(), "#60a5fa"
+        if "device" in status_set or device.get("reachable"):
+            return "Online", "#22c55e"
+        if "detected" in status_set:
+            return "Detected", "#38bdf8"
+        return "Unknown", self.theme["muted"]
 
     def _backup(self) -> None:
         device_id = self._get_selected_device()
