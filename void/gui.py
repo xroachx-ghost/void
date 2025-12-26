@@ -30,6 +30,7 @@ from .core.device import DeviceDetector
 from .core.performance import PerformanceAnalyzer
 from .core.report import ReportGenerator
 from .core.screen import ScreenCapture
+from .core.tools import android_driver_hints, check_android_tools, check_usb_debugging_status
 from .core.utils import check_tools
 from .plugins import PluginContext, PluginMetadata, PluginResult, discover_plugins, get_registry
 from .terms import ensure_terms_acceptance_gui
@@ -137,6 +138,8 @@ class VoidGUI:
         self.target_mode_var = tk.StringVar(value="edl")
         self.chipset_override_var = tk.StringVar(value="Auto-detect")
         self.progress_var = tk.StringVar(value="")
+        self.diagnostics_status_var: Optional[tk.StringVar] = None
+        self.diagnostics_links_frame: Optional[ttk.Frame] = None
         self.plugin_metadata: List[PluginMetadata] = []
         self._splash_window: Optional[tk.Toplevel] = None
         self._splash_canvas: Optional[tk.Canvas] = None
@@ -248,6 +251,93 @@ class VoidGUI:
     def _show_troubleshooting_panel(self) -> None:
         if self.notebook and self.troubleshooting_panel:
             self.notebook.select(self.troubleshooting_panel)
+
+    def _diagnostic_icon(self, status: str) -> str:
+        return {
+            "pass": "✅",
+            "fail": "❌",
+            "warn": "⚠️",
+            "info": "ℹ️",
+        }.get(status, "•")
+
+    def _collect_diagnostics_items(self) -> List[Dict[str, Any]]:
+        platform_tools_link = {
+            "label": "Download Android platform tools",
+            "url": "https://developer.android.com/tools/releases/platform-tools",
+        }
+        tools = check_android_tools()
+        items: List[Dict[str, Any]] = []
+        for tool in tools:
+            label = "ADB" if tool.name == "adb" else tool.name.capitalize()
+            status = "pass" if tool.available else "fail"
+            detail = tool.version or tool.path or "Detected."
+            if not tool.available:
+                detail = tool.error.get("message") if tool.error else "Not found in PATH."
+            elif tool.error:
+                status = "warn"
+                detail = tool.error.get("message") or detail
+            items.append(
+                {
+                    "label": f"{label} detected",
+                    "status": status,
+                    "detail": detail,
+                    "links": [platform_tools_link] if not tool.available else [],
+                }
+            )
+
+        usb_status = check_usb_debugging_status(tools)
+        items.append(
+            {
+                "label": "USB debugging status",
+                "status": usb_status.get("status", "warn"),
+                "detail": f"{usb_status.get('message') or ''} {usb_status.get('detail') or ''}".strip(),
+                "links": usb_status.get("links", []),
+            }
+        )
+
+        driver_status = android_driver_hints()
+        items.append(
+            {
+                "label": "OS driver guidance",
+                "status": driver_status.get("status", "info"),
+                "detail": f"{driver_status.get('message') or ''} {driver_status.get('detail') or ''}".strip(),
+                "links": driver_status.get("links", []),
+            }
+        )
+        return items
+
+    def _update_diagnostics(self) -> None:
+        items = self._collect_diagnostics_items()
+        if self.diagnostics_status_var is not None:
+            lines = []
+            for item in items:
+                icon = self._diagnostic_icon(str(item.get("status", "")))
+                detail = item.get("detail") or ""
+                lines.append(f"{icon} {item.get('label')}: {detail}".strip())
+            self.diagnostics_status_var.set("\n".join(lines))
+        if self.diagnostics_links_frame is not None:
+            for child in self.diagnostics_links_frame.winfo_children():
+                child.destroy()
+            for item in items:
+                links = item.get("links") or []
+                if not links:
+                    continue
+                ttk.Label(
+                    self.diagnostics_links_frame,
+                    text=f"{item.get('label')} remediation:",
+                    style="Void.TLabel",
+                ).pack(anchor="w", pady=(4, 0))
+                for link in links:
+                    label = link.get("label", "Open link")
+                    url = link.get("url")
+                    if not url:
+                        continue
+                    ttk.Button(
+                        self.diagnostics_links_frame,
+                        text=label,
+                        style="Void.TButton",
+                        command=lambda target=url: webbrowser.open(target),
+                    ).pack(anchor="w", pady=(2, 0))
 
     def _config_path(self) -> Path:
         return Config.BASE_DIR / "config.json"
@@ -887,6 +977,32 @@ class VoidGUI:
             text="Troubleshooting",
             style="Void.TLabel",
         ).pack(anchor="w")
+        diagnostics_card = ttk.Frame(self.troubleshooting_panel, style="Void.Card.TFrame")
+        diagnostics_card.pack(fill="x", pady=(6, 12))
+        diagnostics_card.configure(padding=12)
+        ttk.Label(
+            diagnostics_card,
+            text="Diagnostics Checklist",
+            style="Void.TLabel",
+        ).pack(anchor="w")
+        self.diagnostics_status_var = tk.StringVar(value="")
+        ttk.Label(
+            diagnostics_card,
+            textvariable=self.diagnostics_status_var,
+            style="Void.TLabel",
+            wraplength=600,
+            justify="left",
+        ).pack(anchor="w", pady=(6, 0))
+        self.diagnostics_links_frame = ttk.Frame(diagnostics_card, style="Void.TFrame")
+        self.diagnostics_links_frame.pack(fill="x", pady=(8, 0))
+        ttk.Button(
+            diagnostics_card,
+            text="Recheck Diagnostics",
+            style="Void.TButton",
+            command=self._update_diagnostics,
+        ).pack(anchor="w", pady=(8, 0))
+
+        self._update_diagnostics()
         troubleshoot_text = (
             "If no devices are detected:\n"
             "• Confirm adb/fastboot are installed and on PATH.\n"
