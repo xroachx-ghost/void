@@ -9,8 +9,10 @@ Unauthorized copying, modification, distribution, or disclosure is prohibited.
 
 from __future__ import annotations
 
+import json
 import threading
 import webbrowser
+from pathlib import Path
 from datetime import datetime
 from math import sin, pi
 from typing import Any, Dict, List, Optional
@@ -28,6 +30,7 @@ from .core.device import DeviceDetector
 from .core.performance import PerformanceAnalyzer
 from .core.report import ReportGenerator
 from .core.screen import ScreenCapture
+from .core.utils import check_tools
 from .plugins import PluginContext, PluginMetadata, PluginResult, discover_plugins, get_registry
 from .terms import ensure_terms_acceptance_gui
 
@@ -136,6 +139,10 @@ class VoidGUI:
         self._splash_canvas: Optional[tk.Canvas] = None
         self._splash_step = 0
         self._splash_total_frames = 48
+        self._app_config: Dict[str, Any] = self._load_app_config()
+        self._pending_troubleshooting_open = False
+        self.notebook: Optional[ttk.Notebook] = None
+        self.troubleshooting_panel: Optional[ttk.Frame] = None
         self._show_splash()
 
     def _show_splash(self) -> None:
@@ -219,12 +226,172 @@ class VoidGUI:
         if self._splash_window:
             self._splash_window.destroy()
         self._build_layout()
-        self.root.deiconify()
         if not ensure_terms_acceptance_gui(messagebox):
             self.root.destroy()
             raise SystemExit(0)
+        if not self._is_first_run_complete():
+            self._show_onboarding()
+            return
+        self._show_main_window()
+
+    def _show_main_window(self) -> None:
+        self.root.deiconify()
         self.refresh_devices()
         self._load_plugins()
+        if self._pending_troubleshooting_open:
+            self.root.after(0, self._show_troubleshooting_panel)
+            self._pending_troubleshooting_open = False
+
+    def _show_troubleshooting_panel(self) -> None:
+        if self.notebook and self.troubleshooting_panel:
+            self.notebook.select(self.troubleshooting_panel)
+
+    def _config_path(self) -> Path:
+        return Config.BASE_DIR / "config.json"
+
+    def _load_app_config(self) -> Dict[str, Any]:
+        path = self._config_path()
+        try:
+            with path.open("r", encoding="utf-8") as handle:
+                data = json.load(handle)
+                return data if isinstance(data, dict) else {}
+        except FileNotFoundError:
+            return {}
+        except json.JSONDecodeError:
+            return {}
+
+    def _save_app_config(self, data: Dict[str, Any]) -> None:
+        path = self._config_path()
+        with path.open("w", encoding="utf-8") as handle:
+            json.dump(data, handle, indent=2, sort_keys=True)
+
+    def _is_first_run_complete(self) -> bool:
+        return bool(self._app_config.get("first_run_complete", False))
+
+    def _mark_first_run_complete(self) -> None:
+        self._app_config["first_run_complete"] = True
+        self._save_app_config(self._app_config)
+
+    def _collect_onboarding_status(self) -> Dict[str, Any]:
+        tools = check_tools(
+            [
+                ("adb", ["version"]),
+                ("fastboot", ["--version"]),
+            ]
+        )
+        devices = DeviceDetector.detect_all()
+        return {
+            "tools": tools,
+            "device_count": len(devices),
+        }
+
+    def _format_tool_status(self, status: Dict[str, Any]) -> str:
+        lines = []
+        for tool in status["tools"]:
+            if tool.available:
+                detail = tool.version or tool.path or "Detected"
+                lines.append(f"✅ {tool.name} detected ({detail})")
+            else:
+                lines.append(f"⚠️ {tool.name} not found in PATH")
+        lines.append(f"🔌 Devices detected: {status['device_count']}")
+        return "\n".join(lines)
+
+    def _show_onboarding(self) -> None:
+        window = tk.Toplevel(self.root)
+        window.title("Welcome to Void")
+        window.configure(bg=self.theme["bg"])
+        window.geometry("620x520")
+        window.transient(self.root)
+        window.grab_set()
+        window.protocol(
+            "WM_DELETE_WINDOW",
+            lambda: self._complete_onboarding(window, open_troubleshooting=False),
+        )
+
+        header = ttk.Frame(window, style="Void.TFrame")
+        header.pack(fill="x", padx=20, pady=(20, 10))
+        ttk.Label(
+            header,
+            text="First Run Check",
+            style="Void.Title.TLabel",
+        ).pack(anchor="w")
+        ttk.Label(
+            header,
+            text="Verify tooling, USB debugging, and device connectivity before proceeding.",
+            style="Void.TLabel",
+            wraplength=560,
+        ).pack(anchor="w", pady=(6, 0))
+
+        status_frame = ttk.Frame(window, style="Void.Card.TFrame")
+        status_frame.pack(fill="x", padx=20, pady=(10, 12))
+        status_frame.configure(padding=12)
+        ttk.Label(status_frame, text="ADB/Fastboot Status", style="Void.TLabel").pack(anchor="w")
+
+        status_text = tk.StringVar(value="")
+        status_label = ttk.Label(
+            status_frame,
+            textvariable=status_text,
+            style="Void.TLabel",
+            wraplength=560,
+        )
+        status_label.pack(anchor="w", pady=(6, 0))
+
+        def update_status() -> None:
+            status_text.set(self._format_tool_status(self._collect_onboarding_status()))
+
+        update_status()
+
+        reminders = (
+            "USB Debugging Reminder\n"
+            "• Enable Developer Options and USB Debugging on the device.\n"
+            "• Accept the RSA prompt when first connecting to ADB.\n"
+            "• Use a data-capable USB cable and a direct USB port.\n\n"
+            "Driver & udev Guidance\n"
+            "• Windows: install OEM USB drivers or the Google USB driver.\n"
+            "• macOS: no drivers required; ensure Android platform tools are installed.\n"
+            "• Linux: add udev rules (e.g., /etc/udev/rules.d/51-android.rules) and reload.\n"
+        )
+        ttk.Label(
+            window,
+            text=reminders,
+            style="Void.TLabel",
+            wraplength=560,
+            justify="left",
+        ).pack(fill="x", padx=20)
+
+        actions = ttk.Frame(window, style="Void.TFrame")
+        actions.pack(fill="x", padx=20, pady=(16, 8))
+
+        recheck_button = ttk.Button(
+            actions,
+            text="Recheck",
+            style="Void.TButton",
+            command=update_status,
+        )
+        recheck_button.pack(side="left")
+
+        troubleshooting_button = ttk.Button(
+            actions,
+            text="Open Troubleshooting",
+            style="Void.TButton",
+            command=lambda: self._complete_onboarding(window, open_troubleshooting=True),
+        )
+        troubleshooting_button.pack(side="left", padx=(10, 0))
+
+        skip_button = ttk.Button(
+            actions,
+            text="Skip",
+            style="Void.TButton",
+            command=lambda: self._complete_onboarding(window, open_troubleshooting=False),
+        )
+        skip_button.pack(side="right")
+
+    def _complete_onboarding(self, window: tk.Toplevel, open_troubleshooting: bool) -> None:
+        self._mark_first_run_complete()
+        self._pending_troubleshooting_open = open_troubleshooting
+        window.grab_release()
+        window.destroy()
+        self._show_main_window()
 
     def _draw_dragon_frame(self, width: int, height: int, wing_phase: float) -> None:
         """Draw a simplified Kali dragon with animated wings."""
@@ -546,19 +713,21 @@ class VoidGUI:
         right = ttk.Frame(body, style="Void.TFrame")
         right.pack(side="left", fill="both", expand=True)
 
-        notebook = ttk.Notebook(right, style="Void.TNotebook")
-        notebook.pack(fill="both", expand=True)
+        self.notebook = ttk.Notebook(right, style="Void.TNotebook")
+        self.notebook.pack(fill="both", expand=True)
 
-        dashboard = ttk.Frame(notebook, style="Void.TFrame")
-        logs = ttk.Frame(notebook, style="Void.TFrame")
-        edl_recovery = ttk.Frame(notebook, style="Void.TFrame")
-        help_panel = ttk.Frame(notebook, style="Void.TFrame")
-        plugins_panel = ttk.Frame(notebook, style="Void.TFrame")
-        notebook.add(dashboard, text="Dashboard")
-        notebook.add(edl_recovery, text="EDL & Recovery")
-        notebook.add(logs, text="Operations Log")
-        notebook.add(plugins_panel, text="Plugins")
-        notebook.add(help_panel, text="What Does This Do?")
+        dashboard = ttk.Frame(self.notebook, style="Void.TFrame")
+        logs = ttk.Frame(self.notebook, style="Void.TFrame")
+        edl_recovery = ttk.Frame(self.notebook, style="Void.TFrame")
+        help_panel = ttk.Frame(self.notebook, style="Void.TFrame")
+        plugins_panel = ttk.Frame(self.notebook, style="Void.TFrame")
+        self.troubleshooting_panel = ttk.Frame(self.notebook, style="Void.TFrame")
+        self.notebook.add(dashboard, text="Dashboard")
+        self.notebook.add(edl_recovery, text="EDL & Recovery")
+        self.notebook.add(logs, text="Operations Log")
+        self.notebook.add(plugins_panel, text="Plugins")
+        self.notebook.add(help_panel, text="What Does This Do?")
+        self.notebook.add(self.troubleshooting_panel, text="Troubleshooting")
 
         ttk.Label(dashboard, text="Selected Device", style="Void.TLabel").pack(anchor="w")
         ttk.Label(dashboard, textvariable=self.selected_device_var, style="Void.TLabel").pack(
@@ -696,6 +865,39 @@ class VoidGUI:
             "Status Bar: Displays the most recent operation summary."
         )
         ttk.Label(help_panel, text=guide, style="Void.TLabel", wraplength=600).pack(anchor="w")
+
+        ttk.Label(
+            self.troubleshooting_panel,
+            text="Troubleshooting",
+            style="Void.TLabel",
+        ).pack(anchor="w")
+        troubleshoot_text = (
+            "If no devices are detected:\n"
+            "• Confirm adb/fastboot are installed and on PATH.\n"
+            "• Enable Developer Options and USB Debugging on the device.\n"
+            "• Accept the RSA prompt after connecting to the host.\n"
+            "• Use a data-capable USB cable and a direct USB port.\n\n"
+            "Platform notes:\n"
+            "• Windows: install OEM or Google USB drivers and reboot after install.\n"
+            "• macOS: install Android platform tools (Homebrew: brew install android-platform-tools).\n"
+            "• Linux: add udev rules (e.g., /etc/udev/rules.d/51-android.rules) and reload.\n\n"
+            "Still stuck? Visit the Android developer documentation for platform tooling."
+        )
+        ttk.Label(
+            self.troubleshooting_panel,
+            text=troubleshoot_text,
+            style="Void.TLabel",
+            wraplength=600,
+            justify="left",
+        ).pack(anchor="w", pady=(6, 12))
+        ttk.Button(
+            self.troubleshooting_panel,
+            text="Open Android Platform Tools Docs",
+            style="Void.TButton",
+            command=lambda: webbrowser.open(
+                "https://developer.android.com/tools/releases/platform-tools"
+            ),
+        ).pack(anchor="w")
 
         ttk.Label(edl_recovery, text="Mode Detection", style="Void.TLabel").pack(anchor="w")
         detection_panel = ttk.Frame(edl_recovery, style="Void.TFrame")
