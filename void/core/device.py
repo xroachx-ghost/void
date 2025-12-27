@@ -5,6 +5,7 @@ from typing import Any, Dict, List, Tuple
 
 from .chipsets.dispatcher import detect_chipset_for_device
 from .database import db
+from .privacy import should_collect
 from .utils import SafeSubprocess
 from ..config import Config
 
@@ -188,10 +189,12 @@ class DeviceDetector:
             'hardware': 'ro.hardware',
             'cpu_abi': 'ro.product.cpu.abi',
             'cpu_abi2': 'ro.product.cpu.abi2',
-            'serial': 'ro.serialno',
             'bootloader': 'ro.bootloader',
-            'fingerprint': 'ro.build.fingerprint',
         }
+        if should_collect("serial"):
+            props['serial'] = 'ro.serialno'
+        if should_collect("fingerprint"):
+            props['fingerprint'] = 'ro.build.fingerprint'
 
         for key, prop in props.items():
             try:
@@ -204,16 +207,17 @@ class DeviceDetector:
                 pass
 
         # Get IMEI
-        try:
-            code, stdout, _ = SafeSubprocess.run(
-                ['adb', '-s', device_id, 'shell', 'service', 'call', 'iphonesubinfo', '1']
-            )
-            if code == 0:
-                imei = ''.join(c for c in stdout if c.isdigit())[:15]
-                if len(imei) == 15:
-                    info['imei'] = imei
-        except Exception:
-            pass
+        if should_collect("imei"):
+            try:
+                code, stdout, _ = SafeSubprocess.run(
+                    ['adb', '-s', device_id, 'shell', 'service', 'call', 'iphonesubinfo', '1']
+                )
+                if code == 0:
+                    imei = ''.join(c for c in stdout if c.isdigit())[:15]
+                    if len(imei) == 15:
+                        info['imei'] = imei
+            except Exception:
+                pass
 
         # Battery info
         info['battery'] = DeviceDetector._get_battery_info(device_id)
@@ -224,7 +228,7 @@ class DeviceDetector:
         # Screen info
         info['screen'] = DeviceDetector._get_screen_info(device_id)
 
-        if "serial" not in info and device_id:
+        if should_collect("serial") and "serial" not in info and device_id:
             info["serial"] = device_id
 
         return info
@@ -319,13 +323,14 @@ class DeviceDetector:
                             'id': device_id,
                             'mode': 'fastboot',
                             'status': parts[1],
-                            'serial': device_id,
                         }
+                        if should_collect("serial"):
+                            device['serial'] = device_id
                         metadata, error = DeviceDetector._get_fastboot_metadata(device_id)
                         if metadata:
                             device['fastboot_vars'] = metadata
                             DeviceDetector._normalize_fastboot_metadata(device, metadata)
-                            if metadata.get("serialno"):
+                            if metadata.get("serialno") and should_collect("serial"):
                                 device["serial"] = metadata["serialno"]
                         if error:
                             device['fastboot_metadata_error'] = error

@@ -6,6 +6,7 @@ from contextlib import contextmanager
 from typing import Any, Dict, List
 
 from ..config import Config
+from .privacy import redact_event_data, redact_message, should_store
 
 
 class Database:
@@ -116,24 +117,28 @@ class Database:
 
     def log(self, level: str, category: str, message: str, device_id: str = None, method: str = None):
         """Add log entry"""
+        sanitized_message = redact_message(message)
         with self._get_connection() as conn:
             conn.execute(
                 "INSERT INTO logs (level, category, message, device_id, method) VALUES (?, ?, ?, ?, ?)",
-                (level, category, message[:1000], device_id, method),
+                (level, category, sanitized_message[:1000], device_id, method),
             )
             conn.commit()
 
     def track_event(self, event_type: str, event_data: Dict, device_id: str = None):
         """Track analytics event"""
+        sanitized_event_data = redact_event_data(event_data)
         with self._get_connection() as conn:
             conn.execute(
                 "INSERT INTO analytics (event_type, event_data, device_id) VALUES (?, ?, ?)",
-                (event_type, json.dumps(event_data), device_id),
+                (event_type, json.dumps(sanitized_event_data), device_id),
             )
             conn.commit()
 
     def update_device(self, device_info: Dict):
         """Update or insert device"""
+        serial_value = device_info.get("serial") if should_store("serial") else None
+        imei_value = device_info.get("imei") if should_store("imei") else None
         with self._get_connection() as conn:
             conn.execute(
                 """
@@ -144,15 +149,17 @@ class Database:
                     connection_count = connection_count + 1,
                     manufacturer = excluded.manufacturer,
                     model = excluded.model,
-                    android_version = excluded.android_version
+                    android_version = excluded.android_version,
+                    serial = excluded.serial,
+                    imei = excluded.imei
             """,
                 (
                     device_info.get('id'),
                     device_info.get('manufacturer'),
                     device_info.get('model'),
                     device_info.get('android_version'),
-                    device_info.get('serial'),
-                    device_info.get('imei'),
+                    serial_value,
+                    imei_value,
                     device_info.get('chipset'),
                 ),
             )
