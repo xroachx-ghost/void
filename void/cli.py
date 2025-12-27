@@ -101,7 +101,7 @@ class CommandInfo:
 class CLI:
     """Enhanced CLI with all features."""
 
-    def __init__(self):
+    def __init__(self, start_monitor: bool = True):
         self.console = Console() if RICH_AVAILABLE else None
         self.engine = FRPEngine()
         self.logcat = LogcatViewer()
@@ -113,7 +113,8 @@ class CLI:
         self.command_aliases = self._build_command_aliases()
 
         # Start monitoring
-        monitor.start()
+        if start_monitor:
+            monitor.start()
 
     def run(self) -> None:
         """Run CLI."""
@@ -136,102 +137,7 @@ class CLI:
                 command = parts[0].lower()
                 args = parts[1:]
 
-                # Route commands
-                commands = {
-                    'devices': self._cmd_devices,
-                    'info': lambda: self._cmd_info(args),
-                    'summary': self._cmd_summary,
-                    'backup': lambda: self._cmd_backup(args),
-                    'screenshot': lambda: self._cmd_screenshot(args),
-                    'apps': lambda: self._cmd_apps(args),
-                    'files': lambda: self._cmd_files(args),
-                    'analyze': lambda: self._cmd_analyze(args),
-                    'display-diagnostics': lambda: self._cmd_display_diagnostics(args),
-                    'recover': lambda: self._cmd_recover(args),
-                    'tweak': lambda: self._cmd_tweak(args),
-                    'usb-debug': lambda: self._cmd_usb_debug(args),
-                    'report': lambda: self._cmd_report(args),
-                    'stats': self._cmd_stats,
-                    'monitor': self._cmd_monitor,
-                    'logcat': lambda: self._cmd_logcat(args),
-                    'execute': lambda: self._cmd_execute(args),
-                    'menu': self._cmd_menu,
-                    'version': self._cmd_version,
-                    'paths': self._cmd_paths,
-                    'netcheck': self._cmd_netcheck,
-                    'adb': self._cmd_adb,
-                    'edl-status': lambda: self._cmd_edl_status(args),
-                    'edl-enter': lambda: self._cmd_edl_enter(args),
-                    'edl-flash': lambda: self._cmd_edl_flash(args),
-                    'edl-dump': lambda: self._cmd_edl_dump(args),
-                    'edl-detect': self._cmd_edl_detect,
-                    'edl-programmers': self._cmd_edl_programmers,
-                    'edl-partitions': lambda: self._cmd_edl_partitions(args),
-                    'edl-backup': lambda: self._cmd_edl_backup(args),
-                    'edl-restore': lambda: self._cmd_edl_restore(args),
-                    'edl-sparse': lambda: self._cmd_edl_sparse(args),
-                    'edl-profile': lambda: self._cmd_edl_profile(args),
-                    'edl-verify': lambda: self._cmd_edl_verify(args),
-                    'edl-unbrick': lambda: self._cmd_edl_unbrick(args),
-                    'edl-notes': lambda: self._cmd_edl_notes(args),
-                    'edl-reboot': lambda: self._cmd_edl_reboot(args),
-                    'edl-log': self._cmd_edl_log,
-                    'boot-extract': lambda: self._cmd_boot_extract(args),
-                    'magisk-patch': lambda: self._cmd_magisk_patch(args),
-                    'magisk-pull': lambda: self._cmd_magisk_pull(args),
-                    'twrp-verify': lambda: self._cmd_twrp_verify(args),
-                    'twrp-flash': lambda: self._cmd_twrp_flash(args),
-                    'root-verify': lambda: self._cmd_root_verify(args),
-                    'safety-check': lambda: self._cmd_safety_check(args),
-                    'rollback': lambda: self._cmd_rollback(args),
-                    'compat-matrix': self._cmd_compat_matrix,
-                    'testpoint-guide': lambda: self._cmd_testpoint_guide(args),
-                    'clear-cache': self._cmd_clear_cache,
-                    'doctor': self._cmd_doctor,
-                    'logs': self._cmd_logs,
-                    'backups': self._cmd_backups,
-                    'reports': self._cmd_reports,
-                    'exports': self._cmd_exports,
-                    'devices-json': self._cmd_devices_json,
-                    'stats-json': self._cmd_stats_json,
-                    'logtail': lambda: self._cmd_logtail(args),
-                    'cleanup-exports': self._cmd_cleanup_exports,
-                    'cleanup-backups': self._cmd_cleanup_backups,
-                    'cleanup-reports': self._cmd_cleanup_reports,
-                    'env': self._cmd_env,
-                    'recent-logs': lambda: self._cmd_recent_logs(args),
-                    'recent-backups': lambda: self._cmd_recent_backups(args),
-                    'recent-reports': lambda: self._cmd_recent_reports(args),
-                    'logs-json': self._cmd_logs_json,
-                    'logs-export': lambda: self._cmd_logs_export(args),
-                    'backups-json': self._cmd_backups_json,
-                    'latest-report': self._cmd_latest_report,
-                    'recent-devices': lambda: self._cmd_recent_devices(args),
-                    'methods': lambda: self._cmd_methods(args),
-                    'methods-json': self._cmd_methods_json,
-                    'db-health': self._cmd_db_health,
-                    'stats-plus': self._cmd_stats_plus,
-                    'reports-json': self._cmd_reports_json,
-                    'reports-open': self._cmd_reports_open,
-                    'recent-reports-json': self._cmd_recent_reports_json,
-                    'config': self._cmd_config,
-                    'config-json': self._cmd_config_json,
-                    'exports-open': self._cmd_exports_open,
-                    'db-backup': self._cmd_db_backup,
-                    'plugins': self._cmd_plugins,
-                    'plugin': lambda: self._cmd_plugin(args),
-                    'smart': lambda: self._cmd_smart(args),
-                    'launcher': lambda: self._cmd_launcher(args),
-                    'start-menu': lambda: self._cmd_launcher(args),
-                    'advanced': self._cmd_advanced,
-                    'bootstrap': lambda: self._cmd_bootstrap(args),
-                    'search': lambda: self._cmd_search(args),
-                    'help': lambda: self._cmd_help(args),
-                    'exit': lambda: exit(0),
-                    'quit': lambda: exit(0),
-                    'q': lambda: exit(0),
-                    '?': lambda: self._cmd_help([]),
-                }
+                commands = self._get_commands(args)
 
                 commands = self._add_alias_commands(commands)
                 command_key = self.command_aliases.get(command, command)
@@ -282,6 +188,144 @@ class CLI:
             if alias not in commands and target in commands:
                 commands[alias] = commands[target]
         return commands
+
+    def _get_commands(self, args: List[str]) -> Dict[str, Any]:
+        return {
+            'devices': self._cmd_devices,
+            'info': lambda: self._cmd_info(args),
+            'summary': self._cmd_summary,
+            'backup': lambda: self._cmd_backup(args),
+            'screenshot': lambda: self._cmd_screenshot(args),
+            'apps': lambda: self._cmd_apps(args),
+            'files': lambda: self._cmd_files(args),
+            'analyze': lambda: self._cmd_analyze(args),
+            'display-diagnostics': lambda: self._cmd_display_diagnostics(args),
+            'recover': lambda: self._cmd_recover(args),
+            'tweak': lambda: self._cmd_tweak(args),
+            'usb-debug': lambda: self._cmd_usb_debug(args),
+            'report': lambda: self._cmd_report(args),
+            'stats': self._cmd_stats,
+            'monitor': self._cmd_monitor,
+            'logcat': lambda: self._cmd_logcat(args),
+            'execute': lambda: self._cmd_execute(args),
+            'menu': self._cmd_menu,
+            'version': self._cmd_version,
+            'paths': self._cmd_paths,
+            'netcheck': self._cmd_netcheck,
+            'adb': self._cmd_adb,
+            'edl-status': lambda: self._cmd_edl_status(args),
+            'edl-enter': lambda: self._cmd_edl_enter(args),
+            'edl-flash': lambda: self._cmd_edl_flash(args),
+            'edl-dump': lambda: self._cmd_edl_dump(args),
+            'edl-detect': self._cmd_edl_detect,
+            'edl-programmers': self._cmd_edl_programmers,
+            'edl-partitions': lambda: self._cmd_edl_partitions(args),
+            'edl-backup': lambda: self._cmd_edl_backup(args),
+            'edl-restore': lambda: self._cmd_edl_restore(args),
+            'edl-sparse': lambda: self._cmd_edl_sparse(args),
+            'edl-profile': lambda: self._cmd_edl_profile(args),
+            'edl-verify': lambda: self._cmd_edl_verify(args),
+            'edl-unbrick': lambda: self._cmd_edl_unbrick(args),
+            'edl-notes': lambda: self._cmd_edl_notes(args),
+            'edl-reboot': lambda: self._cmd_edl_reboot(args),
+            'edl-log': self._cmd_edl_log,
+            'boot-extract': lambda: self._cmd_boot_extract(args),
+            'magisk-patch': lambda: self._cmd_magisk_patch(args),
+            'magisk-pull': lambda: self._cmd_magisk_pull(args),
+            'twrp-verify': lambda: self._cmd_twrp_verify(args),
+            'twrp-flash': lambda: self._cmd_twrp_flash(args),
+            'root-verify': lambda: self._cmd_root_verify(args),
+            'safety-check': lambda: self._cmd_safety_check(args),
+            'rollback': lambda: self._cmd_rollback(args),
+            'compat-matrix': self._cmd_compat_matrix,
+            'testpoint-guide': lambda: self._cmd_testpoint_guide(args),
+            'clear-cache': self._cmd_clear_cache,
+            'doctor': self._cmd_doctor,
+            'logs': self._cmd_logs,
+            'backups': self._cmd_backups,
+            'reports': self._cmd_reports,
+            'exports': self._cmd_exports,
+            'devices-json': self._cmd_devices_json,
+            'stats-json': self._cmd_stats_json,
+            'logtail': lambda: self._cmd_logtail(args),
+            'cleanup-exports': self._cmd_cleanup_exports,
+            'cleanup-backups': self._cmd_cleanup_backups,
+            'cleanup-reports': self._cmd_cleanup_reports,
+            'env': self._cmd_env,
+            'recent-logs': lambda: self._cmd_recent_logs(args),
+            'recent-backups': lambda: self._cmd_recent_backups(args),
+            'recent-reports': lambda: self._cmd_recent_reports(args),
+            'logs-json': self._cmd_logs_json,
+            'logs-export': lambda: self._cmd_logs_export(args),
+            'backups-json': self._cmd_backups_json,
+            'latest-report': self._cmd_latest_report,
+            'recent-devices': lambda: self._cmd_recent_devices(args),
+            'methods': lambda: self._cmd_methods(args),
+            'methods-json': self._cmd_methods_json,
+            'db-health': self._cmd_db_health,
+            'stats-plus': self._cmd_stats_plus,
+            'reports-json': self._cmd_reports_json,
+            'reports-open': self._cmd_reports_open,
+            'recent-reports-json': self._cmd_recent_reports_json,
+            'config': self._cmd_config,
+            'config-json': self._cmd_config_json,
+            'exports-open': self._cmd_exports_open,
+            'db-backup': self._cmd_db_backup,
+            'plugins': self._cmd_plugins,
+            'plugin': lambda: self._cmd_plugin(args),
+            'smart': lambda: self._cmd_smart(args),
+            'launcher': lambda: self._cmd_launcher(args),
+            'start-menu': lambda: self._cmd_launcher(args),
+            'advanced': self._cmd_advanced,
+            'bootstrap': lambda: self._cmd_bootstrap(args),
+            'search': lambda: self._cmd_search(args),
+            'help': lambda: self._cmd_help(args),
+            'exit': lambda: exit(0),
+            'quit': lambda: exit(0),
+            'q': lambda: exit(0),
+            '?': lambda: self._cmd_help([]),
+        }
+
+    def execute_command_line(self, command_line: str) -> Dict[str, Any]:
+        """Execute a CLI command programmatically (for GUI/automation)."""
+        command_line = command_line.strip()
+        if not command_line:
+            return {"success": False, "message": "No command provided."}
+        if len(command_line) > Config.MAX_INPUT_LENGTH:
+            return {
+                "success": False,
+                "message": f"Command too long (max {Config.MAX_INPUT_LENGTH} characters).",
+            }
+
+        parts = command_line.split()
+        command = parts[0].lower()
+        args = parts[1:]
+        if command in {"exit", "quit", "q"}:
+            return {"success": True, "message": "Exit command ignored in GUI mode."}
+
+        commands = self._get_commands(args)
+        commands = self._add_alias_commands(commands)
+        command_key = self.command_aliases.get(command, command)
+        if command_key not in commands:
+            suggestions = self._suggest_commands(command, list(commands.keys()))
+            hint = f" Did you mean: {', '.join(suggestions)}?" if suggestions else ""
+            return {"success": False, "message": f"Unknown command: {command}.{hint}"}
+
+        import io
+        from contextlib import redirect_stdout
+
+        buffer = io.StringIO()
+        try:
+            with redirect_stdout(buffer):
+                commands[command_key]()
+        except SystemExit:
+            return {"success": True, "message": "Exit command ignored in GUI mode."}
+        except Exception as exc:
+            return {"success": False, "message": f"{command_key} failed: {exc}"}
+
+        output = buffer.getvalue().strip()
+        message = output or f"{command_key} completed."
+        return {"success": True, "message": message, "output": output}
 
     def _build_command_aliases(self) -> Dict[str, str]:
         aliases: Dict[str, str] = {}
