@@ -13,6 +13,7 @@ class Database:
     """Database management"""
 
     def __init__(self):
+        Config.setup()
         self.db_path = Config.DB_PATH
         self._init_db()
 
