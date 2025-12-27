@@ -11,7 +11,7 @@ dependencies = [
 
 [project.optional-dependencies]
 advanced = []
-gui = []
+gui = ["playwright"]
 
 [project.scripts]
 void = "void.main:main"
