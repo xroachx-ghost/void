@@ -22,5 +22,9 @@ packages = [
     "void.core",
     "void.core.chipsets",
     "void.core.tools",
+    "void.data",
     "void.plugins",
 ]
+
+[tool.setuptools.package-data]
+"void.data" = ["firehose_sources.json"]
