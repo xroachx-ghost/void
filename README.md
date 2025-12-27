@@ -31,7 +31,37 @@ __     ___     _     _      _       _ _
                 We do not forgive. We do not forget."
 ```
 
-Void Suite helps you work with Android devices using a simple command line (and an optional GUI).
+Void Suite is a Python-based Android maintenance and recovery toolkit. It wraps `adb` and
+`fastboot` with a guided CLI and optional GUI, and adds diagnostics, reporting, and recovery
+workflows for common device-service tasks. A built-in Gemini-powered AI agent is a core
+feature, helping you automate web-based research and retrieval steps when you need device
+assets (for example: app packages, firehose loaders, or vendor-specific files).
+
+What it can help with:
+
+- Device discovery, summaries, and quick health checks
+- Backups, file management, screenshots, and reports
+- App inventory tools and logcat collection
+- Performance, network, and display diagnostics
+- FRP guidance, data recovery helpers, and system tweaks
+- Qualcomm EDL utilities (flash/backup/partition tools) and chipset helpers
+- Plugin support for extending commands
+- Gemini-powered AI agent mode with automated browser workflows for:
+  - Finding vendor assets and downloads (app packages, firehose loaders, firmware links)
+  - Cross-referencing device identifiers with public resources
+  - Saving useful links or results for follow-up tooling steps
+
+### Gemini AI agent mode (built-in)
+
+Void Suite includes a Gemini-powered agent that can spin up an automated browser, navigate
+websites, and simulate clicks to locate files or references you need during device service.
+This is designed to reduce manual searching and keep the workflow inside the tool.
+
+Typical uses include:
+
+- Locating OEM downloads (firmware packages, firehose programmers, and recovery images)
+- Searching for device-specific app bundles and dependencies
+- Gathering reference links for repair or recovery steps before you run commands locally
 
 ## What You Need (before installing)
 

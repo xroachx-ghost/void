@@ -1,7 +1,7 @@
 [project]
 name = "void-suite"
 version = "6.0.1"
-description = "Void Suite - Android toolkit"
+description = "Void Suite: Android maintenance/recovery toolkit with adb/fastboot, EDL, diagnostics, optional GUI, and Gemini-powered AI agent mode"
 requires-python = ">=3.9"
 dependencies = [
     "psutil",
