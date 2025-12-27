@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import html
 import json
 from datetime import datetime
 from pathlib import Path
@@ -102,6 +103,11 @@ class ReportGenerator:
     @staticmethod
     def _generate_html(report: Dict, output_path: Path):
         """Generate HTML report"""
+        def _escape(value: Any) -> str:
+            return html.escape(str(value), quote=True)
+
+        device_id = _escape(report.get('device_id', 'Unknown'))
+        generated = _escape(report.get('generated', ''))
         html = f"""<!DOCTYPE html>
 <html>
 <head>
@@ -125,8 +131,8 @@ class ReportGenerator:
     <div class=\"container\">
         <div class=\"header\">
             <h1>📱 Void Device Report</h1>
-            <p>Device: {report.get('device_id', 'Unknown')}</p>
-            <p>Generated: {report.get('generated', '')}</p>
+            <p>Device: {device_id}</p>
+            <p>Generated: {generated}</p>
         </div>
 """
 
@@ -139,8 +145,9 @@ class ReportGenerator:
 """
             for key, value in info.items():
                 if not isinstance(value, dict):
-                    label = key.replace('_', ' ').title()
-                    html += f"<tr><td><strong>{label}</strong></td><td>{value}</td></tr>"
+                    label = _escape(key.replace('_', ' ').title())
+                    escaped_value = _escape(value)
+                    html += f"<tr><td><strong>{label}</strong></td><td>{escaped_value}</td></tr>"
 
             html += """            </table>
         </div>
@@ -149,13 +156,15 @@ class ReportGenerator:
             for nested_key in ["battery", "storage", "screen"]:
                 nested = info.get(nested_key)
                 if isinstance(nested, dict) and nested:
+                    nested_title = _escape(nested_key.replace('_', ' ').title())
                     html += f"""        <div class=\"section\">
-            <h2>{nested_key.replace('_', ' ').title()} Details</h2>
+            <h2>{nested_title} Details</h2>
             <table>
 """
                     for key, value in nested.items():
-                        label = key.replace('_', ' ').title()
-                        html += f"<tr><td><strong>{label}</strong></td><td>{value}</td></tr>"
+                        label = _escape(key.replace('_', ' ').title())
+                        escaped_value = _escape(value)
+                        html += f"<tr><td><strong>{label}</strong></td><td>{escaped_value}</td></tr>"
                     html += """            </table>
         </div>
 """
@@ -169,8 +178,9 @@ class ReportGenerator:
 """
             for key, value in perf.items():
                 if not isinstance(value, (dict, list)):
-                    label = key.replace('_', ' ').title()
-                    html += f"<tr><td><strong>{label}</strong></td><td>{value}</td></tr>"
+                    label = _escape(key.replace('_', ' ').title())
+                    escaped_value = _escape(value)
+                    html += f"<tr><td><strong>{label}</strong></td><td>{escaped_value}</td></tr>"
 
             html += """            </table>
         </div>
@@ -185,8 +195,9 @@ class ReportGenerator:
 """
             for key, value in display.items():
                 if not isinstance(value, (dict, list)):
-                    label = key.replace('_', ' ').title()
-                    html += f"<tr><td><strong>{label}</strong></td><td>{value}</td></tr>"
+                    label = _escape(key.replace('_', ' ').title())
+                    escaped_value = _escape(value)
+                    html += f"<tr><td><strong>{label}</strong></td><td>{escaped_value}</td></tr>"
             html += """            </table>
         </div>
 """
