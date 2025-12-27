@@ -192,6 +192,16 @@ class VoidGUI:
         self.gemini_model_var = tk.StringVar(
             value=str(self._app_config.get("gemini_model", Config.GEMINI_MODEL))
         )
+        self.gemini_api_base_var = tk.StringVar(
+            value=str(self._app_config.get("gemini_api_base", Config.GEMINI_API_BASE))
+        )
+        self.gemini_system_instruction = str(
+            self._app_config.get("gemini_system_instruction", "") or ""
+        )
+        self.gemini_extra_payload = str(self._app_config.get("gemini_extra_payload", "") or "")
+        self.gemini_generation_config = str(
+            self._app_config.get("gemini_generation_config", "") or ""
+        )
         self._splash_window: Optional[tk.Toplevel] = None
         self._splash_canvas: Optional[tk.Canvas] = None
         self._splash_step = 0
@@ -3238,6 +3248,94 @@ class VoidGUI:
             command=self._prompt_gemini_api_key,
         ).pack(side="left", padx=(8, 0))
 
+        endpoint_row = ttk.Frame(panel, style="Void.TFrame")
+        endpoint_row.pack(fill="x", pady=(0, 8))
+        ttk.Label(endpoint_row, text="API Base", style="Void.TLabel").pack(side="left")
+        api_entry = tk.Entry(
+            endpoint_row,
+            textvariable=self.gemini_api_base_var,
+            bg=self.theme["panel_alt"],
+            fg=self.theme["text"],
+            insertbackground=self.theme["accent"],
+            relief="flat",
+            font=("Consolas", 10),
+            width=48,
+        )
+        api_entry.pack(side="left", padx=(8, 6), fill="x", expand=True)
+        ttk.Button(
+            endpoint_row,
+            text="Save API Base",
+            style="Void.TButton",
+            command=self._save_gemini_api_base,
+        ).pack(side="left")
+
+        advanced_card = ttk.Frame(panel, style="Void.Card.TFrame")
+        advanced_card.pack(fill="x", pady=(0, 12))
+        advanced_card.configure(padding=12)
+        ttk.Label(advanced_card, text="Advanced Gemini Payload", style="Void.TLabel").pack(
+            anchor="w"
+        )
+        ttk.Label(
+            advanced_card,
+            text="Paste JSON to pass through systemInstruction, tools, or other payload fields.",
+            style="Void.TLabel",
+            wraplength=600,
+            justify="left",
+        ).pack(anchor="w", pady=(4, 8))
+        ttk.Label(advanced_card, text="System Instruction", style="Void.TLabel").pack(
+            anchor="w"
+        )
+        self.gemini_system_text = scrolledtext.ScrolledText(
+            advanced_card,
+            height=4,
+            bg=self.theme["panel_alt"],
+            fg=self.theme["text"],
+            insertbackground=self.theme["accent"],
+            relief="flat",
+            font=("Consolas", 10),
+            wrap="word",
+        )
+        self.gemini_system_text.pack(fill="x", expand=True, pady=(4, 8))
+        self.gemini_system_text.insert("1.0", self.gemini_system_instruction)
+
+        ttk.Label(advanced_card, text="Generation Config (JSON)", style="Void.TLabel").pack(
+            anchor="w"
+        )
+        self.gemini_generation_text = scrolledtext.ScrolledText(
+            advanced_card,
+            height=4,
+            bg=self.theme["panel_alt"],
+            fg=self.theme["text"],
+            insertbackground=self.theme["accent"],
+            relief="flat",
+            font=("Consolas", 10),
+            wrap="word",
+        )
+        self.gemini_generation_text.pack(fill="x", expand=True, pady=(4, 8))
+        self.gemini_generation_text.insert("1.0", self.gemini_generation_config)
+
+        ttk.Label(advanced_card, text="Extra Payload (JSON)", style="Void.TLabel").pack(
+            anchor="w"
+        )
+        self.gemini_payload_text = scrolledtext.ScrolledText(
+            advanced_card,
+            height=6,
+            bg=self.theme["panel_alt"],
+            fg=self.theme["text"],
+            insertbackground=self.theme["accent"],
+            relief="flat",
+            font=("Consolas", 10),
+            wrap="word",
+        )
+        self.gemini_payload_text.pack(fill="x", expand=True, pady=(4, 8))
+        self.gemini_payload_text.insert("1.0", self.gemini_extra_payload)
+        ttk.Button(
+            advanced_card,
+            text="Save Advanced Settings",
+            style="Void.TButton",
+            command=self._save_gemini_advanced,
+        ).pack(anchor="w", pady=(4, 0))
+
         content_row = ttk.Frame(panel, style="Void.TFrame")
         content_row.pack(fill="both", expand=True)
 
@@ -3436,6 +3534,47 @@ class VoidGUI:
         self._save_app_config(self._app_config)
         self.assistant_status_var.set(f"Gemini model saved: {model}")
 
+    def _save_gemini_api_base(self) -> None:
+        api_base = self.gemini_api_base_var.get().strip() or Config.GEMINI_API_BASE
+        self.gemini_api_base_var.set(api_base)
+        self._app_config["gemini_api_base"] = api_base
+        self._save_app_config(self._app_config)
+        self.assistant_status_var.set(f"Gemini API base saved: {api_base}")
+
+    def _save_gemini_advanced(self) -> None:
+        system_instruction = self.gemini_system_text.get("1.0", tk.END).strip()
+        generation_config = self.gemini_generation_text.get("1.0", tk.END).strip()
+        extra_payload = self.gemini_payload_text.get("1.0", tk.END).strip()
+
+        parsed_generation = self._parse_gemini_json(
+            generation_config, "Generation Config"
+        )
+        parsed_payload = self._parse_gemini_json(extra_payload, "Extra Payload")
+        if parsed_generation is None or parsed_payload is None:
+            return
+
+        self.gemini_system_instruction = system_instruction
+        self.gemini_generation_config = generation_config
+        self.gemini_extra_payload = extra_payload
+        self._app_config["gemini_system_instruction"] = system_instruction
+        self._app_config["gemini_generation_config"] = generation_config
+        self._app_config["gemini_extra_payload"] = extra_payload
+        self._save_app_config(self._app_config)
+        self.assistant_status_var.set("Gemini advanced settings saved.")
+
+    def _parse_gemini_json(self, raw_value: str, label: str) -> Dict[str, Any] | None:
+        if not raw_value:
+            return {}
+        try:
+            parsed = json.loads(raw_value)
+        except json.JSONDecodeError as exc:
+            messagebox.showwarning("Void", f"{label} JSON is invalid: {exc}")
+            return None
+        if not isinstance(parsed, dict):
+            messagebox.showwarning("Void", f"{label} must be a JSON object.")
+            return None
+        return parsed
+
     def _clear_assistant_tasks(self) -> None:
         self.assistant_tasks = []
         if self.assistant_task_list:
@@ -3471,6 +3610,17 @@ class VoidGUI:
             self._prompt_gemini_api_key()
             if not self.gemini_api_key:
                 return
+        generation_config = self._parse_gemini_json(
+            self.gemini_generation_text.get("1.0", tk.END).strip(),
+            "Generation Config",
+        )
+        extra_payload = self._parse_gemini_json(
+            self.gemini_payload_text.get("1.0", tk.END).strip(),
+            "Extra Payload",
+        )
+        if generation_config is None or extra_payload is None:
+            return
+        system_instruction = self.gemini_system_text.get("1.0", tk.END).strip()
 
         self.assistant_input_var.set("")
         self._append_assistant_chat("You", prompt)
@@ -3478,7 +3628,15 @@ class VoidGUI:
 
         def runner() -> None:
             model = self.gemini_model_var.get().strip() or Config.GEMINI_MODEL
-            agent = GeminiAgent(self.gemini_api_key, model=model)
+            api_base = self.gemini_api_base_var.get().strip() or Config.GEMINI_API_BASE
+            agent = GeminiAgent(
+                self.gemini_api_key,
+                model=model,
+                api_base=api_base,
+                system_instruction=system_instruction or None,
+                extra_payload=extra_payload,
+                generation_config=generation_config,
+            )
             result = agent.generate(prompt, self.assistant_tasks)
             self.root.after(0, lambda: self._handle_gemini_result(result))
 
