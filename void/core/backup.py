@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 from datetime import datetime
 from typing import Any, Callable, Dict, List, Optional
 
@@ -16,6 +17,11 @@ class AutoBackup:
     """Automated backup system"""
 
     @staticmethod
+    def _sanitize_device_id(device_id: str) -> str:
+        safe_id = re.sub(r'[^A-Za-z0-9]+', '_', device_id).strip('_')
+        return safe_id or "unknown"
+
+    @staticmethod
     def create_backup(
         device_id: str,
         backup_type: str = 'full',
@@ -23,7 +29,8 @@ class AutoBackup:
     ) -> Dict[str, Any]:
         """Create automated backup"""
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-        backup_name = f"backup_{device_id}_{timestamp}"
+        safe_device_id = AutoBackup._sanitize_device_id(device_id)
+        backup_name = f"backup_{safe_device_id}_{timestamp}"
         backup_path = Config.BACKUP_DIR / backup_name
         backup_path.mkdir(parents=True, exist_ok=True)
 

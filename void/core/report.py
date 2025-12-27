@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import html
 import json
+import re
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Callable, Dict, Optional
@@ -20,13 +21,19 @@ class ReportGenerator:
     """Automated report generation"""
 
     @staticmethod
+    def _sanitize_device_id(device_id: str) -> str:
+        safe_id = re.sub(r'[^A-Za-z0-9]+', '_', device_id).strip('_')
+        return safe_id or "unknown"
+
+    @staticmethod
     def generate_device_report(
         device_id: str,
         progress_callback: Optional[Callable[[str], None]] = None,
     ) -> Dict[str, Any]:
         """Generate comprehensive device report"""
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-        report_name = f"device_report_{device_id}_{timestamp}"
+        safe_device_id = ReportGenerator._sanitize_device_id(device_id)
+        report_name = f"device_report_{safe_device_id}_{timestamp}"
         report_dir = Config.REPORTS_DIR / report_name
         report_dir.mkdir(parents=True, exist_ok=True)
 
