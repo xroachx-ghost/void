@@ -19,7 +19,8 @@ class ToolSpec:
 
 def check_tool_spec(spec: ToolSpec) -> ToolCheckResult:
     """Validate a tool spec."""
-    return check_tool(spec.name, spec.version_args or None)
+    label = spec.label or spec.name
+    return check_tool(spec.name, spec.version_args or None, label=label)
 
 
 def check_tool_specs(specs: Iterable[ToolSpec]) -> list[ToolCheckResult]:

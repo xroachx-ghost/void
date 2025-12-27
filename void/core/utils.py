@@ -37,6 +37,7 @@ class ToolCheckResult:
     """Result of validating an external tool."""
 
     name: str
+    label: str | None = None
     available: bool
     path: str | None = None
     version: str | None = None
@@ -68,7 +69,12 @@ def resolve_tool_command(cmd: List[str]) -> List[str]:
     return cmd
 
 
-def check_tool(name: str, version_args: Sequence[str] | None = None) -> ToolCheckResult:
+def check_tool(
+    name: str,
+    version_args: Sequence[str] | None = None,
+    *,
+    label: str | None = None,
+) -> ToolCheckResult:
     """Validate a tool is on PATH and optionally resolve its version."""
     path = shutil.which(name)
     bundled_path = _bundled_platform_tool_path(name)
@@ -77,6 +83,7 @@ def check_tool(name: str, version_args: Sequence[str] | None = None) -> ToolChec
     if not path:
         return ToolCheckResult(
             name=name,
+            label=label,
             available=False,
             error={
                 "code": "tool_missing",
@@ -99,6 +106,7 @@ def check_tool(name: str, version_args: Sequence[str] | None = None) -> ToolChec
 
     return ToolCheckResult(
         name=name,
+        label=label,
         available=True,
         path=path,
         version=version,
