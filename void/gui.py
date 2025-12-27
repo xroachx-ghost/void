@@ -188,6 +188,7 @@ class VoidGUI:
         self.assistant_status_var = tk.StringVar(value="Gemini assistant idle.")
         self.assistant_task_list: Optional[tk.Listbox] = None
         self.assistant_tasks: List[Dict[str, str]] = []
+        self._app_config: Dict[str, Any] = self._load_app_config()
         self.gemini_api_key = str(self._app_config.get("gemini_api_key", "") or "")
         self.gemini_model_var = tk.StringVar(
             value=str(self._app_config.get("gemini_model", Config.GEMINI_MODEL))
@@ -206,7 +207,6 @@ class VoidGUI:
         self._splash_canvas: Optional[tk.Canvas] = None
         self._splash_step = 0
         self._splash_total_frames = 48
-        self._app_config: Dict[str, Any] = self._load_app_config()
         self._pending_troubleshooting_open = False
         self.output: Optional[scrolledtext.ScrolledText] = None
         self._pending_log_entries: List[str] = []
