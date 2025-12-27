@@ -66,6 +66,8 @@ class Config:
     REPORTS_DIR = BASE_DIR / "reports"
     MONITOR_DIR = BASE_DIR / "monitoring"
     SCRIPTS_DIR = BASE_DIR / "scripts"
+    TOOLS_DIR = BASE_DIR / "tools"
+    ANDROID_PLATFORM_TOOLS_DIR = TOOLS_DIR / "platform-tools"
 
     # Security
     MAX_INPUT_LENGTH = 256
@@ -118,6 +120,7 @@ class Config:
             cls.REPORTS_DIR,
             cls.MONITOR_DIR,
             cls.SCRIPTS_DIR,
+            cls.TOOLS_DIR,
         ]:
             path.mkdir(parents=True, exist_ok=True)
 
