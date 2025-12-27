@@ -68,7 +68,12 @@ from .core.report import ReportGenerator
 from .core.screen import ScreenCapture
 from .core.smart import SmartAdvisor
 from .core.system import SystemTweaker
-from .core.tools import check_android_tools, check_mediatek_tools, check_qualcomm_tools
+from .core.tools import (
+    check_android_tools,
+    check_mediatek_tools,
+    check_qualcomm_tools,
+    install_android_platform_tools,
+)
 from .core.utils import SafeSubprocess
 from .logging import get_logger, log_edl_event
 from .core.chipsets.dispatcher import detect_chipset_for_device, enter_chipset_mode
@@ -218,6 +223,8 @@ class CLI:
                     'smart': lambda: self._cmd_smart(args),
                     'launcher': lambda: self._cmd_launcher(args),
                     'start-menu': lambda: self._cmd_launcher(args),
+                    'advanced': self._cmd_advanced,
+                    'bootstrap': lambda: self._cmd_bootstrap(args),
                     'search': lambda: self._cmd_search(args),
                     'help': lambda: self._cmd_help(args),
                     'exit': lambda: exit(0),
@@ -285,6 +292,21 @@ class CLI:
 
     def _build_command_catalog(self) -> Dict[str, CommandInfo]:
         catalog = [
+            CommandInfo(
+                name="advanced",
+                summary="Show advanced Android tooling overview.",
+                usage="advanced",
+                category="Advanced Toolbox",
+                examples=["advanced"],
+                aliases=["toolbox"],
+            ),
+            CommandInfo(
+                name="bootstrap",
+                summary="Install bundled Android platform tools.",
+                usage="bootstrap [force]",
+                category="System & Diagnostics",
+                examples=["bootstrap", "bootstrap force"],
+            ),
             CommandInfo(
                 name="devices",
                 summary="List all connected devices.",
@@ -1092,6 +1114,7 @@ class CLI:
             {"label": "Apps & Files", "desc": "App listing and file operations", "shortcut": "a", "submenu": self._menu_apps_files()},
             {"label": "Analysis & Reports", "desc": "Performance analysis and reports", "shortcut": "r", "submenu": self._menu_analysis()},
             {"label": "System & Diagnostics", "desc": "Health checks and system tools", "shortcut": "s", "submenu": self._menu_system()},
+            {"label": "Advanced Toolbox", "desc": "EDL, recovery, and expert workflows", "shortcut": "x", "action": self._cmd_advanced},
             {"label": "Exit Menu", "desc": "Return to CLI prompt", "shortcut": "q", "exit": True},
         ]
 
@@ -1139,6 +1162,7 @@ class CLI:
             {"label": "Version info", "desc": "Suite version details", "shortcut": "v", "action": self._cmd_version},
             {"label": "System monitor", "desc": "CPU/Memory/Disk usage", "shortcut": "m", "action": self._cmd_monitor},
             {"label": "Show paths", "desc": "Local data directories", "shortcut": "p", "action": self._cmd_paths},
+            {"label": "Install platform tools", "desc": "Bundle ADB/Fastboot locally", "shortcut": "z", "action": lambda: self._cmd_bootstrap([])},
             {"label": "System checks", "desc": "Connectivity and health checks", "shortcut": "d", "action": self._cmd_doctor},
             {"label": "Network check", "desc": "Internet reachability", "shortcut": "n", "action": self._cmd_netcheck},
             {"label": "ADB availability", "desc": "ADB version check", "shortcut": "a", "action": self._cmd_adb},
@@ -1400,6 +1424,104 @@ class CLI:
                 else:
                     message = tool.error.get("message", "missing")
                     print(f"    - {tool.name}: {message}")
+
+    def _cmd_bootstrap(self, args: List[str]) -> None:
+        """Install bundled Android platform tools."""
+        force = bool(args and args[0].lower() == "force")
+        print("\n📦 Installing Android platform tools\n")
+        result = install_android_platform_tools(force=force)
+        status = result.get("status", "fail")
+        message = result.get("message", "Install failed.")
+        detail = result.get("detail", "")
+        icon = "✅" if status == "pass" else "⚠️" if status == "warn" else "❌"
+        print(f"{icon} {message}")
+        if detail:
+            print(f"   {detail}")
+
+        links = result.get("links") or []
+        if links:
+            print("\nLinks:")
+            for link in links:
+                print(f"  - {link.get('label')}: {link.get('url')}")
+
+        print("\nNote: Qualcomm (edl/qdl/emmcdl) and MediaTek (mtkclient/SP Flash Tool)")
+        print("tools are not bundled automatically. Install them if you need chipset recovery.")
+
+    def _cmd_advanced(self) -> None:
+        """Show advanced Android tooling overview."""
+        print("\n🧰 Advanced Android Toolbox\n")
+        print("Use these expert workflows with care. Always back up data first.\n")
+
+        sections = {
+            "EDL & Test-point": [
+                "edl-status <device_id|smart>           - Detect EDL mode + USB VID/PID",
+                "edl-enter <device_id|smart>            - Enter EDL mode (if supported)",
+                "edl-flash <device_id|smart> <loader> <image> - Flash via EDL",
+                "edl-dump <device_id|smart> <partition> - Dump a partition via EDL",
+                "edl-detect                            - Scan USB for EDL devices",
+                "edl-partitions <device_id|smart> [loader] - Show partition map",
+                "edl-backup <device_id|smart> <partition> - Backup partition via EDL",
+                "edl-restore <device_id|smart> <loader> <image> - Restore partition via EDL",
+                "edl-sparse <to-raw|to-sparse> <source> <dest> - Convert sparse images",
+                "edl-verify <file> [sha256]             - Verify image hash",
+                "edl-unbrick [loader]                   - Show unbrick checklist",
+                "edl-notes [vendor]                     - Show device-specific notes",
+                "edl-reboot <device_id|smart> <target>  - Reboot to target mode",
+                "edl-log                               - Capture EDL workflow logs",
+                "compat-matrix                          - Show EDL compatibility matrix",
+                "testpoint-guide <device_id|smart>      - Show test-point references",
+            ],
+            "Recovery & Root": [
+                "boot-extract <boot.img>                - Extract boot image contents",
+                "magisk-patch <device_id|smart> <boot.img> - Stage Magisk patch workflow",
+                "magisk-pull <device_id|smart> [output_dir] - Pull Magisk patched image",
+                "twrp-verify <device_id|smart> <twrp.img> - Validate TWRP image",
+                "twrp-flash <device_id|smart> <twrp.img> [boot] - Flash/boot TWRP",
+                "root-verify <device_id|smart>          - Verify root access",
+                "safety-check <device_id|smart>         - Run safety checklist",
+                "rollback <device_id|smart> <partition> <image> - Roll back a flash",
+            ],
+            "FRP & Security": [
+                "execute <method> <device_id|smart>     - Execute bypass method",
+                "methods [count]                        - Show top methods",
+            ],
+            "Chipset & Recovery Utilities": [
+                "edl-programmers                       - List available firehose programmers",
+                "edl-profile <list|add|delete>          - Manage EDL profiles",
+                "edl-notes [vendor]                     - Device-specific chipset notes",
+            ],
+            "Discoverability": [
+                "search <keyword>                       - Find commands quickly",
+                "help <command>                         - Show detailed usage",
+                "bootstrap [force]                      - Install bundled platform tools",
+                "menu                                  - Launch interactive menu",
+            ],
+        }
+
+        for title, entries in sections.items():
+            print(f"{title}:")
+            for entry in entries:
+                print(f"  {entry}")
+            print("")
+
+        print("🧰 Tooling Status")
+        tool_groups = [
+            ("Android", check_android_tools()),
+            ("Qualcomm", check_qualcomm_tools()),
+            ("MediaTek", check_mediatek_tools()),
+        ]
+        for label, tools in tool_groups:
+            print(f"  {label}:")
+            for tool in tools:
+                if tool.available:
+                    version = tool.version or "available"
+                    if tool.error:
+                        version = f"{version} (version unknown)"
+                    print(f"    - {tool.name}: {version}")
+                else:
+                    message = tool.error.get("message", "missing")
+                    print(f"    - {tool.name}: {message}")
+        print("")
 
     def _cmd_logs(self) -> None:
         """List recent log files."""
@@ -2784,6 +2906,9 @@ FRP BYPASS:
   execute <method> <device_id|smart>     - Execute bypass method
     Methods: adb_shell_reset, fastboot_erase, etc.
 
+ADVANCED TOOLBOX:
+  advanced                         - Show advanced Android tooling overview
+
 EDL & TEST-POINT:
   edl-status <device_id|smart>           - Detect EDL mode + USB VID/PID
   edl-enter <device_id|smart>            - Enter EDL mode (if supported)
@@ -2819,6 +2944,7 @@ SYSTEM:
   paths                            - Show local data paths
   menu                             - Launch interactive menu
   netcheck                         - Check internet connectivity
+  bootstrap [force]                - Install bundled platform tools
   adb                              - Check ADB availability
   clear-cache                      - Clear local cache
   doctor                           - Run quick system checks

@@ -6,6 +6,7 @@ from .android import (
     android_driver_hints,
     check_android_tools,
     check_usb_debugging_status,
+    install_android_platform_tools,
     resolve_android_fallback,
 )
 from .mediatek import (
@@ -20,6 +21,7 @@ __all__ = [
     "android_driver_hints",
     "check_android_tools",
     "check_usb_debugging_status",
+    "install_android_platform_tools",
     "check_mediatek_tools",
     "check_qualcomm_tools",
     "resolve_android_fallback",
