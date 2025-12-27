@@ -1203,13 +1203,13 @@ class VoidGUI:
             "Void.TNotebook",
             background=self.theme["bg"],
             borderwidth=0,
-            tabmargins=(2, 6, 2, 0),
+            tabmargins=(1, 4, 1, 0),
         )
         style.configure(
             "Void.TNotebook.Tab",
             background=self.theme["panel_alt"],
             foreground=self.theme["muted"],
-            padding=(14, 8),
+            padding=(10, 6),
             font=("Consolas", 10, "bold"),
         )
         style.configure(
@@ -1303,7 +1303,25 @@ class VoidGUI:
         right = ttk.Frame(body, style="Void.TFrame")
         right.pack(side="left", fill="both", expand=True)
 
-        self.notebook = ttk.Notebook(right, style="Void.TNotebook")
+        notebook_frame = ttk.Frame(right, style="Void.TFrame")
+        notebook_frame.pack(fill="both", expand=True)
+
+        tab_controls = ttk.Frame(notebook_frame, style="Void.TFrame")
+        tab_controls.pack(fill="x", pady=(0, 4))
+        ttk.Button(
+            tab_controls,
+            text="◀",
+            style="Void.TButton",
+            command=lambda: self._scroll_tabs(-1),
+        ).pack(side="left")
+        ttk.Button(
+            tab_controls,
+            text="▶",
+            style="Void.TButton",
+            command=lambda: self._scroll_tabs(1),
+        ).pack(side="right")
+
+        self.notebook = ttk.Notebook(notebook_frame, style="Void.TNotebook")
         self.notebook.pack(fill="both", expand=True)
 
         dashboard = ttk.Frame(self.notebook, style="Void.TFrame")
@@ -1347,6 +1365,12 @@ class VoidGUI:
         self.notebook.add(settings_panel, text="Settings")
         self.notebook.add(self.troubleshooting_panel, text="Troubleshooting")
         self.notebook.bind("<<NotebookTabChanged>>", self._on_tab_change)
+        self.notebook.bind("<MouseWheel>", self._on_tab_wheel)
+        self.notebook.bind("<Button-4>", self._on_tab_wheel)
+        self.notebook.bind("<Button-5>", self._on_tab_wheel)
+        tab_controls.bind("<MouseWheel>", self._on_tab_wheel)
+        tab_controls.bind("<Button-4>", self._on_tab_wheel)
+        tab_controls.bind("<Button-5>", self._on_tab_wheel)
 
         ttk.Label(dashboard, text="Selected Device", style="Void.TLabel").pack(anchor="w")
         ttk.Label(dashboard, textvariable=self.selected_device_var, style="Void.TLabel").pack(
@@ -3643,6 +3667,34 @@ class VoidGUI:
             text="Settings apply immediately to GUI actions.",
             style="Void.TLabel",
         ).pack(side="left", padx=(12, 0))
+
+    def _scroll_tabs(self, direction: int) -> None:
+        if not self.notebook:
+            return
+        tabs = self.notebook.tabs()
+        if not tabs:
+            return
+        current = self.notebook.select()
+        try:
+            index = tabs.index(current)
+        except ValueError:
+            index = 0
+        next_index = min(max(index + direction, 0), len(tabs) - 1)
+        if next_index == index:
+            return
+        target = tabs[next_index]
+        self.notebook.select(target)
+        self.notebook.see(target)
+
+    def _on_tab_wheel(self, event) -> str:
+        if event.num == 4:
+            self._scroll_tabs(-1)
+        elif event.num == 5:
+            self._scroll_tabs(1)
+        elif event.delta:
+            direction = -1 if event.delta > 0 else 1
+            self._scroll_tabs(direction)
+        return "break"
 
     def _on_tab_change(self, _event=None) -> None:
         if not self.notebook or not self.assistant_panel:
