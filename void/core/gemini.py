@@ -73,7 +73,7 @@ class GeminiAgent:
         if not resolved_parts:
             resolved_parts = [{"text": full_prompt}]
 
-        contents = list(history or [])
+        contents = self._build_history(history)
         contents.append({"role": "user", "parts": resolved_parts})
 
         payload: dict[str, Any] = {
@@ -173,6 +173,20 @@ class GeminiAgent:
             if text:
                 chunks.append(str(text))
         return "".join(chunks).strip()
+
+    def _build_history(
+        self,
+        history: Sequence[Mapping[str, Any]] | None,
+    ) -> list[Mapping[str, Any]]:
+        if not history:
+            return []
+        limit = max(0, int(Config.GEMINI_HISTORY_LIMIT))
+        if limit <= 0:
+            return []
+        history_list = list(history)
+        if len(history_list) > limit:
+            history_list = history_list[-limit:]
+        return history_list
 
     def _merge_payload(
         self,

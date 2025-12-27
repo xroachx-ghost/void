@@ -87,6 +87,7 @@ class Config:
     # Gemini assistant (GUI)
     GEMINI_MODEL = "gemini-1.5-flash"
     GEMINI_API_BASE = "https://generativelanguage.googleapis.com/v1beta/models"
+    GEMINI_HISTORY_LIMIT = 24
 
     # Privacy controls
     COLLECT_IMEI = True
