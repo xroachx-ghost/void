@@ -377,7 +377,9 @@ class VoidGUI:
         if self._splash_window:
             self._splash_window.destroy()
         self._build_layout()
-        if not ensure_terms_acceptance_gui(messagebox):
+        self.root.deiconify()
+        self.root.update_idletasks()
+        if not ensure_terms_acceptance_gui(messagebox, parent=self.root):
             self.root.destroy()
             raise SystemExit(0)
         if not self._is_first_run_complete():
