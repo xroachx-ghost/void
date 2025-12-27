@@ -20,6 +20,7 @@ from math import sin, pi
 from typing import Any, Callable, Dict, List, Optional
 
 from .config import Config
+from .cli import CLI, CommandInfo
 from .core.apps import AppManager
 from .core.assets import add_firehose_source, collect_required_assets, perform_asset_action
 from .core.backup import AutoBackup
@@ -119,6 +120,7 @@ class VoidGUI:
 
         discover_plugins()
         self.plugin_registry = get_registry()
+        self.cli_bridge = CLI(start_monitor=False)
         self.frp_engine = FRPEngine()
         self.logcat_viewer = LogcatViewer()
         self._logcat_thread: Optional[threading.Thread] = None
@@ -146,6 +148,10 @@ class VoidGUI:
         self.action_help_var = tk.StringVar(
             value="Select an action to see a description."
         )
+        self.command_search_var = tk.StringVar(value="")
+        self.command_line_var = tk.StringVar(value="")
+        self.command_args_var = tk.StringVar(value="")
+        self.command_detail_var = tk.StringVar(value="Select a command to see details.")
         self.plugin_description_var = tk.StringVar(
             value="Select a plugin to view details."
         )
@@ -172,6 +178,9 @@ class VoidGUI:
         self._download_items: List[Dict[str, Any]] = []
         self.edl_links_frame: Optional[ttk.Frame] = None
         self.plugin_metadata: List[PluginMetadata] = []
+        self.command_catalog: List[CommandInfo] = list(self.cli_bridge.command_catalog.values())
+        self.filtered_command_catalog: List[CommandInfo] = []
+        self.command_list: Optional[tk.Listbox] = None
         self._splash_window: Optional[tk.Toplevel] = None
         self._splash_canvas: Optional[tk.Canvas] = None
         self._splash_step = 0
@@ -1274,6 +1283,7 @@ class VoidGUI:
         db_tools_panel = ttk.Frame(self.notebook, style="Void.TFrame")
         logs = ttk.Frame(self.notebook, style="Void.TFrame")
         edl_recovery = ttk.Frame(self.notebook, style="Void.TFrame")
+        command_panel = ttk.Frame(self.notebook, style="Void.TFrame")
         help_panel = ttk.Frame(self.notebook, style="Void.TFrame")
         plugins_panel = ttk.Frame(self.notebook, style="Void.TFrame")
         self.troubleshooting_panel = ttk.Frame(self.notebook, style="Void.TFrame")
@@ -1291,6 +1301,7 @@ class VoidGUI:
         self.notebook.add(db_tools_panel, text="DB Tools")
         self.notebook.add(edl_recovery, text="EDL & Recovery")
         self.notebook.add(logs, text="Operations Log")
+        self.notebook.add(command_panel, text="Command Center")
         self.notebook.add(plugins_panel, text="Plugins")
         self.notebook.add(help_panel, text="What Does This Do?")
         self.notebook.add(settings_panel, text="Settings")
@@ -1473,6 +1484,7 @@ class VoidGUI:
         self._build_edl_tools_panel(edl_tools_panel)
         self._build_data_exports_panel(data_exports_panel)
         self._build_db_tools_panel(db_tools_panel)
+        self._build_command_panel(command_panel)
 
         ttk.Label(help_panel, text="Action Details", style="Void.TLabel").pack(anchor="w")
         ttk.Label(
@@ -1891,6 +1903,87 @@ class VoidGUI:
         """Execute a plugin and return its result."""
         context = PluginContext(mode="gui", emit=lambda msg: self._log(msg, level="PLUGIN"))
         return self.plugin_registry.run(plugin_id, context, [])
+
+    def _refresh_command_list(self) -> None:
+        """Refresh the command list based on the search query."""
+        if self.command_list is None:
+            return
+        query = self.command_search_var.get().strip().lower()
+        self.command_list.delete(0, "end")
+        if not query:
+            filtered = self.command_catalog
+        else:
+            filtered = [
+                command
+                for command in self.command_catalog
+                if query in command.name.lower()
+                or query in command.summary.lower()
+                or query in command.usage.lower()
+                or query in command.category.lower()
+                or any(query in alias.lower() for alias in command.aliases)
+            ]
+        self.filtered_command_catalog = filtered
+        for command in filtered:
+            self.command_list.insert("end", f"{command.name} ({command.category})")
+        if not filtered:
+            self.command_detail_var.set("No commands match the current search.")
+        elif not self.command_list.curselection():
+            self.command_detail_var.set("Select a command to see details.")
+
+    def _on_command_select(self) -> None:
+        if self.command_list is None:
+            return
+        selection = self.command_list.curselection()
+        if not selection or selection[0] >= len(self.filtered_command_catalog):
+            return
+        command = self.filtered_command_catalog[selection[0]]
+        aliases = ", ".join(command.aliases) if command.aliases else "None"
+        examples = "\n".join(f"• {example}" for example in command.examples) if command.examples else "None"
+        details = (
+            f"{command.name}\n"
+            f"Category: {command.category}\n"
+            f"Summary: {command.summary}\n"
+            f"Usage: {command.usage}\n"
+            f"Aliases: {aliases}\n"
+            f"Examples:\n{examples}"
+        )
+        self.command_detail_var.set(details)
+
+    def _insert_selected_command(self) -> None:
+        if self.command_list is None:
+            return
+        selection = self.command_list.curselection()
+        if not selection or selection[0] >= len(self.filtered_command_catalog):
+            messagebox.showwarning("Void", "Select a command first.")
+            return
+        command = self.filtered_command_catalog[selection[0]]
+        args = self.command_args_var.get().strip()
+        command_line = f"{command.name} {args}".strip()
+        self.command_line_var.set(command_line)
+
+    def _run_command_line(self) -> None:
+        command_line = self.command_line_var.get().strip()
+        if not command_line:
+            if self.command_list is not None:
+                selection = self.command_list.curselection()
+                if selection and selection[0] < len(self.filtered_command_catalog):
+                    command = self.filtered_command_catalog[selection[0]]
+                    args = self.command_args_var.get().strip()
+                    command_line = f"{command.name} {args}".strip()
+                    self.command_line_var.set(command_line)
+        if not command_line:
+            messagebox.showwarning("Void", "Enter a command line to run.")
+            return
+
+        def runner() -> Dict[str, Any]:
+            result = self.cli_bridge.execute_command_line(command_line)
+            output = result.get("output") if isinstance(result, dict) else None
+            if output:
+                for line in output.splitlines():
+                    self._log(line, level="DATA")
+            return result
+
+        self._run_task(f"Command: {command_line}", runner)
 
     def _run_task(
         self,
@@ -2972,6 +3065,111 @@ class VoidGUI:
                 width=12,
             )
             entry.pack(anchor="w")
+
+    def _build_command_panel(self, panel: ttk.Frame) -> None:
+        ttk.Label(panel, text="Command Center", style="Void.TLabel").pack(anchor="w")
+
+        search_card = ttk.Frame(panel, style="Void.Card.TFrame")
+        search_card.pack(fill="x", pady=(6, 12))
+        search_card.configure(padding=12)
+        ttk.Label(search_card, text="Search Commands", style="Void.TLabel").pack(anchor="w")
+        search_row = ttk.Frame(search_card, style="Void.TFrame")
+        search_row.pack(fill="x", pady=(6, 0))
+        search_entry = tk.Entry(
+            search_row,
+            textvariable=self.command_search_var,
+            bg=self.theme["panel_alt"],
+            fg=self.theme["text"],
+            insertbackground=self.theme["accent"],
+            relief="flat",
+            font=("Consolas", 10),
+        )
+        search_entry.pack(side="left", fill="x", expand=True, padx=(0, 8))
+        ttk.Button(
+            search_row,
+            text="Clear",
+            style="Void.TButton",
+            command=lambda: self.command_search_var.set(""),
+        ).pack(side="left")
+        Tooltip(search_entry, "Filter CLI commands by name, summary, category, or usage.")
+        self.command_search_var.trace_add("write", lambda *_: self._refresh_command_list())
+
+        list_card = ttk.Frame(panel, style="Void.Card.TFrame")
+        list_card.pack(fill="both", expand=True, pady=(0, 12))
+        list_card.configure(padding=12)
+        ttk.Label(list_card, text="Available Commands", style="Void.TLabel").pack(anchor="w")
+        list_row = ttk.Frame(list_card, style="Void.TFrame")
+        list_row.pack(fill="both", expand=True, pady=(6, 0))
+        self.command_list = tk.Listbox(
+            list_row,
+            height=10,
+            bg=self.theme["panel_alt"],
+            fg=self.theme["accent"],
+            selectbackground=self.theme["button_active"],
+            selectforeground=self.theme["text"],
+            highlightthickness=0,
+            font=("Consolas", 10),
+        )
+        self.command_list.pack(side="left", fill="both", expand=True)
+        self.command_list.bind("<<ListboxSelect>>", lambda _: self._on_command_select())
+
+        details_frame = ttk.Frame(list_row, style="Void.TFrame")
+        details_frame.pack(side="left", fill="both", expand=True, padx=(12, 0))
+        ttk.Label(details_frame, text="Command Details", style="Void.TLabel").pack(anchor="w")
+        ttk.Label(
+            details_frame,
+            textvariable=self.command_detail_var,
+            style="Void.TLabel",
+            wraplength=360,
+            justify="left",
+        ).pack(anchor="w", pady=(4, 0))
+
+        input_card = ttk.Frame(panel, style="Void.Card.TFrame")
+        input_card.pack(fill="x")
+        input_card.configure(padding=12)
+        ttk.Label(input_card, text="Run Command", style="Void.TLabel").pack(anchor="w")
+
+        args_row = ttk.Frame(input_card, style="Void.TFrame")
+        args_row.pack(fill="x", pady=(6, 6))
+        ttk.Label(args_row, text="Arguments", style="Void.TLabel").pack(side="left")
+        args_entry = tk.Entry(
+            args_row,
+            textvariable=self.command_args_var,
+            bg=self.theme["panel_alt"],
+            fg=self.theme["text"],
+            insertbackground=self.theme["accent"],
+            relief="flat",
+            font=("Consolas", 10),
+        )
+        args_entry.pack(side="left", fill="x", expand=True, padx=(8, 6))
+        ttk.Button(
+            args_row,
+            text="Use Selected",
+            style="Void.TButton",
+            command=self._insert_selected_command,
+        ).pack(side="left")
+
+        line_row = ttk.Frame(input_card, style="Void.TFrame")
+        line_row.pack(fill="x")
+        ttk.Label(line_row, text="Command Line", style="Void.TLabel").pack(side="left")
+        line_entry = tk.Entry(
+            line_row,
+            textvariable=self.command_line_var,
+            bg=self.theme["panel_alt"],
+            fg=self.theme["text"],
+            insertbackground=self.theme["accent"],
+            relief="flat",
+            font=("Consolas", 10),
+        )
+        line_entry.pack(side="left", fill="x", expand=True, padx=(8, 6))
+        ttk.Button(
+            line_row,
+            text="Run",
+            style="Void.TButton",
+            command=self._run_command_line,
+        ).pack(side="left")
+
+        self._refresh_command_list()
 
     def _build_settings_panel(self, panel: ttk.Frame) -> None:
         ttk.Label(panel, text="Settings", style="Void.TLabel").pack(anchor="w")
