@@ -37,8 +37,8 @@ class ToolCheckResult:
     """Result of validating an external tool."""
 
     name: str
-    label: str | None = None
     available: bool
+    label: str | None = None
     path: str | None = None
     version: str | None = None
     error: dict[str, str] = field(default_factory=dict)
