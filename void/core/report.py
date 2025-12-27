@@ -15,6 +15,7 @@ from .display import DisplayAnalyzer
 from .logging import logger
 from .network import NetworkAnalyzer
 from .performance import PerformanceAnalyzer
+from .privacy import redact_event_data
 
 
 class ReportGenerator:
@@ -73,6 +74,8 @@ class ReportGenerator:
             'system': len(AppManager.list_apps(device_id, 'system')),
             'user': len(AppManager.list_apps(device_id, 'user')),
         }
+
+        report = redact_event_data(report)
 
         # Save as JSON
         if progress_callback:

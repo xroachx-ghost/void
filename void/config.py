@@ -84,6 +84,14 @@ class Config:
     SMART_SUGGESTIONS = True
     SMART_SAFE_GUARDS = True
 
+    # Privacy controls
+    COLLECT_IMEI = True
+    COLLECT_SERIAL = True
+    COLLECT_FINGERPRINT = True
+    STORE_IMEI = True
+    STORE_SERIAL = True
+    STORE_FINGERPRINT = True
+
     # Crypto
     ALLOW_INSECURE_CRYPTO = False
 
@@ -99,6 +107,12 @@ class Config:
         "smart_auto_doctor": SMART_AUTO_DOCTOR,
         "smart_suggestions": SMART_SUGGESTIONS,
         "smart_safe_guards": SMART_SAFE_GUARDS,
+        "collect_imei": COLLECT_IMEI,
+        "collect_serial": COLLECT_SERIAL,
+        "collect_fingerprint": COLLECT_FINGERPRINT,
+        "store_imei": STORE_IMEI,
+        "store_serial": STORE_SERIAL,
+        "store_fingerprint": STORE_FINGERPRINT,
     }
 
     @classmethod
@@ -172,6 +186,12 @@ class Config:
             "smart_auto_doctor": bool(merged.get("smart_auto_doctor", cls.SMART_AUTO_DOCTOR)),
             "smart_suggestions": bool(merged.get("smart_suggestions", cls.SMART_SUGGESTIONS)),
             "smart_safe_guards": bool(merged.get("smart_safe_guards", cls.SMART_SAFE_GUARDS)),
+            "collect_imei": bool(merged.get("collect_imei", cls.COLLECT_IMEI)),
+            "collect_serial": bool(merged.get("collect_serial", cls.COLLECT_SERIAL)),
+            "collect_fingerprint": bool(merged.get("collect_fingerprint", cls.COLLECT_FINGERPRINT)),
+            "store_imei": bool(merged.get("store_imei", cls.STORE_IMEI)),
+            "store_serial": bool(merged.get("store_serial", cls.STORE_SERIAL)),
+            "store_fingerprint": bool(merged.get("store_fingerprint", cls.STORE_FINGERPRINT)),
         }
 
         cls.ENABLE_AUTO_BACKUP = normalized["enable_auto_backup"]
@@ -185,6 +205,12 @@ class Config:
         cls.SMART_AUTO_DOCTOR = normalized["smart_auto_doctor"]
         cls.SMART_SUGGESTIONS = normalized["smart_suggestions"]
         cls.SMART_SAFE_GUARDS = normalized["smart_safe_guards"]
+        cls.COLLECT_IMEI = normalized["collect_imei"]
+        cls.COLLECT_SERIAL = normalized["collect_serial"]
+        cls.COLLECT_FINGERPRINT = normalized["collect_fingerprint"]
+        cls.STORE_IMEI = normalized["store_imei"]
+        cls.STORE_SERIAL = normalized["store_serial"]
+        cls.STORE_FINGERPRINT = normalized["store_fingerprint"]
 
         return normalized
 
