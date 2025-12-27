@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import platform
 import re
 from typing import Any, Dict, List, Tuple
 
@@ -415,6 +416,17 @@ class DeviceDetector:
         """Detect USB devices in low-level modes (EDL/preloader/download)."""
         devices: List[Dict[str, Any]] = []
         errors: List[Dict[str, Any]] = []
+        system = platform.system()
+        if system != "Linux":
+            errors.append(
+                {
+                    "source": "usb",
+                    "code": "unsupported",
+                    "message": f"USB detection is unsupported on {system}.",
+                    "details": {"platform": system},
+                }
+            )
+            return devices, errors
         code, stdout, stderr = SafeSubprocess.run(["lsusb"])
         if code == 0:
             for line in stdout.strip().split("\n"):
