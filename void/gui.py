@@ -2009,12 +2009,17 @@ class VoidGUI:
                     result = func(*args)
                 summary = self._summarize_result(label, result)
                 self._log(summary)
-                self.status_var.set(summary)
+                self.root.after(0, lambda: self.status_var.set(summary))
                 if self._is_failed_result(result):
                     self._show_task_error(label, result=result)
             except Exception as exc:
                 self._log(f"{label} failed: {exc}", level="ERROR")
-                self.status_var.set(f"{label} failed. See log for details.")
+                self.root.after(
+                    0,
+                    lambda: self.status_var.set(
+                        f"{label} failed. See log for details."
+                    ),
+                )
                 self._show_task_error(label, exc=exc)
             finally:
                 self._stop_progress()
