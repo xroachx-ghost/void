@@ -38,6 +38,7 @@ from .core.display import DisplayAnalyzer
 from .core.edl import edl_dump, edl_flash
 from .core.files import FileManager
 from .core.frp import FRPEngine
+from .core.browser import BrowserAutomation
 from .core.gemini import GeminiAgent
 from .core.logcat import LogcatViewer
 from .core.monitor import monitor
@@ -188,6 +189,15 @@ class VoidGUI:
         self.assistant_status_var = tk.StringVar(value="Gemini assistant idle.")
         self.assistant_task_list: Optional[tk.Listbox] = None
         self.assistant_tasks: List[Dict[str, str]] = []
+        self.browser_panel: Optional[ttk.Frame] = None
+        self.browser: Optional[BrowserAutomation] = None
+        self.browser_url_var = tk.StringVar(value="https://")
+        self.browser_x_var = tk.StringVar(value="0")
+        self.browser_y_var = tk.StringVar(value="0")
+        self.browser_text_var = tk.StringVar(value="")
+        self.browser_status_var = tk.StringVar(value="Browser not launched.")
+        self.browser_confirm_var = tk.BooleanVar(value=True)
+        self.browser_log: Optional[scrolledtext.ScrolledText] = None
         self._app_config: Dict[str, Any] = self._load_app_config()
         self.gemini_api_key = str(self._app_config.get("gemini_api_key", "") or "")
         self.gemini_model_var = tk.StringVar(
@@ -1312,6 +1322,7 @@ class VoidGUI:
         help_panel = ttk.Frame(self.notebook, style="Void.TFrame")
         plugins_panel = ttk.Frame(self.notebook, style="Void.TFrame")
         self.assistant_panel = ttk.Frame(self.notebook, style="Void.TFrame")
+        self.browser_panel = ttk.Frame(self.notebook, style="Void.TFrame")
         self.troubleshooting_panel = ttk.Frame(self.notebook, style="Void.TFrame")
         settings_panel = ttk.Frame(self.notebook, style="Void.TFrame")
         self.notebook.add(dashboard, text="Dashboard")
@@ -1329,6 +1340,7 @@ class VoidGUI:
         self.notebook.add(logs, text="Operations Log")
         self.notebook.add(command_panel, text="Command Center")
         self.notebook.add(plugins_panel, text="Plugins")
+        self.notebook.add(self.browser_panel, text="Browser")
         self.notebook.add(self.assistant_panel, text="Assistant")
         self.notebook.add(help_panel, text="What Does This Do?")
         self.notebook.add(settings_panel, text="Settings")
@@ -1513,6 +1525,8 @@ class VoidGUI:
         self._build_data_exports_panel(data_exports_panel)
         self._build_db_tools_panel(db_tools_panel)
         self._build_command_panel(command_panel)
+        if self.browser_panel is not None:
+            self._build_browser_panel(self.browser_panel)
 
         ttk.Label(help_panel, text="Action Details", style="Void.TLabel").pack(anchor="w")
         ttk.Label(
@@ -3206,6 +3220,145 @@ class VoidGUI:
 
         self._refresh_command_list()
 
+    def _build_browser_panel(self, panel: ttk.Frame) -> None:
+        ttk.Label(panel, text="Browser Automation", style="Void.TLabel").pack(anchor="w")
+        description = (
+            "Launch a headed browser session and drive navigation, clicks, and typing. "
+            "Automated actions require confirmation by default."
+        )
+        ttk.Label(
+            panel,
+            text=description,
+            style="Void.TLabel",
+            wraplength=640,
+            justify="left",
+        ).pack(anchor="w", pady=(4, 8))
+
+        controls_card = ttk.Frame(panel, style="Void.Card.TFrame")
+        controls_card.pack(fill="x", pady=(0, 12))
+        controls_card.configure(padding=12)
+
+        toolbar = ttk.Frame(controls_card, style="Void.TFrame")
+        toolbar.pack(fill="x")
+        ttk.Button(
+            toolbar,
+            text="Launch Browser",
+            style="Void.TButton",
+            command=self._launch_browser,
+        ).pack(side="left", padx=(0, 8))
+        ttk.Button(
+            toolbar,
+            text="Close Browser",
+            style="Void.TButton",
+            command=self._close_browser,
+        ).pack(side="left", padx=(0, 8))
+        ttk.Button(
+            toolbar,
+            text="Screenshot",
+            style="Void.TButton",
+            command=self._browser_screenshot,
+        ).pack(side="left")
+        ttk.Checkbutton(
+            toolbar,
+            text="Require confirmations",
+            variable=self.browser_confirm_var,
+            style="Void.TCheckbutton",
+        ).pack(side="right")
+
+        ttk.Label(
+            controls_card,
+            textvariable=self.browser_status_var,
+            style="Void.TLabel",
+        ).pack(anchor="w", pady=(8, 0))
+
+        nav_row = ttk.Frame(controls_card, style="Void.TFrame")
+        nav_row.pack(fill="x", pady=(10, 0))
+        ttk.Label(nav_row, text="URL", style="Void.TLabel").pack(side="left")
+        url_entry = tk.Entry(
+            nav_row,
+            textvariable=self.browser_url_var,
+            bg=self.theme["panel_alt"],
+            fg=self.theme["text"],
+            insertbackground=self.theme["accent"],
+            relief="flat",
+            font=("Consolas", 10),
+        )
+        url_entry.pack(side="left", fill="x", expand=True, padx=(8, 6))
+        ttk.Button(
+            nav_row,
+            text="Open",
+            style="Void.TButton",
+            command=self._browser_open,
+        ).pack(side="left")
+
+        action_row = ttk.Frame(controls_card, style="Void.TFrame")
+        action_row.pack(fill="x", pady=(10, 0))
+        ttk.Label(action_row, text="Click", style="Void.TLabel").pack(side="left")
+        x_entry = tk.Entry(
+            action_row,
+            textvariable=self.browser_x_var,
+            bg=self.theme["panel_alt"],
+            fg=self.theme["text"],
+            insertbackground=self.theme["accent"],
+            relief="flat",
+            font=("Consolas", 10),
+            width=8,
+        )
+        x_entry.pack(side="left", padx=(6, 4))
+        y_entry = tk.Entry(
+            action_row,
+            textvariable=self.browser_y_var,
+            bg=self.theme["panel_alt"],
+            fg=self.theme["text"],
+            insertbackground=self.theme["accent"],
+            relief="flat",
+            font=("Consolas", 10),
+            width=8,
+        )
+        y_entry.pack(side="left", padx=(0, 8))
+        ttk.Button(
+            action_row,
+            text="Click",
+            style="Void.TButton",
+            command=self._browser_click,
+        ).pack(side="left")
+
+        type_row = ttk.Frame(controls_card, style="Void.TFrame")
+        type_row.pack(fill="x", pady=(10, 0))
+        ttk.Label(type_row, text="Type", style="Void.TLabel").pack(side="left")
+        type_entry = tk.Entry(
+            type_row,
+            textvariable=self.browser_text_var,
+            bg=self.theme["panel_alt"],
+            fg=self.theme["text"],
+            insertbackground=self.theme["accent"],
+            relief="flat",
+            font=("Consolas", 10),
+        )
+        type_entry.pack(side="left", fill="x", expand=True, padx=(8, 6))
+        ttk.Button(
+            type_row,
+            text="Send",
+            style="Void.TButton",
+            command=self._browser_type,
+        ).pack(side="left")
+
+        log_card = ttk.Frame(panel, style="Void.Card.TFrame")
+        log_card.pack(fill="both", expand=True)
+        log_card.configure(padding=12)
+        ttk.Label(log_card, text="Browser Action Log", style="Void.TLabel").pack(anchor="w")
+        self.browser_log = scrolledtext.ScrolledText(
+            log_card,
+            height=12,
+            bg=self.theme["panel_alt"],
+            fg=self.theme["text"],
+            insertbackground=self.theme["accent"],
+            font=("Consolas", 10),
+            state="disabled",
+            wrap="word",
+        )
+        self.browser_log.pack(fill="both", expand=True, pady=(6, 0))
+
     def _build_assistant_panel(self, panel: ttk.Frame) -> None:
         ttk.Label(panel, text="Gemini Assistant", style="Void.TLabel").pack(anchor="w")
 
@@ -3654,11 +3807,172 @@ class VoidGUI:
             self.assistant_status_var.set("Tasks updated.")
         else:
             self.assistant_status_var.set("Gemini responded without task updates.")
+        structured = {}
+        if isinstance(result.raw, dict):
+            structured = result.raw.get("structured") or {}
+        if isinstance(structured, dict):
+            actions = structured.get("browser_actions") or []
+            if structured.get("browser_action"):
+                actions = [structured.get("browser_action")]
+            if isinstance(actions, dict):
+                actions = [actions]
+            if actions:
+                for action in actions:
+                    if isinstance(action, dict):
+                        self._dispatch_browser_command(action, source="Gemini")
 
     def _browse_open_path(self, target: tk.StringVar) -> None:
         path = filedialog.askopenfilename()
         if path:
             target.set(path)
+
+    def _log_browser(self, message: str) -> None:
+        if not self.browser_log:
+            return
+        timestamp = datetime.now().strftime("%H:%M:%S")
+        self.browser_log.configure(state="normal")
+        self.browser_log.insert(tk.END, f"[{timestamp}] {message}\n")
+        self.browser_log.configure(state="disabled")
+        self.browser_log.see(tk.END)
+
+    def _confirm_browser_action(self, action: str, detail: str, source: str) -> bool:
+        if not self.browser_confirm_var.get():
+            return True
+        prompt = (
+            f"{source} requested to {action}.\n"
+            f"Details: {detail}\n\n"
+            "Proceed with this automated browser action?"
+        )
+        return messagebox.askyesno("Confirm Browser Action", prompt)
+
+    def _ensure_browser(self) -> bool:
+        if self.browser and self.browser.is_active:
+            return True
+        try:
+            if not self.browser:
+                self.browser = BrowserAutomation(headless=False)
+            self.browser.launch()
+        except RuntimeError as exc:
+            messagebox.showwarning("Void", str(exc))
+            self.browser_status_var.set("Browser unavailable.")
+            return False
+        except Exception as exc:
+            messagebox.showwarning("Void", f"Unable to launch browser: {exc}")
+            self.browser_status_var.set("Browser launch failed.")
+            return False
+        self.browser_status_var.set("Browser launched.")
+        self._log_browser("Browser launched in headed mode.")
+        return True
+
+    def _launch_browser(self) -> None:
+        if self._ensure_browser():
+            self.browser_status_var.set("Browser ready.")
+
+    def _close_browser(self) -> None:
+        if not self.browser:
+            self.browser_status_var.set("Browser not running.")
+            return
+        self.browser.close()
+        self.browser_status_var.set("Browser closed.")
+        self._log_browser("Browser session closed.")
+
+    def _browser_open(self, url: Optional[str] = None, source: str = "User") -> None:
+        target_url = (url or self.browser_url_var.get()).strip()
+        if not target_url:
+            messagebox.showwarning("Void", "Enter a URL to open.")
+            return
+        if not self._ensure_browser():
+            return
+        if not self._confirm_browser_action("open a URL", target_url, source):
+            self._log_browser(f"{source} canceled navigation to {target_url}.")
+            return
+        self.browser.open(target_url)
+        self.browser_status_var.set(f"Opened {target_url}")
+        self._log_browser(f"Opened URL: {target_url}")
+
+    def _browser_click(
+        self,
+        x_value: Optional[int] = None,
+        y_value: Optional[int] = None,
+        source: str = "User",
+    ) -> None:
+        if not self._ensure_browser():
+            return
+        try:
+            x = int(x_value) if x_value is not None else int(self.browser_x_var.get().strip())
+            y = int(y_value) if y_value is not None else int(self.browser_y_var.get().strip())
+        except ValueError:
+            messagebox.showwarning("Void", "Enter numeric X/Y coordinates for click.")
+            return
+        detail = f"x={x}, y={y}"
+        if not self._confirm_browser_action("click", detail, source):
+            self._log_browser(f"{source} canceled click at {detail}.")
+            return
+        self.browser.click(x, y)
+        self.browser_status_var.set(f"Clicked at {x}, {y}")
+        self._log_browser(f"Clicked at {x}, {y}")
+
+    def _browser_type(self, text: Optional[str] = None, source: str = "User") -> None:
+        if not self._ensure_browser():
+            return
+        payload = text if text is not None else self.browser_text_var.get()
+        payload = payload or ""
+        if not payload.strip():
+            messagebox.showwarning("Void", "Enter text to type.")
+            return
+        detail = payload if len(payload) < 120 else f"{payload[:120]}..."
+        if not self._confirm_browser_action("type text", detail, source):
+            self._log_browser(f"{source} canceled typing.")
+            return
+        self.browser.type(payload)
+        self.browser_status_var.set("Typed text into page.")
+        self._log_browser(f"Typed text ({len(payload)} chars).")
+
+    def _browser_screenshot(self, path: Optional[str] = None) -> None:
+        if not self._ensure_browser():
+            return
+        if path is None:
+            path = filedialog.asksaveasfilename(
+                defaultextension=".png",
+                filetypes=[("PNG image", "*.png")],
+            )
+        if not path:
+            return
+        saved_path = self.browser.screenshot(path)
+        self.browser_status_var.set(f"Screenshot saved: {saved_path}")
+        self._log_browser(f"Saved screenshot to {saved_path}")
+
+    def _dispatch_browser_command(
+        self,
+        command: Dict[str, Any],
+        source: str = "Gemini",
+    ) -> Dict[str, Any]:
+        action = str(command.get("action") or command.get("command") or "").strip().lower()
+        if action in {"open", "navigate"}:
+            url = str(command.get("url") or command.get("target") or "").strip()
+            self._browser_open(url=url, source=source)
+            return {"success": True, "action": "open", "url": url}
+        if action == "click":
+            x = command.get("x")
+            y = command.get("y")
+            self._browser_click(x_value=x, y_value=y, source=source)
+            return {"success": True, "action": "click", "x": x, "y": y}
+        if action == "type":
+            text = str(command.get("text") or "")
+            self._browser_type(text=text, source=source)
+            return {"success": True, "action": "type"}
+        if action == "screenshot":
+            path = command.get("path")
+            self._browser_screenshot(path=path)
+            return {"success": True, "action": "screenshot", "path": path}
+        if action == "launch":
+            self._launch_browser()
+            return {"success": True, "action": "launch"}
+        if action == "close":
+            self._close_browser()
+            return {"success": True, "action": "close"}
+        self._log_browser(f"Unknown browser command: {command}")
+        return {"success": False, "error": "Unknown action", "action": action}
 
     def _browse_save_path(self, target: tk.StringVar) -> None:
         path = filedialog.asksaveasfilename()
