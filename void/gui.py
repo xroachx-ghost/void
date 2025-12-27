@@ -21,6 +21,7 @@ from typing import Any, Callable, Dict, List, Optional
 
 from .config import Config
 from .core.apps import AppManager
+from .core.assets import add_firehose_source, collect_required_assets, perform_asset_action
 from .core.backup import AutoBackup
 from .core.chipsets.base import ChipsetActionResult
 from .core.chipsets.dispatcher import (
@@ -165,6 +166,10 @@ class VoidGUI:
         self.progress_var = tk.StringVar(value="")
         self.diagnostics_status_var: Optional[tk.StringVar] = None
         self.diagnostics_links_frame: Optional[ttk.Frame] = None
+        self.download_status_var = tk.StringVar(value="")
+        self.download_checklist_frame: Optional[ttk.Frame] = None
+        self.download_item_vars: Dict[str, tk.BooleanVar] = {}
+        self._download_items: List[Dict[str, Any]] = []
         self.edl_links_frame: Optional[ttk.Frame] = None
         self.plugin_metadata: List[PluginMetadata] = []
         self._splash_window: Optional[tk.Toplevel] = None
@@ -520,6 +525,111 @@ class VoidGUI:
                         style="Void.TButton",
                         command=lambda target=url: webbrowser.open(target),
                     ).pack(anchor="w", pady=(2, 0))
+
+    def _collect_download_items(self) -> List[Dict[str, Any]]:
+        items = collect_required_assets()
+        self._download_items = items
+        return items
+
+    def _refresh_download_checklist(self) -> None:
+        if self.download_checklist_frame is None:
+            return
+        for child in self.download_checklist_frame.winfo_children():
+            child.destroy()
+        self.download_item_vars = {}
+        items = self._collect_download_items()
+        missing_items = 0
+        for item in items:
+            status = str(item.get("status", "info"))
+            icon = self._diagnostic_icon(status)
+            label = str(item.get("label", "Item"))
+            detail = str(item.get("detail", ""))
+            action = str(item.get("action", "manual"))
+            selectable = action in {"download", "generate", "import"} and status != "pass"
+            if status != "pass":
+                missing_items += 1
+            var = tk.BooleanVar(value=False)
+            self.download_item_vars[str(item.get("key", label))] = var
+            check = ttk.Checkbutton(
+                self.download_checklist_frame,
+                text=f"{icon} {label} — {detail}",
+                variable=var,
+                style="Void.TCheckbutton",
+                state="normal" if selectable else "disabled",
+            )
+            check.pack(anchor="w", pady=(2, 0))
+            links = item.get("links") or []
+            if links:
+                link_frame = ttk.Frame(self.download_checklist_frame, style="Void.TFrame")
+                link_frame.pack(anchor="w", padx=(22, 0), pady=(0, 4))
+                for link in links:
+                    link_label = link.get("label", "Open link")
+                    url = link.get("url")
+                    if not url:
+                        continue
+                    ttk.Button(
+                        link_frame,
+                        text=link_label,
+                        style="Void.TButton",
+                        command=lambda target=url: webbrowser.open(target),
+                    ).pack(side="left", padx=(0, 8))
+        if missing_items:
+            self.download_status_var.set(
+                f"{missing_items} item(s) missing. Select to download or generate."
+            )
+        else:
+            self.download_status_var.set("All required assets are available.")
+
+    def _apply_download_actions(self) -> None:
+        selected = [
+            key for key, var in self.download_item_vars.items() if var.get()
+        ]
+        if not selected:
+            self.download_status_var.set("Select at least one missing item to download or generate.")
+            return
+
+        self._run_task("Asset downloads", self._run_download_actions, selected)
+
+    def _run_download_actions(self, selections: List[str]) -> Dict[str, Any]:
+        results: List[Dict[str, Any]] = []
+        for key in selections:
+            result = perform_asset_action(key)
+            results.append(result)
+            message = result.get("message", "Action complete.")
+            detail = result.get("detail")
+            if detail:
+                message = f"{message} {detail}"
+            self._log(message)
+
+        success = all(result.get("success") for result in results)
+        failures = [result for result in results if not result.get("success")]
+        if failures:
+            summary = failures[0].get("message", "One or more downloads failed.")
+        else:
+            summary = "Selected assets are ready."
+        self.root.after(0, self._refresh_download_checklist)
+        self.root.after(0, lambda: self.download_status_var.set(summary))
+        return {"success": success, "message": summary}
+
+    def _prompt_firehose_url(self) -> None:
+        try:
+            from tkinter import simpledialog
+        except ImportError:
+            messagebox.showwarning("Void", "Tkinter simpledialog is not available.")
+            return
+        url = simpledialog.askstring(
+            "Add Firehose URL",
+            "Paste a firehose download URL (http/https):",
+            parent=self.root,
+        )
+        if not url:
+            return
+        result = add_firehose_source(url)
+        if result.get("success"):
+            self.download_status_var.set("Firehose URL added. Refreshing checklist.")
+            self._refresh_download_checklist()
+        else:
+            messagebox.showwarning("Void", result.get("message", "Unable to add URL."))
 
     def _format_tool_checks(self, results: List[ToolCheckResult], label_prefix: str) -> List[Dict[str, Any]]:
         items: List[Dict[str, Any]] = []
@@ -1428,10 +1538,57 @@ class VoidGUI:
             command=self._update_diagnostics,
         ).pack(anchor="w", pady=(8, 0))
 
+        downloads_card = ttk.Frame(self.troubleshooting_panel, style="Void.Card.TFrame")
+        downloads_card.pack(fill="x", pady=(0, 12))
+        downloads_card.configure(padding=12)
+        ttk.Label(
+            downloads_card,
+            text="Required Files & Downloads",
+            style="Void.TLabel",
+        ).pack(anchor="w")
+        ttk.Label(
+            downloads_card,
+            text=(
+                "Select missing assets to download or import. Firehose programmers must come from OEM sources."
+            ),
+            style="Void.TLabel",
+            wraplength=600,
+            justify="left",
+        ).pack(anchor="w", pady=(4, 6))
+        self.download_checklist_frame = ttk.Frame(downloads_card, style="Void.TFrame")
+        self.download_checklist_frame.pack(fill="x")
+        ttk.Label(
+            downloads_card,
+            textvariable=self.download_status_var,
+            style="Void.TLabel",
+            wraplength=600,
+        ).pack(anchor="w", pady=(6, 0))
+        downloads_actions = ttk.Frame(downloads_card, style="Void.TFrame")
+        downloads_actions.pack(anchor="w", pady=(6, 0))
+        ttk.Button(
+            downloads_actions,
+            text="Download/Import Selected",
+            style="Void.TButton",
+            command=self._apply_download_actions,
+        ).pack(side="left", padx=(0, 8))
+        ttk.Button(
+            downloads_actions,
+            text="Refresh Checklist",
+            style="Void.TButton",
+            command=self._refresh_download_checklist,
+        ).pack(side="left")
+        ttk.Button(
+            downloads_actions,
+            text="Add Firehose URL",
+            style="Void.TButton",
+            command=self._prompt_firehose_url,
+        ).pack(side="left", padx=(8, 0))
+
         self._build_settings_panel(settings_panel)
         self._sync_action_buttons()
 
         self._update_diagnostics()
+        self._refresh_download_checklist()
         troubleshoot_text = (
             "If no devices are detected:\n"
             "• Confirm adb/fastboot are installed and on PATH.\n"
