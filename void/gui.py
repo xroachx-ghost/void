@@ -189,6 +189,7 @@ class VoidGUI:
         self.assistant_status_var = tk.StringVar(value="Gemini assistant idle.")
         self.assistant_task_list: Optional[tk.Listbox] = None
         self.assistant_tasks: List[Dict[str, str]] = []
+        self.assistant_history: List[Dict[str, Any]] = []
         self.browser_panel: Optional[ttk.Frame] = None
         self.browser: Optional[BrowserAutomation] = None
         self.browser_url_var = tk.StringVar(value="https://")
@@ -3730,6 +3731,7 @@ class VoidGUI:
 
     def _clear_assistant_tasks(self) -> None:
         self.assistant_tasks = []
+        self.assistant_history = []
         if self.assistant_task_list:
             self.assistant_task_list.delete(0, tk.END)
         self.assistant_status_var.set("Task list cleared.")
@@ -3777,6 +3779,7 @@ class VoidGUI:
 
         self.assistant_input_var.set("")
         self._append_assistant_chat("You", prompt)
+        self._append_assistant_history("user", prompt)
         self.assistant_status_var.set("Contacting Gemini...")
 
         def runner() -> None:
@@ -3790,7 +3793,11 @@ class VoidGUI:
                 extra_payload=extra_payload,
                 generation_config=generation_config,
             )
-            result = agent.generate(prompt, self.assistant_tasks)
+            result = agent.generate(
+                prompt,
+                self.assistant_tasks,
+                history=self.assistant_history,
+            )
             self.root.after(0, lambda: self._handle_gemini_result(result))
 
         threading.Thread(target=runner, daemon=True).start()
@@ -3802,6 +3809,7 @@ class VoidGUI:
             return
         if result.response:
             self._append_assistant_chat("Gemini", result.response)
+            self._append_assistant_history("model", result.response)
         if result.tasks:
             self._update_assistant_tasks(result.tasks)
             self.assistant_status_var.set("Tasks updated.")
@@ -3820,6 +3828,12 @@ class VoidGUI:
                 for action in actions:
                     if isinstance(action, dict):
                         self._dispatch_browser_command(action, source="Gemini")
+
+    def _append_assistant_history(self, role: str, message: str) -> None:
+        message = (message or "").strip()
+        if not message:
+            return
+        self.assistant_history.append({"role": role, "parts": [{"text": message}]})
 
     def _browse_open_path(self, target: tk.StringVar) -> None:
         path = filedialog.askopenfilename()
