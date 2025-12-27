@@ -57,7 +57,7 @@ def ensure_terms_acceptance_cli() -> bool:
     return True
 
 
-def ensure_terms_acceptance_gui(messagebox) -> bool:
+def ensure_terms_acceptance_gui(messagebox, parent=None) -> bool:
     """Require acceptance of Terms & Conditions before use (GUI)."""
     terms_file = terms_path()
     if terms_file.exists():
@@ -71,6 +71,7 @@ def ensure_terms_acceptance_gui(messagebox) -> bool:
     accepted = messagebox.askyesno(
         "Terms & Conditions",
         f"{TERMS_TEXT}\n\nDo you accept the Terms & Conditions?",
+        parent=parent,
     )
     if not accepted:
         return False
