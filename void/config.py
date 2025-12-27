@@ -84,6 +84,10 @@ class Config:
     SMART_SUGGESTIONS = True
     SMART_SAFE_GUARDS = True
 
+    # Gemini assistant (GUI)
+    GEMINI_MODEL = "gemini-1.5-flash"
+    GEMINI_API_BASE = "https://generativelanguage.googleapis.com/v1beta/models"
+
     # Privacy controls
     COLLECT_IMEI = True
     COLLECT_SERIAL = True

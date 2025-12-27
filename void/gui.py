@@ -38,6 +38,7 @@ from .core.display import DisplayAnalyzer
 from .core.edl import edl_dump, edl_flash
 from .core.files import FileManager
 from .core.frp import FRPEngine
+from .core.gemini import GeminiAgent
 from .core.logcat import LogcatViewer
 from .core.monitor import monitor
 from .core.network import NetworkTools
@@ -181,6 +182,16 @@ class VoidGUI:
         self.command_catalog: List[CommandInfo] = list(self.cli_bridge.command_catalog.values())
         self.filtered_command_catalog: List[CommandInfo] = []
         self.command_list: Optional[tk.Listbox] = None
+        self.assistant_panel: Optional[ttk.Frame] = None
+        self.assistant_chat: Optional[scrolledtext.ScrolledText] = None
+        self.assistant_input_var = tk.StringVar(value="")
+        self.assistant_status_var = tk.StringVar(value="Gemini assistant idle.")
+        self.assistant_task_list: Optional[tk.Listbox] = None
+        self.assistant_tasks: List[Dict[str, str]] = []
+        self.gemini_api_key = str(self._app_config.get("gemini_api_key", "") or "")
+        self.gemini_model_var = tk.StringVar(
+            value=str(self._app_config.get("gemini_model", Config.GEMINI_MODEL))
+        )
         self._splash_window: Optional[tk.Toplevel] = None
         self._splash_canvas: Optional[tk.Canvas] = None
         self._splash_step = 0
@@ -1217,6 +1228,10 @@ class VoidGUI:
         app_menu.add_command(label="Exit", command=self.root.quit)
         menu.add_cascade(label="Void", menu=app_menu)
 
+        window_menu = tk.Menu(menu, tearoff=0, bg=self.theme["bg"], fg=self.theme["text"])
+        window_menu.add_command(label="Gemini Assistant", command=self._open_assistant_panel)
+        menu.add_cascade(label="Window", menu=window_menu)
+
         body = ttk.Frame(self.root, style="Void.TFrame")
         body.pack(fill="both", expand=True, padx=20, pady=10)
 
@@ -1286,6 +1301,7 @@ class VoidGUI:
         command_panel = ttk.Frame(self.notebook, style="Void.TFrame")
         help_panel = ttk.Frame(self.notebook, style="Void.TFrame")
         plugins_panel = ttk.Frame(self.notebook, style="Void.TFrame")
+        self.assistant_panel = ttk.Frame(self.notebook, style="Void.TFrame")
         self.troubleshooting_panel = ttk.Frame(self.notebook, style="Void.TFrame")
         settings_panel = ttk.Frame(self.notebook, style="Void.TFrame")
         self.notebook.add(dashboard, text="Dashboard")
@@ -1303,9 +1319,11 @@ class VoidGUI:
         self.notebook.add(logs, text="Operations Log")
         self.notebook.add(command_panel, text="Command Center")
         self.notebook.add(plugins_panel, text="Plugins")
+        self.notebook.add(self.assistant_panel, text="Assistant")
         self.notebook.add(help_panel, text="What Does This Do?")
         self.notebook.add(settings_panel, text="Settings")
         self.notebook.add(self.troubleshooting_panel, text="Troubleshooting")
+        self.notebook.bind("<<NotebookTabChanged>>", self._on_tab_change)
 
         ttk.Label(dashboard, text="Selected Device", style="Void.TLabel").pack(anchor="w")
         ttk.Label(dashboard, textvariable=self.selected_device_var, style="Void.TLabel").pack(
@@ -1597,6 +1615,8 @@ class VoidGUI:
         ).pack(side="left", padx=(8, 0))
 
         self._build_settings_panel(settings_panel)
+        if self.assistant_panel is not None:
+            self._build_assistant_panel(self.assistant_panel)
         self._sync_action_buttons()
 
         self._update_diagnostics()
@@ -3176,6 +3196,116 @@ class VoidGUI:
 
         self._refresh_command_list()
 
+    def _build_assistant_panel(self, panel: ttk.Frame) -> None:
+        ttk.Label(panel, text="Gemini Assistant", style="Void.TLabel").pack(anchor="w")
+
+        description = (
+            "Chat with Gemini to plan workflows. The assistant maintains a task list "
+            "and updates it as you refine your goal."
+        )
+        ttk.Label(
+            panel,
+            text=description,
+            style="Void.TLabel",
+            wraplength=600,
+            justify="left",
+        ).pack(anchor="w", pady=(4, 8))
+
+        header = ttk.Frame(panel, style="Void.TFrame")
+        header.pack(fill="x", pady=(0, 8))
+        ttk.Label(header, text="Model", style="Void.TLabel").pack(side="left")
+        model_entry = tk.Entry(
+            header,
+            textvariable=self.gemini_model_var,
+            bg=self.theme["panel_alt"],
+            fg=self.theme["text"],
+            insertbackground=self.theme["accent"],
+            relief="flat",
+            font=("Consolas", 10),
+            width=24,
+        )
+        model_entry.pack(side="left", padx=(8, 6))
+        ttk.Button(
+            header,
+            text="Save Model",
+            style="Void.TButton",
+            command=self._save_gemini_model,
+        ).pack(side="left")
+        ttk.Button(
+            header,
+            text="Set API Key",
+            style="Void.TButton",
+            command=self._prompt_gemini_api_key,
+        ).pack(side="left", padx=(8, 0))
+
+        content_row = ttk.Frame(panel, style="Void.TFrame")
+        content_row.pack(fill="both", expand=True)
+
+        tasks_card = ttk.Frame(content_row, style="Void.Card.TFrame")
+        tasks_card.pack(side="left", fill="y", padx=(0, 12))
+        tasks_card.configure(padding=12)
+        ttk.Label(tasks_card, text="Agent Tasks", style="Void.TLabel").pack(anchor="w")
+        self.assistant_task_list = tk.Listbox(
+            tasks_card,
+            height=12,
+            width=28,
+            bg=self.theme["panel_alt"],
+            fg=self.theme["accent"],
+            selectbackground=self.theme["button_active"],
+            selectforeground=self.theme["text"],
+            highlightthickness=0,
+            font=("Consolas", 10),
+        )
+        self.assistant_task_list.pack(fill="both", expand=True, pady=(6, 0))
+        ttk.Button(
+            tasks_card,
+            text="Clear Tasks",
+            style="Void.TButton",
+            command=self._clear_assistant_tasks,
+        ).pack(anchor="w", pady=(8, 0))
+
+        chat_card = ttk.Frame(content_row, style="Void.Card.TFrame")
+        chat_card.pack(side="left", fill="both", expand=True)
+        chat_card.configure(padding=12)
+        ttk.Label(chat_card, text="Chat", style="Void.TLabel").pack(anchor="w")
+        self.assistant_chat = scrolledtext.ScrolledText(
+            chat_card,
+            height=12,
+            bg=self.theme["panel_alt"],
+            fg=self.theme["text"],
+            insertbackground=self.theme["accent"],
+            relief="flat",
+            font=("Consolas", 10),
+            wrap="word",
+        )
+        self.assistant_chat.pack(fill="both", expand=True, pady=(6, 8))
+        self.assistant_chat.configure(state="disabled")
+
+        input_row = ttk.Frame(chat_card, style="Void.TFrame")
+        input_row.pack(fill="x")
+        input_entry = tk.Entry(
+            input_row,
+            textvariable=self.assistant_input_var,
+            bg=self.theme["panel_alt"],
+            fg=self.theme["text"],
+            insertbackground=self.theme["accent"],
+            relief="flat",
+            font=("Consolas", 10),
+        )
+        input_entry.pack(side="left", fill="x", expand=True, padx=(0, 8))
+        input_entry.bind("<Return>", lambda _event: self._send_gemini_message())
+        ttk.Button(
+            input_row,
+            text="Send",
+            style="Void.TButton",
+            command=self._send_gemini_message,
+        ).pack(side="left")
+        ttk.Label(
+            chat_card,
+            textvariable=self.assistant_status_var,
+            style="Void.TLabel",
+        ).pack(anchor="w", pady=(8, 0))
+
     def _build_settings_panel(self, panel: ttk.Frame) -> None:
         ttk.Label(panel, text="Settings", style="Void.TLabel").pack(anchor="w")
 
@@ -3261,6 +3391,111 @@ class VoidGUI:
             text="Settings apply immediately to GUI actions.",
             style="Void.TLabel",
         ).pack(side="left", padx=(12, 0))
+
+    def _on_tab_change(self, _event=None) -> None:
+        if not self.notebook or not self.assistant_panel:
+            return
+        selected = self.notebook.nametowidget(self.notebook.select())
+        if selected == self.assistant_panel:
+            self._ensure_gemini_api_key()
+
+    def _open_assistant_panel(self) -> None:
+        if not self.notebook or not self.assistant_panel:
+            return
+        self.notebook.select(self.assistant_panel)
+        self._ensure_gemini_api_key()
+
+    def _ensure_gemini_api_key(self) -> None:
+        if self.gemini_api_key:
+            return
+        self._prompt_gemini_api_key()
+
+    def _prompt_gemini_api_key(self) -> None:
+        try:
+            from tkinter import simpledialog
+        except ImportError:
+            messagebox.showwarning("Void", "Tkinter simpledialog is not available.")
+            return
+        key = simpledialog.askstring(
+            "Gemini API Key",
+            "Enter your Gemini API key:",
+            parent=self.root,
+            show="*",
+        )
+        if not key:
+            return
+        self.gemini_api_key = key.strip()
+        self._app_config["gemini_api_key"] = self.gemini_api_key
+        self._save_app_config(self._app_config)
+        self.assistant_status_var.set("Gemini API key saved.")
+
+    def _save_gemini_model(self) -> None:
+        model = self.gemini_model_var.get().strip() or Config.GEMINI_MODEL
+        self.gemini_model_var.set(model)
+        self._app_config["gemini_model"] = model
+        self._save_app_config(self._app_config)
+        self.assistant_status_var.set(f"Gemini model saved: {model}")
+
+    def _clear_assistant_tasks(self) -> None:
+        self.assistant_tasks = []
+        if self.assistant_task_list:
+            self.assistant_task_list.delete(0, tk.END)
+        self.assistant_status_var.set("Task list cleared.")
+
+    def _append_assistant_chat(self, speaker: str, message: str) -> None:
+        if not self.assistant_chat:
+            return
+        self.assistant_chat.configure(state="normal")
+        timestamp = datetime.now().strftime("%H:%M")
+        self.assistant_chat.insert(tk.END, f"[{timestamp}] {speaker}: {message}\n\n")
+        self.assistant_chat.configure(state="disabled")
+        self.assistant_chat.see(tk.END)
+
+    def _update_assistant_tasks(self, tasks: List[Dict[str, str]]) -> None:
+        self.assistant_tasks = tasks
+        if not self.assistant_task_list:
+            return
+        self.assistant_task_list.delete(0, tk.END)
+        for task in tasks:
+            title = task.get("title", "Untitled")
+            status = task.get("status", "todo")
+            icon = {"todo": "⬜", "in_progress": "🔄", "done": "✅"}.get(status, "⬜")
+            self.assistant_task_list.insert(tk.END, f"{icon} {title}")
+
+    def _send_gemini_message(self) -> None:
+        prompt = self.assistant_input_var.get().strip()
+        if not prompt:
+            messagebox.showwarning("Void", "Enter a message for the assistant.")
+            return
+        if not self.gemini_api_key:
+            self._prompt_gemini_api_key()
+            if not self.gemini_api_key:
+                return
+
+        self.assistant_input_var.set("")
+        self._append_assistant_chat("You", prompt)
+        self.assistant_status_var.set("Contacting Gemini...")
+
+        def runner() -> None:
+            model = self.gemini_model_var.get().strip() or Config.GEMINI_MODEL
+            agent = GeminiAgent(self.gemini_api_key, model=model)
+            result = agent.generate(prompt, self.assistant_tasks)
+            self.root.after(0, lambda: self._handle_gemini_result(result))
+
+        threading.Thread(target=runner, daemon=True).start()
+
+    def _handle_gemini_result(self, result) -> None:
+        if not result.success:
+            self.assistant_status_var.set(result.message)
+            self._append_assistant_chat("Gemini", result.message)
+            return
+        if result.response:
+            self._append_assistant_chat("Gemini", result.response)
+        if result.tasks:
+            self._update_assistant_tasks(result.tasks)
+            self.assistant_status_var.set("Tasks updated.")
+        else:
+            self.assistant_status_var.set("Gemini responded without task updates.")
 
     def _browse_open_path(self, target: tk.StringVar) -> None:
         path = filedialog.askopenfilename()
