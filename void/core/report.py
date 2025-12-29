@@ -48,7 +48,14 @@ class ReportGenerator:
         if progress_callback:
             progress_callback("Collecting device info...")
         devices, _ = DeviceDetector.detect_all()
-        device_info = next((d for d in devices if d['id'] == device_id), {})
+        device_info = next((d for d in devices if d.get('id') == device_id), {})
+        if not device_info:
+            logger.log(
+                'warning',
+                'report',
+                f'Device metadata could not be resolved for {device_id}.',
+                device_id=device_id,
+            )
         report['sections']['device_info'] = device_info
 
         # Performance analysis
