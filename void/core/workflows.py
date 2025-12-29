@@ -5,6 +5,7 @@ from typing import Any, Callable, Dict, List, Optional
 
 from .device import DeviceDetector
 from .display import DisplayAnalyzer
+from .edl_toolkit import list_partitions_via_adb, read_partition_table
 from .logging import logger
 from .network import NetworkAnalyzer
 from .performance import PerformanceAnalyzer
@@ -132,6 +133,7 @@ class RepairWorkflow:
             "performance": performance,
             "network": network,
             "display": display,
+            "partitions": self._scan_partitions(init_result),
             "report": report_result,
         }
 
@@ -181,12 +183,39 @@ class RepairWorkflow:
             "report": scan_result.get("report"),
         }
 
+    def _scan_partitions(self, init_result: Dict[str, Any]) -> Dict[str, Any]:
+        mode = str(init_result.get("mode") or "").lower()
+        adb_available = init_result["prerequisites"].get("adb", {}).get("available", False)
+        results: Dict[str, Any] = {}
+        if adb_available and mode == "adb":
+            adb_partitions = list_partitions_via_adb(self.device_id)
+            results["adb"] = {
+                "success": adb_partitions.success,
+                "message": adb_partitions.message,
+                "data": adb_partitions.data,
+            }
+        if mode in {"edl", "download"}:
+            edl_partitions = read_partition_table()
+            results["edl"] = {
+                "success": edl_partitions.success,
+                "message": edl_partitions.message,
+                "data": edl_partitions.data,
+            }
+        return results
+
     def _build_actions(self, scan_result: Dict[str, Any]) -> List[WorkflowAction]:
         network_info = scan_result.get("network") or {}
         wifi_status = (network_info.get("wifi") or {}).get("status")
         interfaces = network_info.get("interfaces") or []
 
         actions = [
+            WorkflowAction(
+                name="reboot_recovery",
+                label="Reboot into recovery (bootloop recovery)",
+                commands=[
+                    ["adb", "-s", self.device_id, "reboot", "recovery"],
+                ],
+            ),
             WorkflowAction(
                 name="restart_adbd",
                 label="Restart ADB daemon",
@@ -214,6 +243,14 @@ class RepairWorkflow:
                     ["adb", "-s", self.device_id, "shell", "svc", "data", "enable"],
                 ],
                 enabled=bool(interfaces) or wifi_status in {None, "disabled"},
+            ),
+            WorkflowAction(
+                name="factory_reset",
+                label="Factory reset (wipe user data)",
+                commands=[
+                    ["adb", "-s", self.device_id, "shell", "recovery", "--wipe_data"],
+                    ["adb", "-s", self.device_id, "shell", "am", "broadcast", "-a", "android.intent.action.MASTER_CLEAR"],
+                ],
             ),
         ]
 
@@ -273,6 +310,9 @@ class RepairWorkflow:
         }
         previous_network = scan_result.get("network") or {}
         restored["network_interfaces_before"] = len(previous_network.get("interfaces") or [])
+        previous_partitions = scan_result.get("partitions") or {}
+        adb_partitions = previous_partitions.get("adb", {}).get("data", {}).get("partitions") or []
+        restored["partition_count"] = len(adb_partitions)
         return restored
 
     def _confirm(self, prompt: str) -> bool:

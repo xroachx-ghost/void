@@ -63,6 +63,7 @@ from .core.launcher import install_start_menu, launcher_status, uninstall_start_
 from .core.logcat import LogcatViewer
 from .core.monitor import PSUTIL_AVAILABLE, monitor
 from .core.network import NetworkTools
+from .core.partitions import backup_partition, list_partitions, wipe_partition
 from .core.performance import PerformanceAnalyzer
 from .core.report import ReportGenerator
 from .core.screen import ScreenCapture
@@ -214,6 +215,9 @@ class CLI:
             'paths': self._cmd_paths,
             'netcheck': self._cmd_netcheck,
             'adb': self._cmd_adb,
+            'partitions': lambda: self._cmd_partitions(args),
+            'partition-backup': lambda: self._cmd_partition_backup(args),
+            'partition-wipe': lambda: self._cmd_partition_wipe(args),
             'repair-flow': lambda: self._cmd_repair_flow(args),
             'edl-status': lambda: self._cmd_edl_status(args),
             'edl-enter': lambda: self._cmd_edl_enter(args),
@@ -430,6 +434,27 @@ class CLI:
                 usage="report <device_id|smart>",
                 category="Analysis & Reports",
                 examples=["report smart"],
+            ),
+            CommandInfo(
+                name="partitions",
+                summary="List device partitions via ADB.",
+                usage="partitions <device_id|smart>",
+                category="Advanced Toolbox",
+                examples=["partitions smart"],
+            ),
+            CommandInfo(
+                name="partition-backup",
+                summary="Backup a partition image via ADB.",
+                usage="partition-backup <device_id|smart> <partition> [output_dir]",
+                category="Advanced Toolbox",
+                examples=["partition-backup smart boot", "partition-backup emulator-5554 userdata /tmp"],
+            ),
+            CommandInfo(
+                name="partition-wipe",
+                summary="Wipe a partition via fastboot or ADB (destructive).",
+                usage="partition-wipe <device_id|smart> <partition>",
+                category="Advanced Toolbox",
+                examples=["partition-wipe smart userdata"],
             ),
             CommandInfo(
                 name="repair-flow",
@@ -2287,6 +2312,65 @@ class CLI:
         else:
             print("❌ Report generation failed")
 
+    def _cmd_partitions(self, args: List[str]) -> None:
+        """List partitions via ADB."""
+        device_id = self._resolve_device_id(args, "partitions <device_id|smart>")
+        if not device_id:
+            return
+
+        result = list_partitions(device_id)
+        if not result.get("success"):
+            print(f"❌ {result.get('message')}")
+            return
+        partitions = result.get("partitions", [])
+        print(f"📦 Partitions for {device_id} ({len(partitions)}):")
+        for name in partitions:
+            print(f"  • {name}")
+
+    def _cmd_partition_backup(self, args: List[str]) -> None:
+        """Backup a partition via ADB."""
+        if len(args) < 2:
+            print("Usage: partition-backup <device_id|smart> <partition> [output_dir]")
+            return
+        device_id = self._resolve_device_id([args[0]], "partition-backup <device_id|smart> <partition> [output_dir]")
+        if not device_id:
+            return
+        partition = args[1]
+        output_dir = Path(args[2]) if len(args) > 2 else None
+
+        if not self._smart_confirm(f"Backup partition {partition} from {device_id}?"):
+            print("⚠️  Action cancelled.")
+            return
+
+        result = backup_partition(device_id, partition, output_dir=output_dir)
+        if result.get("success"):
+            print(f"✅ Backup saved: {result.get('path')}")
+        else:
+            print(f"❌ Backup failed: {result.get('message')}")
+        if result.get("steps"):
+            print(json.dumps(result["steps"], indent=2))
+
+    def _cmd_partition_wipe(self, args: List[str]) -> None:
+        """Wipe a partition via ADB or fastboot."""
+        if len(args) < 2:
+            print("Usage: partition-wipe <device_id|smart> <partition>")
+            return
+        device_id = self._resolve_device_id([args[0]], "partition-wipe <device_id|smart> <partition>")
+        if not device_id:
+            return
+        partition = args[1]
+        if not self._smart_confirm(f"WIPE partition {partition} on {device_id}?"):
+            print("⚠️  Action cancelled.")
+            return
+
+        result = wipe_partition(device_id, partition)
+        if result.get("success"):
+            print("✅ Wipe command issued.")
+        else:
+            print(f"❌ Wipe failed: {result.get('message')}")
+        if result.get("detail"):
+            print(f"Details: {result['detail']}")
+
     def _cmd_repair_flow(self, args: List[str]) -> None:
         """Run guided repair workflow."""
         if not args:
@@ -2996,6 +3080,9 @@ FRP BYPASS:
 
 ADVANCED TOOLBOX:
   advanced                         - Show advanced Android tooling overview
+  partitions <device_id|smart>     - List partitions via ADB
+  partition-backup <device_id|smart> <partition> [output_dir] - Backup partition via ADB
+  partition-wipe <device_id|smart> <partition> - Wipe partition via ADB/fastboot (destructive)
 
 EDL & TEST-POINT:
   edl-status <device_id|smart>           - Detect EDL mode + USB VID/PID
@@ -3088,6 +3175,9 @@ SYSTEM:
   void> tweak emulator-5554 dpi 320
   void> usb-debug emulator-5554 force
   void> report emulator-5554
+  void> partitions emulator-5554
+  void> partition-backup emulator-5554 boot
+  void> partition-wipe emulator-5554 userdata
   void> repair-flow emulator-5554 --report
   void> execute adb_shell_reset emulator-5554
   void> edl-status usb-05c6:9008
