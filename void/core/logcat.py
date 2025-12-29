@@ -26,13 +26,22 @@ class LogcatViewer:
         if filter_tag:
             cmd.extend(['-s', filter_tag])
 
+        try:
+            self.process = subprocess.Popen(
+                cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+            )
+        except (FileNotFoundError, OSError) as exc:
+            self.process = None
+            self.running = False
+            logger.log('error', 'logcat', f'Failed to start logcat: {exc}')
+            if progress_callback:
+                progress_callback("Logcat failed to start.")
+            return
+
         self.running = True
-        self.process = subprocess.Popen(
-            cmd,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-        )
 
         logger.log('info', 'logcat', 'Logcat started')
         if progress_callback:
