@@ -75,6 +75,7 @@ from .core.tools import (
     install_android_platform_tools,
 )
 from .core.utils import SafeSubprocess
+from .core.workflows import RepairWorkflow
 from .logging import get_logger, log_edl_event
 from .core.chipsets.dispatcher import detect_chipset_for_device, enter_chipset_mode
 from .plugins import PluginContext, discover_plugins, get_registry
@@ -213,6 +214,7 @@ class CLI:
             'paths': self._cmd_paths,
             'netcheck': self._cmd_netcheck,
             'adb': self._cmd_adb,
+            'repair-flow': lambda: self._cmd_repair_flow(args),
             'edl-status': lambda: self._cmd_edl_status(args),
             'edl-enter': lambda: self._cmd_edl_enter(args),
             'edl-flash': lambda: self._cmd_edl_flash(args),
@@ -428,6 +430,14 @@ class CLI:
                 usage="report <device_id|smart>",
                 category="Analysis & Reports",
                 examples=["report smart"],
+            ),
+            CommandInfo(
+                name="repair-flow",
+                summary="Run guided repair workflow with optional remediation.",
+                usage="repair-flow <device_id|smart> [--report]",
+                category="Analysis & Reports",
+                examples=["repair-flow smart", "repair-flow emulator-5554 --report"],
+                aliases=["workflow", "repair"],
             ),
             CommandInfo(
                 name="logcat",
@@ -2277,6 +2287,39 @@ class CLI:
         else:
             print("❌ Report generation failed")
 
+    def _cmd_repair_flow(self, args: List[str]) -> None:
+        """Run guided repair workflow."""
+        if not args:
+            print("Usage: repair-flow <device_id|smart> [--report]")
+            return
+
+        device_id = self._resolve_device_id([args[0]], "repair-flow <device_id|smart> [--report]")
+        if not device_id:
+            return
+
+        flags = {arg.lower() for arg in args[1:]}
+        save_report = "--report" in flags or "report" in flags or "--save-report" in flags
+        if save_report and not Config.ENABLE_REPORTS:
+            print("Reports disabled; proceeding without report generation.")
+            save_report = False
+
+        def confirm(prompt: str) -> bool:
+            response = self._prompt(f"{prompt} (y/N)").lower()
+            return response in {"y", "yes"}
+
+        def emit(message: str, level: str) -> None:
+            prefix = "✅" if level == "SUCCESS" else "⚠️" if level == "WARNING" else "ℹ️"
+            print(f"{prefix} {message}")
+
+        workflow = RepairWorkflow(
+            device_id,
+            confirm_callback=confirm,
+            emit_callback=emit,
+            save_report=save_report,
+        )
+        result = workflow.run()
+        print(json.dumps(result, indent=2, default=str))
+
     def _cmd_stats(self) -> None:
         """Show statistics."""
         stats = db.get_statistics()
@@ -2939,6 +2982,7 @@ ANALYSIS:
   analyze <device_id|smart>        - Performance analysis
   display-diagnostics <device_id|smart>  - Display + framebuffer diagnostics
   report <device_id|smart>         - Generate full report
+  repair-flow <device_id|smart> [--report] - Run guided repair workflow
   logcat <device_id|smart> [tag]   - View real-time logs
   
 TWEAKS:
@@ -3044,6 +3088,7 @@ SYSTEM:
   void> tweak emulator-5554 dpi 320
   void> usb-debug emulator-5554 force
   void> report emulator-5554
+  void> repair-flow emulator-5554 --report
   void> execute adb_shell_reset emulator-5554
   void> edl-status usb-05c6:9008
   void> edl-enter emulator-5554
