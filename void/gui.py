@@ -44,6 +44,7 @@ from .core.gemini import GeminiAgent
 from .core.logcat import LogcatViewer
 from .core.monitor import monitor
 from .core.network import NetworkAnalyzer, NetworkTools
+from .core.setup_wizard import SetupWizardDiagnostics
 from .core.startup import StartupWizardAnalyzer
 from .core.performance import PerformanceAnalyzer
 from .core.report import ReportGenerator
@@ -2717,12 +2718,20 @@ class VoidGUI:
 
     def _analyze_startup_wizard_category(self, device_id: str) -> Dict[str, Any]:
         result = StartupWizardAnalyzer.analyze(device_id)
+        diagnostics = SetupWizardDiagnostics.analyze(device_id)
         running = result.get("running")
         active_package = result.get("active_package")
         setup_complete = result.get("setup_complete")
         provisioned = result.get("device_provisioned")
+        status = diagnostics.get("status")
 
-        if running:
+        if status == "wizard loop suspected":
+            summary = "Startup wizard loop suspected."
+        elif status == "setup incomplete":
+            summary = "Startup wizard not completed."
+        elif status == "boot incomplete":
+            summary = "Boot incomplete (startup wizard not ready)."
+        elif running:
             summary = f"Startup wizard active ({active_package or 'unknown package'})."
         elif setup_complete is True:
             summary = "Startup wizard completed."
@@ -2732,9 +2741,14 @@ class VoidGUI:
             summary = "Startup wizard status unknown."
 
         details = [
+            f"Diagnostic status: {status or 'unknown'}",
             f"Active package: {active_package or 'none'}",
             f"Setup complete: {setup_complete if setup_complete is not None else 'unknown'}",
             f"Device provisioned: {provisioned if provisioned is not None else 'unknown'}",
+            "Boot completed: "
+            f"{diagnostics.get('boot_completed') if diagnostics.get('boot_completed') is not None else 'unknown'}",
+            "User setup complete: "
+            f"{diagnostics.get('user_setup_complete') if diagnostics.get('user_setup_complete') is not None else 'unknown'}",
         ]
         installed = result.get("installed_packages") or []
         if installed:
@@ -2742,6 +2756,12 @@ class VoidGUI:
         top_activity = result.get("top_activity")
         if top_activity:
             details.append(f"Top activity: {top_activity}")
+        resumed_activity = diagnostics.get("resumed_activity")
+        if resumed_activity:
+            details.append(f"Resumed activity: {resumed_activity}")
+        setup_packages = diagnostics.get("setup_packages") or []
+        if setup_packages:
+            details.append(f"Setup packages: {', '.join(setup_packages)}")
 
         return {"success": True, "summary": summary, "details": details}
 
