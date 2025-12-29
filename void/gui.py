@@ -50,6 +50,7 @@ from .core.system import SystemTweaker
 from .core.tools import check_android_tools, check_mediatek_tools, check_qualcomm_tools
 from .core.tools.android import android_driver_hints, check_usb_debugging_status
 from .core.utils import SafeSubprocess, ToolCheckResult, check_tools
+from .core.workflows import RepairWorkflow
 from .plugins import PluginContext, PluginMetadata, PluginResult, discover_plugins, get_registry
 from .terms import ensure_terms_acceptance_gui
 
@@ -1477,6 +1478,23 @@ class VoidGUI:
             ),
         )
 
+        self.repair_flow_button = ttk.Button(
+            actions,
+            text="Repair Workflow",
+            style="Void.TButton",
+            command=self._repair_flow,
+        )
+        self.repair_flow_button.pack(
+            side="left", padx=(0, 8)
+        )
+        Tooltip(self.repair_flow_button, "Run the guided repair workflow with remediation prompts.")
+        self.repair_flow_button.bind(
+            "<Enter>",
+            lambda _event: self.action_help_var.set(
+                "Repair Workflow: run diagnostics, clear blockers, and re-check device health."
+            ),
+        )
+
         screenshot_button = ttk.Button(
             actions,
             text="Screenshot",
@@ -1503,6 +1521,7 @@ class VoidGUI:
             "Create Backup — Save a local snapshot of apps and data.\n"
             "Analyze — Collect performance and diagnostic stats.\n"
             "Generate Report — Build an HTML report with device metadata.\n"
+            "Repair Workflow — Run diagnostics and guided remediation steps.\n"
             "Screenshot — Capture the current device screen."
         )
         ttk.Label(
@@ -1519,6 +1538,59 @@ class VoidGUI:
             "• Operations run in the background; watch the log for progress."
         )
         ttk.Label(dashboard, text=tips, style="Void.TLabel", wraplength=520).pack(anchor="w")
+
+        ttk.Label(dashboard, text="Repair Workflow", style="Void.TLabel").pack(anchor="w", pady=(12, 0))
+        workflow_card = ttk.Frame(dashboard, style="Void.Card.TFrame")
+        workflow_card.pack(fill="x", pady=(6, 0))
+        workflow_card.configure(padding=12)
+        ttk.Label(
+            workflow_card,
+            text="01 • Initialize",
+            style="Void.TLabel",
+        ).pack(anchor="w")
+        ttk.Label(
+            workflow_card,
+            text="Launch Void and select your target device or profile to analyze.",
+            style="Void.TLabel",
+            wraplength=520,
+            justify="left",
+        ).pack(anchor="w", pady=(0, 6))
+        ttk.Label(
+            workflow_card,
+            text="02 • Scan",
+            style="Void.TLabel",
+        ).pack(anchor="w")
+        ttk.Label(
+            workflow_card,
+            text="Void identifies residual barriers and locks preventing access.",
+            style="Void.TLabel",
+            wraplength=520,
+            justify="left",
+        ).pack(anchor="w", pady=(0, 6))
+        ttk.Label(
+            workflow_card,
+            text="03 • Clear",
+            style="Void.TLabel",
+        ).pack(anchor="w")
+        ttk.Label(
+            workflow_card,
+            text="Remove identified obstacles cleanly and efficiently.",
+            style="Void.TLabel",
+            wraplength=520,
+            justify="left",
+        ).pack(anchor="w", pady=(0, 6))
+        ttk.Label(
+            workflow_card,
+            text="04 • Restore",
+            style="Void.TLabel",
+        ).pack(anchor="w")
+        ttk.Label(
+            workflow_card,
+            text="Device returns to a fresh, fully accessible state.",
+            style="Void.TLabel",
+            wraplength=520,
+            justify="left",
+        ).pack(anchor="w")
 
         ttk.Label(logs, text="Operations Log", style="Void.TLabel").pack(anchor="w")
         self.output = scrolledtext.ScrolledText(
@@ -2391,6 +2463,40 @@ class VoidGUI:
                 device_id,
                 progress_callback=self._log,
             )
+
+    def _repair_flow(self) -> None:
+        device_id = self._get_selected_device()
+        if not device_id:
+            return
+
+        save_report = False
+        if Config.ENABLE_REPORTS:
+            save_report = messagebox.askyesno(
+                "Repair Workflow",
+                "Save a full report after the workflow finishes?",
+            )
+        else:
+            messagebox.showinfo(
+                "Reports Disabled",
+                "Reports are disabled in Settings; workflow will run without saving a report.",
+            )
+
+        def confirm(prompt: str) -> bool:
+            return messagebox.askyesno("Confirm Remediation", prompt)
+
+        def emit(message: str, level: str) -> None:
+            self._log(message, level=level)
+
+        def runner() -> Dict[str, Any]:
+            workflow = RepairWorkflow(
+                device_id,
+                confirm_callback=confirm,
+                emit_callback=emit,
+                save_report=save_report,
+            )
+            return workflow.run(progress_callback=self._log)
+
+        self._run_task("Repair Workflow", runner)
 
     def _screenshot(self) -> None:
         device_id = self._get_selected_device()
