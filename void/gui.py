@@ -144,6 +144,7 @@ class VoidGUI:
         self.all_device_info: List[Dict[str, Any]] = []
         self.detection_errors: List[Dict[str, Any]] = []
         self.selected_device_id: Optional[str] = None
+        self.device_list: Optional[tk.Listbox] = None  # Initialize as None, will be created in advanced view
         self.status_var = tk.StringVar(value="Ready.")
         self.selected_device_var = tk.StringVar(value="No device selected.")
         self.device_section_texts: Dict[str, tk.Text] = {}
@@ -261,6 +262,13 @@ class VoidGUI:
         self.log_export_since_var = tk.StringVar(value="")
         self.log_export_until_var = tk.StringVar(value="")
         self.log_export_limit_var = tk.StringVar(value="500")
+        
+        # Simple/Advanced mode toggle
+        self.is_advanced_mode = tk.BooleanVar(value=self._app_config.get("advanced_mode", False))
+        self.mode_toggle_button: Optional[ttk.Button] = None
+        self.simple_view_container: Optional[ttk.Frame] = None
+        self.advanced_view_container: Optional[ttk.Frame] = None
+        
         self._show_splash()
 
     def _show_splash(self) -> None:
@@ -1244,6 +1252,20 @@ class VoidGUI:
         )
         header.pack(fill="x", padx=20, pady=(20, 10))
         header.bind("<Configure>", lambda event: self._render_header(header, event.width, event.height))
+        
+        # Add mode toggle button in top-right corner
+        mode_toggle_container = ttk.Frame(self.root, style="Void.TFrame")
+        mode_toggle_container.place(relx=1.0, y=35, anchor="ne", x=-30)
+        
+        self.mode_toggle_button = ttk.Button(
+            mode_toggle_container,
+            text="⚙ Advanced",
+            style="Void.TButton",
+            command=self._toggle_mode,
+            width=12
+        )
+        self.mode_toggle_button.pack()
+        Tooltip(self.mode_toggle_button, "Switch between Simple and Advanced modes")
 
         menu = tk.Menu(self.root, bg=self.theme["bg"], fg=self.theme["text"], tearoff=0)
         self.root.config(menu=menu)
@@ -1260,6 +1282,222 @@ class VoidGUI:
 
         body = ttk.Frame(self.root, style="Void.TFrame")
         body.pack(fill="both", expand=True, padx=20, pady=10)
+        
+        # Create containers for both simple and advanced views
+        self.simple_view_container = ttk.Frame(body, style="Void.TFrame")
+        self.advanced_view_container = ttk.Frame(body, style="Void.TFrame")
+        
+        # Build Simple View
+        self._build_simple_view()
+        
+        # Build Advanced View (original layout)
+        self._build_advanced_view()
+        
+        # Show appropriate view based on saved preference
+        self._switch_view()
+        
+    def _build_simple_view(self) -> None:
+        """Build the simplified, user-friendly dashboard view."""
+        if not self.simple_view_container:
+            return
+            
+        # Main container with centered layout
+        main = ttk.Frame(self.simple_view_container, style="Void.TFrame")
+        main.pack(fill="both", expand=True)
+        
+        # Welcome section
+        welcome_frame = ttk.Frame(main, style="Void.TFrame")
+        welcome_frame.pack(fill="x", pady=(0, 20))
+        
+        ttk.Label(
+            welcome_frame,
+            text="Welcome to Void",
+            style="Void.Title.TLabel"
+        ).pack(anchor="w")
+        
+        ttk.Label(
+            welcome_frame,
+            text="Android Device Toolkit - Simple Mode",
+            style="Void.TLabel"
+        ).pack(anchor="w", pady=(4, 0))
+        
+        # Device status card
+        device_card = ttk.Frame(main, style="Void.Card.TFrame")
+        device_card.pack(fill="x", pady=(0, 20))
+        device_card.configure(padding=20)
+        
+        ttk.Label(
+            device_card,
+            text="📱 Connected Device",
+            font=("Consolas", 14, "bold"),
+            foreground=self.theme["accent"],
+            background=self.theme["panel"]
+        ).pack(anchor="w")
+        
+        ttk.Label(
+            device_card,
+            textvariable=self.selected_device_var,
+            style="Void.TLabel",
+            font=("Consolas", 12)
+        ).pack(anchor="w", pady=(8, 12))
+        
+        ttk.Button(
+            device_card,
+            text="🔄 Refresh Devices",
+            style="Void.TButton",
+            command=self.refresh_devices,
+            width=20
+        ).pack(anchor="w")
+        
+        # Quick Actions grid
+        ttk.Label(
+            main,
+            text="Quick Actions",
+            font=("Consolas", 14, "bold"),
+            foreground=self.theme["accent"],
+            background=self.theme["bg"]
+        ).pack(anchor="w", pady=(0, 12))
+        
+        actions_grid = ttk.Frame(main, style="Void.TFrame")
+        actions_grid.pack(fill="x", pady=(0, 20))
+        
+        # Row 1
+        row1 = ttk.Frame(actions_grid, style="Void.TFrame")
+        row1.pack(fill="x", pady=(0, 12))
+        
+        self._create_action_card(
+            row1,
+            "💾 Backup Device",
+            "Create a safe backup of your device data",
+            self._backup,
+            side="left"
+        )
+        
+        self._create_action_card(
+            row1,
+            "📊 Generate Report",
+            "Create detailed device information report",
+            self._report,
+            side="left",
+            padx=(12, 0)
+        )
+        
+        # Row 2
+        row2 = ttk.Frame(actions_grid, style="Void.TFrame")
+        row2.pack(fill="x", pady=(0, 12))
+        
+        self._create_action_card(
+            row2,
+            "🔧 Repair Workflow",
+            "Run guided diagnostics and repair",
+            self._repair_flow,
+            side="left"
+        )
+        
+        self._create_action_card(
+            row2,
+            "📸 Screenshot",
+            "Capture device screen",
+            self._screenshot,
+            side="left",
+            padx=(12, 0)
+        )
+        
+        # Row 3
+        row3 = ttk.Frame(actions_grid, style="Void.TFrame")
+        row3.pack(fill="x")
+        
+        self._create_action_card(
+            row3,
+            "📁 Browse Files",
+            "Access device files and folders",
+            lambda: self.notebook.select(2) if self.notebook else None,  # Files tab
+            side="left"
+        )
+        
+        self._create_action_card(
+            row3,
+            "🔍 Analyze Performance",
+            "Check device health and performance",
+            self._analyze,
+            side="left",
+            padx=(12, 0)
+        )
+        
+        # Help section
+        help_card = ttk.Frame(main, style="Void.Card.TFrame")
+        help_card.pack(fill="x", pady=(20, 0))
+        help_card.configure(padding=16)
+        
+        ttk.Label(
+            help_card,
+            text="💡 Quick Tips",
+            font=("Consolas", 12, "bold"),
+            foreground=self.theme["accent"],
+            background=self.theme["panel"]
+        ).pack(anchor="w")
+        
+        tips_text = (
+            "• Connect your device and enable USB debugging\n"
+            "• Click 'Refresh Devices' to detect your device\n"
+            "• Use Quick Actions for common tasks\n"
+            "• Switch to Advanced mode for more options"
+        )
+        
+        ttk.Label(
+            help_card,
+            text=tips_text,
+            style="Void.TLabel",
+            justify="left"
+        ).pack(anchor="w", pady=(8, 0))
+        
+    def _create_action_card(
+        self,
+        parent: tk.Widget,
+        title: str,
+        description: str,
+        command: Callable,
+        side: str = "left",
+        padx: tuple = (0, 0)
+    ) -> None:
+        """Create a card-style action button."""
+        card = ttk.Frame(parent, style="Void.Card.TFrame")
+        card.pack(side=side, fill="both", expand=True, padx=padx)
+        card.configure(padding=16)
+        
+        btn = ttk.Button(
+            card,
+            text=title,
+            style="Void.TButton",
+            command=command
+        )
+        btn.pack(fill="x")
+        
+        ttk.Label(
+            card,
+            text=description,
+            style="Void.TLabel",
+            font=("Consolas", 9),
+            wraplength=200
+        ).pack(anchor="w", pady=(8, 0))
+        
+        # Add hover effect
+        def on_enter(e):
+            card.configure(relief="sunken")
+        def on_leave(e):
+            card.configure(relief="raised")
+        
+        card.bind("<Enter>", on_enter)
+        card.bind("<Leave>", on_leave)
+        btn.bind("<Enter>", on_enter)
+        btn.bind("<Leave>", on_leave)
+        
+    def _build_advanced_view(self) -> None:
+        """Build the advanced view with all tabs and features."""
+        if not self.advanced_view_container:
+            return
+            
+        body = self.advanced_view_container
 
         left = ttk.Frame(body, style="Void.Card.TFrame")
         left.pack(side="left", fill="y", padx=(0, 15))
@@ -2216,6 +2454,13 @@ class VoidGUI:
 
     def _get_selected_device(self) -> Optional[str]:
         """Return the currently selected device."""
+        # In simple mode, use the stored selected_device_id
+        if not self.device_list:
+            if not self.selected_device_id:
+                messagebox.showwarning("Void", "Select a device first.")
+                return None
+            return self.selected_device_id
+            
         selection = self.device_list.curselection()
         if not selection or selection[0] >= len(self.device_ids):
             messagebox.showwarning("Void", "Select a device first.")
@@ -2224,6 +2469,9 @@ class VoidGUI:
 
     def _on_device_select(self) -> None:
         """Update dashboard detail view when a device is selected."""
+        if not self.device_list:
+            return
+            
         selection = self.device_list.curselection()
         if not selection or selection[0] >= len(self.device_info):
             self.selected_device_id = None
@@ -2368,6 +2616,16 @@ class VoidGUI:
 
     def _apply_device_filter(self, log_refresh: bool = False) -> None:
         """Filter the device list based on the search query."""
+        if not self.device_list:
+            # Device list not created yet (simple mode), just update device_info
+            self.device_ids = []
+            self.device_info = []
+            if self.all_device_info:
+                for device in self.all_device_info:
+                    self.device_ids.append(device.get("id", "unknown"))
+                    self.device_info.append(device)
+            return
+            
         query = self.device_search_var.get().strip().lower()
         self.device_list.delete(0, tk.END)
         self.device_ids = []
@@ -5212,6 +5470,19 @@ class VoidGUI:
         return override
 
     def _get_device_context(self, show_warning: bool = True) -> Optional[Dict[str, str]]:
+        # In simple mode, use stored selected_device_id
+        if not self.device_list:
+            if not self.selected_device_id:
+                if show_warning:
+                    messagebox.showwarning("Void", "Select a device first.")
+                return None
+            info = next((d for d in self.device_info if d.get("id") == self.selected_device_id), None)
+            if not info:
+                if show_warning:
+                    messagebox.showwarning("Void", "Device information not available.")
+                return None
+            return {k: str(v) for k, v in info.items() if v is not None}
+            
         selection = self.device_list.curselection()
         if not selection or selection[0] >= len(self.device_info):
             if show_warning:
@@ -5368,6 +5639,59 @@ class VoidGUI:
     def _stop_progress(self) -> None:
         self.root.after(0, self.progress.stop)
         self.root.after(0, lambda: self.progress_var.set(""))
+    
+    def _toggle_mode(self) -> None:
+        """Toggle between Simple and Advanced modes."""
+        self.is_advanced_mode.set(not self.is_advanced_mode.get())
+        
+        # Save preference
+        self._app_config["advanced_mode"] = self.is_advanced_mode.get()
+        self._save_app_config(self._app_config)
+        
+        # Update button text
+        if self.mode_toggle_button:
+            if self.is_advanced_mode.get():
+                self.mode_toggle_button.configure(text="🎯 Simple")
+            else:
+                self.mode_toggle_button.configure(text="⚙ Advanced")
+        
+        # Switch views with animation
+        self._switch_view()
+        
+    def _switch_view(self) -> None:
+        """Switch between simple and advanced view containers."""
+        if not self.simple_view_container or not self.advanced_view_container:
+            return
+        
+        # Hide both first
+        self.simple_view_container.pack_forget()
+        self.advanced_view_container.pack_forget()
+        
+        # Show the appropriate one
+        if self.is_advanced_mode.get():
+            self.advanced_view_container.pack(fill="both", expand=True)
+            if self.mode_toggle_button:
+                self.mode_toggle_button.configure(text="🎯 Simple")
+        else:
+            self.simple_view_container.pack(fill="both", expand=True)
+            if self.mode_toggle_button:
+                self.mode_toggle_button.configure(text="⚙ Advanced")
+        
+        # Refresh device info in simple mode
+        if not self.is_advanced_mode.get():
+            self.root.after(100, self._update_simple_device_info)
+    
+    def _update_simple_device_info(self) -> None:
+        """Update device info display in simple mode."""
+        if self.selected_device_id:
+            info = next((d for d in self.device_info if d.get("id") == self.selected_device_id), None)
+            if info:
+                device_str = f"{info.get('manufacturer', 'Unknown')} {info.get('model', 'Unknown')} ({info.get('id', 'N/A')})"
+                self.selected_device_var.set(device_str)
+            else:
+                self.selected_device_var.set("No device selected - Click 'Refresh Devices'")
+        else:
+            self.selected_device_var.set("No device selected - Click 'Refresh Devices'")
 
 
 def run_gui() -> None:
