@@ -221,6 +221,28 @@ void --gui
 
 If the GUI fails to open, double-check Tkinter and rerun the command.
 
+#### GUI Modes
+
+The GUI offers two modes accessible via the toggle button in the top-right corner:
+
+- **Simple Mode** 🎯 - A streamlined dashboard with quick actions for common tasks
+- **Advanced Mode** ⚙️ - Full feature access with organized tabs
+
+#### Advanced Mode Tab Organization
+
+The Advanced GUI is organized into 8 main categories with logical sub-tabs:
+
+1. **📊 Dashboard** - Device overview, details, and quick actions
+2. **🔧 Device Tools** - Apps | Files | System | Network
+3. **🔄 Recovery** - Data Recovery | EDL Mode | Flash/Dump
+4. **🔍 Diagnostics** - Logcat | Monitor | Troubleshoot
+5. **💾 Data** - Exports | Database
+6. **🤖 Automation** - Commands | Plugins | Browser | AI Assistant
+7. **📝 Logs** - Operations log viewer
+8. **⚙️ Settings** - Configuration | Help
+
+Each main tab contains related functionality in sub-tabs, making it easy to find what you need without overwhelming the interface.
+
 ## Where files go
 
 The CLI creates folders for logs, backups, reports, and exports. Use the `paths` command to see them:
