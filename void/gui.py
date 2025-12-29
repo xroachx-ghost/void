@@ -228,6 +228,8 @@ class VoidGUI:
         self._pending_log_entries: List[str] = []
         self.notebook: Optional[ttk.Notebook] = None
         self.troubleshooting_panel: Optional[ttk.Frame] = None
+        self.diagnostics_tab: Optional[ttk.Frame] = None
+        self.diagnostics_notebook: Optional[ttk.Notebook] = None
         self.backup_button: Optional[ttk.Button] = None
         self.report_button: Optional[ttk.Button] = None
         self.analyze_button: Optional[ttk.Button] = None
@@ -455,8 +457,11 @@ class VoidGUI:
             self._pending_troubleshooting_open = False
 
     def _show_troubleshooting_panel(self) -> None:
-        if self.notebook and self.troubleshooting_panel:
-            self.notebook.select(self.troubleshooting_panel)
+        if self.notebook and self.diagnostics_tab and self.diagnostics_notebook and self.troubleshooting_panel:
+            # First select the Diagnostics main tab
+            self.notebook.select(self.diagnostics_tab)
+            # Then select the Troubleshooting sub-tab
+            self.diagnostics_notebook.select(self.troubleshooting_panel)
 
     def _diagnostic_icon(self, status: str) -> str:
         return {
@@ -1567,46 +1572,87 @@ class VoidGUI:
         self.notebook = ttk.Notebook(notebook_frame, style="Void.TNotebook")
         self.notebook.pack(fill="both", expand=True)
 
+        # Main tabs
         dashboard = ttk.Frame(self.notebook, style="Void.TFrame")
-        apps_panel = ttk.Frame(self.notebook, style="Void.TFrame")
-        files_panel = ttk.Frame(self.notebook, style="Void.TFrame")
-        recovery_panel = ttk.Frame(self.notebook, style="Void.TFrame")
-        system_panel = ttk.Frame(self.notebook, style="Void.TFrame")
-        network_panel = ttk.Frame(self.notebook, style="Void.TFrame")
-        logcat_panel = ttk.Frame(self.notebook, style="Void.TFrame")
-        monitor_panel = ttk.Frame(self.notebook, style="Void.TFrame")
-        edl_tools_panel = ttk.Frame(self.notebook, style="Void.TFrame")
-        data_exports_panel = ttk.Frame(self.notebook, style="Void.TFrame")
-        db_tools_panel = ttk.Frame(self.notebook, style="Void.TFrame")
+        
+        # Device Tools - Combined Apps, Files, System, Network
+        device_tools_tab = ttk.Frame(self.notebook, style="Void.TFrame")
+        device_tools_notebook = ttk.Notebook(device_tools_tab, style="Void.TNotebook")
+        device_tools_notebook.pack(fill="both", expand=True, padx=5, pady=5)
+        apps_panel = ttk.Frame(device_tools_notebook, style="Void.TFrame")
+        files_panel = ttk.Frame(device_tools_notebook, style="Void.TFrame")
+        system_panel = ttk.Frame(device_tools_notebook, style="Void.TFrame")
+        network_panel = ttk.Frame(device_tools_notebook, style="Void.TFrame")
+        device_tools_notebook.add(apps_panel, text="Apps")
+        device_tools_notebook.add(files_panel, text="Files")
+        device_tools_notebook.add(system_panel, text="System")
+        device_tools_notebook.add(network_panel, text="Network")
+        
+        # Advanced Recovery - Combined Recovery, EDL, and Data Recovery
+        recovery_tab = ttk.Frame(self.notebook, style="Void.TFrame")
+        recovery_notebook = ttk.Notebook(recovery_tab, style="Void.TNotebook")
+        recovery_notebook.pack(fill="both", expand=True, padx=5, pady=5)
+        recovery_panel = ttk.Frame(recovery_notebook, style="Void.TFrame")
+        edl_recovery = ttk.Frame(recovery_notebook, style="Void.TFrame")
+        edl_tools_panel = ttk.Frame(recovery_notebook, style="Void.TFrame")
+        recovery_notebook.add(recovery_panel, text="Data Recovery")
+        recovery_notebook.add(edl_recovery, text="EDL Mode")
+        recovery_notebook.add(edl_tools_panel, text="Flash/Dump")
+        
+        # Diagnostics - Combined Logcat, Monitoring, Troubleshooting
+        self.diagnostics_tab = ttk.Frame(self.notebook, style="Void.TFrame")
+        self.diagnostics_notebook = ttk.Notebook(self.diagnostics_tab, style="Void.TNotebook")
+        self.diagnostics_notebook.pack(fill="both", expand=True, padx=5, pady=5)
+        logcat_panel = ttk.Frame(self.diagnostics_notebook, style="Void.TFrame")
+        monitor_panel = ttk.Frame(self.diagnostics_notebook, style="Void.TFrame")
+        self.troubleshooting_panel = ttk.Frame(self.diagnostics_notebook, style="Void.TFrame")
+        self.diagnostics_notebook.add(logcat_panel, text="Logcat")
+        self.diagnostics_notebook.add(monitor_panel, text="Monitor")
+        self.diagnostics_notebook.add(self.troubleshooting_panel, text="Troubleshoot")
+        
+        # Data Management - Combined exports and database tools
+        data_tab = ttk.Frame(self.notebook, style="Void.TFrame")
+        data_notebook = ttk.Notebook(data_tab, style="Void.TNotebook")
+        data_notebook.pack(fill="both", expand=True, padx=5, pady=5)
+        data_exports_panel = ttk.Frame(data_notebook, style="Void.TFrame")
+        db_tools_panel = ttk.Frame(data_notebook, style="Void.TFrame")
+        data_notebook.add(data_exports_panel, text="Exports")
+        data_notebook.add(db_tools_panel, text="Database")
+        
+        # Automation - Combined Command Center, Plugins, Browser, Assistant
+        automation_tab = ttk.Frame(self.notebook, style="Void.TFrame")
+        automation_notebook = ttk.Notebook(automation_tab, style="Void.TNotebook")
+        automation_notebook.pack(fill="both", expand=True, padx=5, pady=5)
+        command_panel = ttk.Frame(automation_notebook, style="Void.TFrame")
+        plugins_panel = ttk.Frame(automation_notebook, style="Void.TFrame")
+        self.browser_panel = ttk.Frame(automation_notebook, style="Void.TFrame")
+        self.assistant_panel = ttk.Frame(automation_notebook, style="Void.TFrame")
+        automation_notebook.add(command_panel, text="Commands")
+        automation_notebook.add(plugins_panel, text="Plugins")
+        automation_notebook.add(self.browser_panel, text="Browser")
+        automation_notebook.add(self.assistant_panel, text="AI Assistant")
+        
+        # Operations Log - Standalone
         logs = ttk.Frame(self.notebook, style="Void.TFrame")
-        edl_recovery = ttk.Frame(self.notebook, style="Void.TFrame")
-        command_panel = ttk.Frame(self.notebook, style="Void.TFrame")
-        help_panel = ttk.Frame(self.notebook, style="Void.TFrame")
-        plugins_panel = ttk.Frame(self.notebook, style="Void.TFrame")
-        self.assistant_panel = ttk.Frame(self.notebook, style="Void.TFrame")
-        self.browser_panel = ttk.Frame(self.notebook, style="Void.TFrame")
-        self.troubleshooting_panel = ttk.Frame(self.notebook, style="Void.TFrame")
-        settings_panel = ttk.Frame(self.notebook, style="Void.TFrame")
-        self.notebook.add(dashboard, text="Dashboard")
-        self.notebook.add(apps_panel, text="Apps")
-        self.notebook.add(files_panel, text="Files")
-        self.notebook.add(recovery_panel, text="Recovery")
-        self.notebook.add(system_panel, text="System Tweaks")
-        self.notebook.add(network_panel, text="Network")
-        self.notebook.add(logcat_panel, text="Logcat")
-        self.notebook.add(monitor_panel, text="Monitoring")
-        self.notebook.add(edl_tools_panel, text="EDL Flash/Dump")
-        self.notebook.add(data_exports_panel, text="Data/Reports/Exports")
-        self.notebook.add(db_tools_panel, text="DB Tools")
-        self.notebook.add(edl_recovery, text="EDL & Recovery")
-        self.notebook.add(logs, text="Operations Log")
-        self.notebook.add(command_panel, text="Command Center")
-        self.notebook.add(plugins_panel, text="Plugins")
-        self.notebook.add(self.browser_panel, text="Browser")
-        self.notebook.add(self.assistant_panel, text="Assistant")
-        self.notebook.add(help_panel, text="What Does This Do?")
-        self.notebook.add(settings_panel, text="Settings")
-        self.notebook.add(self.troubleshooting_panel, text="Troubleshooting")
+        
+        # Settings - Combined Settings and Help
+        settings_tab = ttk.Frame(self.notebook, style="Void.TFrame")
+        settings_notebook = ttk.Notebook(settings_tab, style="Void.TNotebook")
+        settings_notebook.pack(fill="both", expand=True, padx=5, pady=5)
+        settings_panel = ttk.Frame(settings_notebook, style="Void.TFrame")
+        help_panel = ttk.Frame(settings_notebook, style="Void.TFrame")
+        settings_notebook.add(settings_panel, text="Configuration")
+        settings_notebook.add(help_panel, text="Help")
+        
+        # Add main tabs to notebook (reduced from 20 to 8 tabs)
+        self.notebook.add(dashboard, text="📊 Dashboard")
+        self.notebook.add(device_tools_tab, text="🔧 Device Tools")
+        self.notebook.add(recovery_tab, text="🔄 Recovery")
+        self.notebook.add(self.diagnostics_tab, text="🔍 Diagnostics")
+        self.notebook.add(data_tab, text="💾 Data")
+        self.notebook.add(automation_tab, text="🤖 Automation")
+        self.notebook.add(logs, text="📝 Logs")
+        self.notebook.add(settings_tab, text="⚙️ Settings")
         self.notebook.bind("<<NotebookTabChanged>>", self._on_tab_change)
         self.notebook.bind("<MouseWheel>", self._on_tab_wheel)
         self.notebook.bind("<Button-4>", self._on_tab_wheel)
