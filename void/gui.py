@@ -3096,13 +3096,19 @@ class VoidGUI:
         scrollable_frame = ttk.Frame(canvas, style="Void.TFrame")
         
         # Configure the canvas scrolling
-        scrollable_frame.bind(
-            "<Configure>",
-            lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
-        )
+        def _on_frame_configure(event):
+            # Update scroll region to encompass the inner frame
+            canvas.configure(scrollregion=canvas.bbox("all"))
+        
+        def _on_canvas_configure(event):
+            # Make the canvas window width match the canvas width
+            canvas.itemconfig(canvas_window, width=event.width)
+        
+        scrollable_frame.bind("<Configure>", _on_frame_configure)
+        canvas.bind("<Configure>", _on_canvas_configure)
         
         # Create window in canvas
-        canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
+        canvas_window = canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
         canvas.configure(yscrollcommand=scrollbar.set)
         
         # Pack canvas and scrollbar
