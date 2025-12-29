@@ -1539,6 +1539,59 @@ class VoidGUI:
         )
         ttk.Label(dashboard, text=tips, style="Void.TLabel", wraplength=520).pack(anchor="w")
 
+        ttk.Label(dashboard, text="Repair Workflow", style="Void.TLabel").pack(anchor="w", pady=(12, 0))
+        workflow_card = ttk.Frame(dashboard, style="Void.Card.TFrame")
+        workflow_card.pack(fill="x", pady=(6, 0))
+        workflow_card.configure(padding=12)
+        ttk.Label(
+            workflow_card,
+            text="01 • Initialize",
+            style="Void.TLabel",
+        ).pack(anchor="w")
+        ttk.Label(
+            workflow_card,
+            text="Launch Void and select your target device or profile to analyze.",
+            style="Void.TLabel",
+            wraplength=520,
+            justify="left",
+        ).pack(anchor="w", pady=(0, 6))
+        ttk.Label(
+            workflow_card,
+            text="02 • Scan",
+            style="Void.TLabel",
+        ).pack(anchor="w")
+        ttk.Label(
+            workflow_card,
+            text="Void identifies residual barriers and locks preventing access.",
+            style="Void.TLabel",
+            wraplength=520,
+            justify="left",
+        ).pack(anchor="w", pady=(0, 6))
+        ttk.Label(
+            workflow_card,
+            text="03 • Clear",
+            style="Void.TLabel",
+        ).pack(anchor="w")
+        ttk.Label(
+            workflow_card,
+            text="Remove identified obstacles cleanly and efficiently.",
+            style="Void.TLabel",
+            wraplength=520,
+            justify="left",
+        ).pack(anchor="w", pady=(0, 6))
+        ttk.Label(
+            workflow_card,
+            text="04 • Restore",
+            style="Void.TLabel",
+        ).pack(anchor="w")
+        ttk.Label(
+            workflow_card,
+            text="Device returns to a fresh, fully accessible state.",
+            style="Void.TLabel",
+            wraplength=520,
+            justify="left",
+        ).pack(anchor="w")
+
         ttk.Label(logs, text="Operations Log", style="Void.TLabel").pack(anchor="w")
         self.output = scrolledtext.ScrolledText(
             logs,
