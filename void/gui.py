@@ -3119,10 +3119,29 @@ class VoidGUI:
             elif event.num == 5:
                 canvas.yview_scroll(1, "units")
         
-        # Bind to canvas and scrollable_frame
-        canvas.bind_all("<MouseWheel>", _on_mousewheel)
-        canvas.bind_all("<Button-4>", _on_mousewheel_linux)
-        canvas.bind_all("<Button-5>", _on_mousewheel_linux)
+        # Bind to canvas for mouse wheel scrolling
+        canvas.bind("<MouseWheel>", _on_mousewheel)
+        canvas.bind("<Button-4>", _on_mousewheel_linux)
+        canvas.bind("<Button-5>", _on_mousewheel_linux)
+        
+        # Also bind to scrollable_frame for when mouse is over content
+        scrollable_frame.bind("<MouseWheel>", _on_mousewheel)
+        scrollable_frame.bind("<Button-4>", _on_mousewheel_linux)
+        scrollable_frame.bind("<Button-5>", _on_mousewheel_linux)
+        
+        # Bind enter/leave events to enable scrolling when mouse is over the panel
+        def _bind_to_mousewheel(event):
+            canvas.bind_all("<MouseWheel>", _on_mousewheel)
+            canvas.bind_all("<Button-4>", _on_mousewheel_linux)
+            canvas.bind_all("<Button-5>", _on_mousewheel_linux)
+        
+        def _unbind_from_mousewheel(event):
+            canvas.unbind_all("<MouseWheel>")
+            canvas.unbind_all("<Button-4>")
+            canvas.unbind_all("<Button-5>")
+        
+        canvas.bind("<Enter>", _bind_to_mousewheel)
+        canvas.bind("<Leave>", _unbind_from_mousewheel)
         
         return scrollable_frame
 
