@@ -5,7 +5,6 @@ from __future__ import annotations
 from .base import ChipsetActionResult, ChipsetDetection
 from .utils import extract_usb_ids, match_any, normalize_text
 from ..tools.qualcomm import resolve_qualcomm_recovery_tool
-from ..utils import SafeSubprocess
 
 
 class QualcommChipset:
@@ -66,25 +65,19 @@ class QualcommChipset:
                 message=f"Qualcomm workflow only supports EDL entry (requested {target_mode}).",
             )
 
-        device_id = context.get("id")
-        mode = normalize_text(context.get("mode"))
-        if device_id and mode == "adb":
-            code, _, stderr = SafeSubprocess.run(["adb", "-s", device_id, "reboot", "edl"])
-            if code == 0:
-                return ChipsetActionResult(
-                    success=True,
-                    message="ADB reboot to EDL issued.",
-                    data={"device_id": device_id},
-                )
-            return ChipsetActionResult(
-                success=False,
-                message="Failed to issue ADB reboot to EDL.",
-                data={"error": stderr or "unknown"},
-            )
-
         return ChipsetActionResult(
             success=False,
-            message="EDL entry requires ADB access or a manual test-point trigger.",
+            message="EDL entry requires authorized ADB access or a manual test-point trigger.",
+            data={
+                "target_mode": "edl",
+                "manual_steps": [
+                    "Power the device completely off (hold Power for 10-15s).",
+                    "Hold Volume Up + Volume Down while connecting USB, or use the model-specific test-point.",
+                    "Keep the keys/test-point held until the device enumerates on USB.",
+                    "USB detection check: look for VID:PID 05c6:9008 or 05c6:900e in Device Manager/lsusb.",
+                    "If not detected, try a different USB port/cable and repeat the sequence.",
+                ],
+            },
         )
 
     def recover(self, context: dict[str, str]) -> ChipsetActionResult:

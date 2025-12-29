@@ -58,9 +58,26 @@ class SamsungExynosChipset:
         return None
 
     def enter_mode(self, context: dict[str, str], target_mode: str) -> ChipsetActionResult:
+        target = target_mode.lower()
+        if target not in {"download", "odin"}:
+            return ChipsetActionResult(
+                success=False,
+                message=f"Samsung workflows support download/odin entry (requested {target_mode}).",
+            )
+
         return ChipsetActionResult(
             success=False,
-            message="Samsung download/odin workflows require vendor tooling and user confirmation.",
+            message="Samsung download/odin workflows require manual key combos or OEM tooling.",
+            data={
+                "target_mode": target,
+                "manual_steps": [
+                    "Power the device completely off.",
+                    "Hold Volume Down + Power + Bixby/Home until the warning screen appears.",
+                    "Press Volume Up to confirm Download/Odin mode.",
+                    "Alternative (newer models): hold Volume Up + Volume Down and plug in USB.",
+                    "USB detection check: look for VID:PID 04e8:685d or 04e8:6860.",
+                ],
+            },
         )
 
     def recover(self, context: dict[str, str]) -> ChipsetActionResult:

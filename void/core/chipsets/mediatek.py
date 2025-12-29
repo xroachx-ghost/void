@@ -5,7 +5,6 @@ from __future__ import annotations
 from .base import ChipsetActionResult, ChipsetDetection
 from .utils import extract_usb_ids, match_any, normalize_text
 from ..tools.mediatek import resolve_mediatek_recovery_tool
-from ..utils import SafeSubprocess
 
 
 class MediaTekChipset:
@@ -76,9 +75,33 @@ class MediaTekChipset:
                 message=f"MediaTek workflows support preloader/bootrom entry (requested {target_mode}).",
             )
 
+        target = target_mode.lower()
+        usb_hint = "0e8d:2000/2001 (preloader) or 0e8d:0003 (bootrom)"
+        if target == "preloader":
+            mode_steps = [
+                "Power the device completely off (hold Power for 10-15s).",
+                "Hold Volume Up or Volume Down, then connect USB to trigger preloader.",
+                "If the device disconnects quickly, repeat and keep the key held.",
+            ]
+        else:
+            mode_steps = [
+                "Power the device completely off (hold Power for 10-15s).",
+                "Use the documented test-point to ground while connecting USB.",
+                "Keep the test-point bridged until USB enumeration completes.",
+            ]
+
         return ChipsetActionResult(
             success=False,
             message="MediaTek entry requires hardware key combos or a test-point trigger.",
+            data={
+                "target_mode": target,
+                "manual_steps": [
+                    *mode_steps,
+                    "Confirm the USB device shows up as MediaTek in the host OS.",
+                    f"USB detection check: look for VID:PID {usb_hint}.",
+                    "If not detected, re-seat the cable and retry the key/test-point sequence.",
+                ],
+            },
         )
 
     def recover(self, context: dict[str, str]) -> ChipsetActionResult:
