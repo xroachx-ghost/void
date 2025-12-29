@@ -12,6 +12,7 @@ from __future__ import annotations
 import csv
 import json
 import platform
+import shutil
 import threading
 import webbrowser
 from pathlib import Path
@@ -42,7 +43,8 @@ from .core.browser import BrowserAutomation
 from .core.gemini import GeminiAgent
 from .core.logcat import LogcatViewer
 from .core.monitor import monitor
-from .core.network import NetworkTools
+from .core.network import NetworkAnalyzer, NetworkTools
+from .core.startup import StartupWizardAnalyzer
 from .core.performance import PerformanceAnalyzer
 from .core.report import ReportGenerator
 from .core.screen import ScreenCapture
@@ -340,6 +342,7 @@ class VoidGUI:
             "build": "Select a device to view build details.",
             "connectivity": "Select a device to view connectivity details.",
             "chipset": "Select a device to view chipset details.",
+            "categories": "Run a problem category to view targeted diagnostics.",
         }
         for key, text in placeholders.items():
             self._set_device_section(key, text)
@@ -1412,6 +1415,7 @@ class VoidGUI:
             ("Build", "build", 4),
             ("Connectivity", "connectivity", 4),
             ("Chipset", "chipset", 4),
+            ("Problem Categories", "categories", 4),
         )
         for label, key, height in sections:
             section_frame = ttk.Frame(details, style="Void.TFrame")
@@ -1511,6 +1515,48 @@ class VoidGUI:
                 "Screenshot: grabs a current screen capture from the device."
             ),
         )
+
+        ttk.Label(
+            dashboard,
+            text="Problem Categories",
+            style="Void.TLabel",
+        ).pack(anchor="w", pady=(12, 0))
+        category_card = ttk.Frame(dashboard, style="Void.Card.TFrame")
+        category_card.pack(fill="x", pady=(6, 0))
+        category_card.configure(padding=12)
+        ttk.Label(
+            category_card,
+            text="Run focused diagnostics for common problem areas.",
+            style="Void.TLabel",
+            wraplength=520,
+            justify="left",
+        ).pack(anchor="w")
+        category_buttons = ttk.Frame(category_card, style="Void.TFrame")
+        category_buttons.pack(fill="x", pady=(8, 0))
+        ttk.Button(
+            category_buttons,
+            text="Startup Wizard",
+            style="Void.TButton",
+            command=lambda: self._run_problem_category("startup_wizard"),
+        ).pack(side="left", padx=(0, 8))
+        ttk.Button(
+            category_buttons,
+            text="Network",
+            style="Void.TButton",
+            command=lambda: self._run_problem_category("network"),
+        ).pack(side="left", padx=(0, 8))
+        ttk.Button(
+            category_buttons,
+            text="Display",
+            style="Void.TButton",
+            command=lambda: self._run_problem_category("display"),
+        ).pack(side="left", padx=(0, 8))
+        ttk.Button(
+            category_buttons,
+            text="Backup",
+            style="Void.TButton",
+            command=lambda: self._run_problem_category("backup"),
+        ).pack(side="left")
 
         ttk.Label(
             dashboard,
@@ -2559,6 +2605,145 @@ class VoidGUI:
         summary = f"Display diagnostics complete: {headline}"
         message = "\n".join([headline, "", implication, "", *detail_lines])
         return summary, message
+
+    def _run_problem_category(self, category: str) -> None:
+        device_id = self._get_selected_device()
+        if not device_id:
+            return
+
+        category_labels = {
+            "startup_wizard": "Startup Wizard",
+            "network": "Network",
+            "display": "Display",
+            "backup": "Backup",
+        }
+        analyzers = {
+            "startup_wizard": self._analyze_startup_wizard_category,
+            "network": self._analyze_network_category,
+            "display": self._analyze_display_category,
+            "backup": self._analyze_backup_category,
+        }
+        label = category_labels.get(category, "Problem Category")
+        analyzer = analyzers.get(category)
+        if analyzer is None:
+            self._log(f"{label} diagnostics unavailable.", level="ERROR")
+            self.status_var.set(f"{label} diagnostics unavailable.")
+            return
+
+        def runner() -> Dict[str, Any]:
+            result = analyzer(device_id)
+            summary = result.get("summary", f"{label} diagnostics complete.")
+            details = result.get("details", [])
+            self.root.after(0, lambda: self._set_problem_category_summary(summary, details))
+            for line in details:
+                self._log(f"{label}: {line}", level="DATA")
+            return {"success": result.get("success", True), "message": summary}
+
+        self._run_task(f"{label} Diagnostics", runner)
+
+    def _set_problem_category_summary(self, summary: str, details: List[str]) -> None:
+        content_lines = [summary]
+        if details:
+            content_lines.extend(details)
+        self._set_device_section("categories", "\n".join(content_lines))
+
+    def _analyze_network_category(self, device_id: str) -> Dict[str, Any]:
+        analysis = NetworkAnalyzer.analyze(device_id)
+        interfaces = analysis.get("interfaces") or []
+        wifi = analysis.get("wifi") or {}
+        stats = analysis.get("network_stats") or []
+
+        wifi_status = wifi.get("status") or "unknown"
+        ssid = wifi.get("ssid")
+        wifi_label = wifi_status if not ssid else f"{wifi_status} (SSID {ssid})"
+        interface_count = len(interfaces)
+
+        if not interfaces and not wifi and not stats:
+            summary = "Network check returned no data from the device."
+            details = ["Confirm the device is reachable over ADB and try again."]
+            return {"success": False, "summary": summary, "details": details}
+
+        summary = f"Wi-Fi {wifi_label}; {interface_count} interface(s) detected."
+        details = [f"Wi-Fi status: {wifi_label}"]
+        if interfaces:
+            interface_detail = ", ".join(
+                f"{iface.get('name', 'unknown')}"
+                f"{' ' + iface.get('ip') if iface.get('ip') else ''}"
+                for iface in interfaces
+            )
+            details.append(f"Interfaces: {interface_detail}")
+        if stats:
+            traffic_detail = ", ".join(
+                f"{item.get('interface', 'iface')} rx={item.get('rx_bytes')} tx={item.get('tx_bytes')}"
+                for item in stats[:3]
+            )
+            details.append(f"Traffic (sample): {traffic_detail}")
+
+        return {"success": True, "summary": summary, "details": details}
+
+    def _analyze_display_category(self, device_id: str) -> Dict[str, Any]:
+        analysis = DisplayAnalyzer.analyze(device_id)
+        summary, message = self._format_display_diagnostics_result(analysis)
+        detail_lines = [line for line in message.splitlines() if line.strip()]
+        return {"success": True, "summary": summary, "details": detail_lines}
+
+    def _analyze_backup_category(self, device_id: str) -> Dict[str, Any]:
+        details: List[str] = []
+        if not Config.ENABLE_AUTO_BACKUP:
+            details.append("Auto backups are disabled in Settings.")
+
+        backups = AutoBackup.list_backups(device_id)
+        backup_count = len(backups)
+        latest_backup = backups[0].get("created") if backups else None
+        if latest_backup:
+            details.append(f"Latest backup: {latest_backup}")
+        else:
+            details.append("No backups found for the selected device.")
+
+        Config.BACKUP_DIR.mkdir(parents=True, exist_ok=True)
+        try:
+            usage = shutil.disk_usage(Config.BACKUP_DIR)
+            free_gb = usage.free / (1024 ** 3)
+            total_gb = usage.total / (1024 ** 3)
+            details.append(f"Storage free: {free_gb:.1f} GB of {total_gb:.1f} GB")
+            summary = (
+                f"{backup_count} backup(s) recorded; {free_gb:.1f} GB free in backup storage."
+            )
+        except OSError as exc:
+            details.append(f"Storage availability check failed: {exc}")
+            summary = f"{backup_count} backup(s) recorded; storage availability unknown."
+
+        return {"success": True, "summary": summary, "details": details}
+
+    def _analyze_startup_wizard_category(self, device_id: str) -> Dict[str, Any]:
+        result = StartupWizardAnalyzer.analyze(device_id)
+        running = result.get("running")
+        active_package = result.get("active_package")
+        setup_complete = result.get("setup_complete")
+        provisioned = result.get("device_provisioned")
+
+        if running:
+            summary = f"Startup wizard active ({active_package or 'unknown package'})."
+        elif setup_complete is True:
+            summary = "Startup wizard completed."
+        elif setup_complete is False:
+            summary = "Startup wizard not completed."
+        else:
+            summary = "Startup wizard status unknown."
+
+        details = [
+            f"Active package: {active_package or 'none'}",
+            f"Setup complete: {setup_complete if setup_complete is not None else 'unknown'}",
+            f"Device provisioned: {provisioned if provisioned is not None else 'unknown'}",
+        ]
+        installed = result.get("installed_packages") or []
+        if installed:
+            details.append(f"Installed packages: {', '.join(installed)}")
+        top_activity = result.get("top_activity")
+        if top_activity:
+            details.append(f"Top activity: {top_activity}")
+
+        return {"success": True, "summary": summary, "details": details}
 
     def _build_apps_panel(self, panel: ttk.Frame) -> None:
         ttk.Label(panel, text="Apps", style="Void.TLabel").pack(anchor="w")
