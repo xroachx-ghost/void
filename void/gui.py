@@ -28,7 +28,7 @@ from .core.backup import AutoBackup
 from .core.chipsets.base import ChipsetActionResult
 from .core.chipsets.dispatcher import (
     detect_chipset_for_device,
-    enter_chipset_mode,
+    enter_device_mode,
     list_chipsets,
     recover_chipset_device,
 )
@@ -1885,7 +1885,7 @@ class VoidGUI:
         mode_menu = ttk.Combobox(
             tool_panel,
             textvariable=self.target_mode_var,
-            values=["edl", "preloader", "download", "bootrom"],
+            values=["edl", "preloader", "download", "bootrom", "fastboot", "bootloader", "recovery"],
             state="readonly",
             width=12,
         )
@@ -1903,7 +1903,7 @@ class VoidGUI:
             command=self._enter_chipset_mode,
         )
         entry_button.pack(side="left", padx=(0, 8))
-        Tooltip(entry_button, "Attempt to enter the selected chipset mode.")
+        Tooltip(entry_button, "Guided mode entry with authorization checks and manual steps.")
 
         flash_button = ttk.Button(
             workflow_panel,
@@ -5133,13 +5133,44 @@ class VoidGUI:
         if not proceed:
             return
         override = self._get_chipset_override()
+        authorization_token = ""
+        ownership_verification = ""
+        if mode.lower() == "adb" and target_mode.lower() in {
+            "edl",
+            "fastboot",
+            "bootloader",
+            "recovery",
+            "download",
+            "odin",
+        }:
+            authorization_token, ownership_verification = self._prompt_recovery_authorization()
         self._run_task(
             "Enter Mode",
-            enter_chipset_mode,
+            enter_device_mode,
             context,
             target_mode,
             override,
+            authorization_token,
+            ownership_verification,
         )
+
+    def _prompt_recovery_authorization(self) -> tuple[str, str]:
+        try:
+            from tkinter import simpledialog
+        except ImportError:
+            messagebox.showwarning("Void", "Tkinter simpledialog is not available.")
+            return "", ""
+        token = simpledialog.askstring(
+            "Authorization Token",
+            "Enter the legal authorization token (leave blank to skip):",
+            parent=self.root,
+        )
+        ownership = simpledialog.askstring(
+            "Ownership Verification",
+            "Enter the device ownership verification (leave blank to skip):",
+            parent=self.root,
+        )
+        return (token or ""), (ownership or "")
 
     def _recover_chipset_device(self, label: str) -> None:
         context = self._get_device_context()
@@ -5242,6 +5273,16 @@ class VoidGUI:
 
     def _failure_guidance(self, detail: str, result: Any | None) -> List[str]:
         detail_lower = (detail or "").lower()
+        if isinstance(result, ChipsetActionResult):
+            manual_steps = result.data.get("manual_steps") if isinstance(result.data, dict) else None
+            if manual_steps:
+                if isinstance(manual_steps, str):
+                    steps = [step.strip() for step in manual_steps.splitlines() if step.strip()]
+                elif isinstance(manual_steps, (list, tuple)):
+                    steps = [str(step) for step in manual_steps if str(step).strip()]
+                else:
+                    steps = [str(manual_steps)]
+                return steps
         if "adb" in detail_lower and (
             "not found" in detail_lower
             or "no such file or directory" in detail_lower

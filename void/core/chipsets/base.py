@@ -24,7 +24,7 @@ class ChipsetActionResult:
 
     success: bool
     message: str
-    data: dict[str, str] = field(default_factory=dict)
+    data: dict[str, object] = field(default_factory=dict)
 
 
 class BaseChipsetProtocol(Protocol):

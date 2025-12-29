@@ -78,7 +78,7 @@ from .core.tools import (
 from .core.utils import SafeSubprocess
 from .core.workflows import RepairWorkflow
 from .logging import get_logger, log_edl_event
-from .core.chipsets.dispatcher import detect_chipset_for_device, enter_chipset_mode
+from .core.chipsets.dispatcher import detect_chipset_for_device, enter_chipset_mode, enter_device_mode
 from .plugins import PluginContext, discover_plugins, get_registry
 
 try:
@@ -221,6 +221,7 @@ class CLI:
             'repair-flow': lambda: self._cmd_repair_flow(args),
             'edl-status': lambda: self._cmd_edl_status(args),
             'edl-enter': lambda: self._cmd_edl_enter(args),
+            'mode-enter': lambda: self._cmd_mode_enter(args),
             'edl-flash': lambda: self._cmd_edl_flash(args),
             'edl-dump': lambda: self._cmd_edl_dump(args),
             'edl-detect': self._cmd_edl_detect,
@@ -504,6 +505,16 @@ class CLI:
                 summary="Enter EDL mode (if supported).",
                 usage="edl-enter <device_id|smart>",
                 category="EDL & Test-point",
+            ),
+            CommandInfo(
+                name="mode-enter",
+                summary="Guided entry into a target mode with chipset-aware steps.",
+                usage=(
+                    "mode-enter <device_id|smart> <target_mode> "
+                    "[--override=<chipset>] [--auth-token=<token>] [--ownership=<proof>]"
+                ),
+                category="EDL & Test-point",
+                examples=["mode-enter smart edl", "mode-enter usb-05c6:9008 edl --override=Qualcomm"],
             ),
             CommandInfo(
                 name="edl-flash",
@@ -1535,6 +1546,7 @@ class CLI:
             "EDL & Test-point": [
                 "edl-status <device_id|smart>           - Detect EDL mode + USB VID/PID",
                 "edl-enter <device_id|smart>            - Enter EDL mode (if supported)",
+                "mode-enter <device_id|smart> <target>  - Guided mode entry with manual steps",
                 "edl-flash <device_id|smart> <loader> <image> - Flash via EDL",
                 "edl-dump <device_id|smart> <partition> - Dump a partition via EDL",
                 "edl-detect                            - Scan USB for EDL devices",
@@ -2617,6 +2629,58 @@ class CLI:
             success=result.success,
             details=result.data,
         )
+
+    def _cmd_mode_enter(self, args: List[str]) -> None:
+        """Enter a target mode with chipset-aware guidance."""
+        if len(args) < 2:
+            print(
+                "Usage: mode-enter <device_id|smart> <target_mode> "
+                "[--override=<chipset>] [--auth-token=<token>] [--ownership=<proof>]"
+            )
+            return
+        device_id = self._resolve_device_id([args[0]], "mode-enter <device_id|smart> <target_mode>")
+        if not device_id:
+            return
+        target_mode = args[1]
+        override = None
+        authorization_token = None
+        ownership_verification = None
+        for arg in args[2:]:
+            if arg.startswith("--override="):
+                override = arg.split("=", 1)[1].strip() or None
+            elif arg.startswith("--auth-token="):
+                authorization_token = arg.split("=", 1)[1].strip()
+            elif arg.startswith("--ownership="):
+                ownership_verification = arg.split("=", 1)[1].strip()
+
+        context, _ = self._resolve_device_context(device_id)
+        result = enter_device_mode(
+            context,
+            target_mode,
+            override,
+            authorization_token,
+            ownership_verification,
+        )
+
+        if result.success:
+            print(f"✅ {result.message}")
+        else:
+            print(f"❌ {result.message}")
+
+        manual_steps = None
+        if isinstance(result.data, dict):
+            manual_steps = result.data.get("manual_steps")
+        if manual_steps:
+            if isinstance(manual_steps, str):
+                steps = [step.strip() for step in manual_steps.splitlines() if step.strip()]
+            elif isinstance(manual_steps, (list, tuple)):
+                steps = [str(step) for step in manual_steps if str(step).strip()]
+            else:
+                steps = [str(manual_steps)]
+            if steps:
+                print("📋 Manual steps:")
+                for step in steps:
+                    print(f"   - {step}")
 
     def _cmd_edl_flash(self, args: List[str]) -> None:
         """Flash an image via EDL."""
