@@ -10,6 +10,7 @@ from .logging import logger
 from .network import NetworkAnalyzer
 from .performance import PerformanceAnalyzer
 from .report import ReportGenerator
+from .setup_wizard import SetupWizardDiagnostics
 from .tools import check_android_tools
 from .utils import SafeSubprocess, ToolCheckResult
 
@@ -124,6 +125,7 @@ class RepairWorkflow:
         performance = PerformanceAnalyzer.analyze(self.device_id)
         network = NetworkAnalyzer.analyze(self.device_id)
         display = DisplayAnalyzer.analyze(self.device_id)
+        setup_wizard = SetupWizardDiagnostics.analyze(self.device_id)
         report_result = None
         if self.save_report:
             report_result = ReportGenerator.generate_device_report(self.device_id)
@@ -133,6 +135,7 @@ class RepairWorkflow:
             "performance": performance,
             "network": network,
             "display": display,
+            "startup_wizard": setup_wizard,
             "partitions": self._scan_partitions(init_result),
             "report": report_result,
         }
