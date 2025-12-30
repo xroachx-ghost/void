@@ -116,7 +116,7 @@ class DiagnosticsTools:
                         # Usually in tenths of degree Celsius
                         try:
                             temps['battery'] = str(int(value) / 10) + '°C'
-                        except:
+                        except (ValueError, TypeError):
                             temps['battery'] = value
         
         return temps

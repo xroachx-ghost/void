@@ -68,30 +68,43 @@ class ShellController:
         Returns:
             Dict with success, output, and error
         """
-        # Create temporary script on device
-        script_path = '/data/local/tmp/void_script.sh'
+        import tempfile
+        import os
+        from pathlib import Path
         
-        # Write script to device
-        code, _, _ = SafeSubprocess.run([
-            'adb', '-s', device_id, 'shell', 
-            f'echo "{script_content}" > {script_path}'
-        ])
+        # Create temporary script locally
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.sh', delete=False) as f:
+            f.write(script_content)
+            local_script_path = f.name
         
-        if code != 0:
-            return {'success': False, 'error': 'Failed to write script'}
-        
-        # Make executable
-        code, _, _ = SafeSubprocess.run([
-            'adb', '-s', device_id, 'shell', 'chmod', '755', script_path
-        ])
-        
-        if code != 0:
-            return {'success': False, 'error': 'Failed to make script executable'}
-        
-        # Execute
-        code, stdout, stderr = SafeSubprocess.run([
-            'adb', '-s', device_id, 'shell', 'sh', script_path
-        ])
+        try:
+            # Push script to device
+            script_path = '/data/local/tmp/void_script.sh'
+            code, _, _ = SafeSubprocess.run([
+                'adb', '-s', device_id, 'push', local_script_path, script_path
+            ])
+            
+            if code != 0:
+                return {'success': False, 'error': 'Failed to push script to device'}
+            
+            # Make executable
+            code, _, _ = SafeSubprocess.run([
+                'adb', '-s', device_id, 'shell', 'chmod', '755', script_path
+            ])
+            
+            if code != 0:
+                return {'success': False, 'error': 'Failed to make script executable'}
+            
+            # Execute
+            code, stdout, stderr = SafeSubprocess.run([
+                'adb', '-s', device_id, 'shell', 'sh', script_path
+            ])
+        finally:
+            # Cleanup local temp file
+            try:
+                os.unlink(local_script_path)
+            except:
+                pass
         
         # Cleanup
         SafeSubprocess.run(['adb', '-s', device_id, 'shell', 'rm', script_path])

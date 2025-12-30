@@ -8,6 +8,8 @@ Proprietary and confidential. Unauthorized use or distribution is prohibited.
 
 from __future__ import annotations
 
+import csv
+import json
 from datetime import datetime
 from typing import Any, Dict, List
 
@@ -202,9 +204,6 @@ class AppManager:
         Returns:
             Dict with success status and file path
         """
-        import csv
-        import json
-        
         apps = AppManager.list_apps(device_id, 'all')
         
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')

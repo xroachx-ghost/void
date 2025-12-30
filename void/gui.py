@@ -119,6 +119,10 @@ class Tooltip:
 
 class VoidGUI:
     """User-friendly GUI with an anonymous hacktivist theme."""
+    
+    # Constants
+    MAX_SHELL_OUTPUT_LINES = 100
+    ADB_TCPIP_WAIT_SECONDS = 2
 
     def __init__(self):
         if not GUI_AVAILABLE:
@@ -2515,10 +2519,10 @@ class VoidGUI:
             result = ShellController.execute_command(device_id, command)
             if result.get('output'):
                 lines = result['output'].strip().split('\n')
-                for line in lines[:100]:  # Limit output
+                for line in lines[:self.MAX_SHELL_OUTPUT_LINES]:
                     self._log(line, level="DATA")
-                if len(lines) > 100:
-                    self._log(f"... and {len(lines) - 100} more lines", level="DATA")
+                if len(lines) > self.MAX_SHELL_OUTPUT_LINES:
+                    self._log(f"... and {len(lines) - self.MAX_SHELL_OUTPUT_LINES} more lines", level="DATA")
             if result.get('error'):
                 self._log(f"Error: {result['error']}", level="ERROR")
             return result
@@ -5704,7 +5708,7 @@ class VoidGUI:
             success = SystemTweaker.enable_adb_tcpip(device_id)
             if success:
                 import time
-                time.sleep(2)  # Wait for service to start
+                time.sleep(self.ADB_TCPIP_WAIT_SECONDS)  # Wait for service to start
                 status = SystemTweaker.get_adb_tcpip_status(device_id)
                 if status.get('ip'):
                     message = f"ADB over WiFi enabled. Connect with: adb connect {status['ip']}:5555"
