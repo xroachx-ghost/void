@@ -19,6 +19,16 @@ class AndroidProblemSolver:
     """Comprehensive Android problem diagnosis and fixing"""
     
     DEFAULT_HEALTHY_SUGGESTION = 'Device appears healthy. Keep firmware updated and maintain backups.'
+    SUGGESTION_MAP = {
+        'connectivity': 'Check USB cable, drivers, and enable USB debugging.',
+        'bootloop': 'Try clearing cache/dalvik and rebooting into recovery.',
+        'storage': 'Free space by clearing cache or removing unused apps.',
+        'frp_lock': 'Use authorized FRP bypass or sign in with original account.',
+        'battery': 'Calibrate or replace the battery for better health.',
+        'battery_low': 'Charge the device before performing intensive tasks.',
+        'crashes': 'Clear tombstones and fix app permissions to improve stability.',
+        'permissions': 'Consider setting SELinux permissive temporarily or fixing permissions.'
+    }
     
     @staticmethod
     def diagnose_problem(device_id: str) -> Dict:
@@ -423,20 +433,9 @@ class AndroidProblemSolver:
         """Identify problems and suggest targeted improvements."""
         diagnosis = AndroidProblemSolver.diagnose_problem(device_id)
         
-        suggestion_map = {
-            'connectivity': 'Check USB cable, drivers, and enable USB debugging.',
-            'bootloop': 'Try clearing cache/dalvik and rebooting into recovery.',
-            'storage': 'Free space by clearing cache or removing unused apps.',
-            'frp_lock': 'Use authorized FRP bypass or sign in with original account.',
-            'battery': 'Calibrate or replace the battery for better health.',
-            'battery_low': 'Charge the device before performing intensive tasks.',
-            'crashes': 'Clear tombstones and fix app permissions to improve stability.',
-            'permissions': 'Consider setting SELinux permissive temporarily or fixing permissions.'
-        }
-        
         suggestions = []
         for problem in diagnosis.get('problems', []):
-            suggestion = suggestion_map.get(problem.get('type'))
+            suggestion = AndroidProblemSolver.SUGGESTION_MAP.get(problem.get('type'))
             if suggestion:
                 suggestions.append(suggestion)
         
