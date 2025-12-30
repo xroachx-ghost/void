@@ -139,7 +139,20 @@ class VoidGUI:
         self.theme = Config.GUI_THEME
         self.root = tk.Tk()
         self.root.title(Config.APP_NAME)
-        self.root.geometry("980x640")
+        
+        # Calculate window size based on screen resolution (80% of screen, min 980x640, max 1600x900)
+        screen_width = self.root.winfo_screenwidth()
+        screen_height = self.root.winfo_screenheight()
+        window_width = max(980, min(1600, int(screen_width * 0.8)))
+        window_height = max(640, min(900, int(screen_height * 0.8)))
+        
+        # Center the window
+        x = (screen_width - window_width) // 2
+        y = (screen_height - window_height) // 2
+        
+        self.root.geometry(f"{window_width}x{window_height}+{x}+{y}")
+        self.root.minsize(980, 640)  # Set minimum window size
+        self.root.resizable(True, True)  # Make window resizable
         self.root.configure(bg=self.theme["bg"])
         self.root.withdraw()
 
@@ -1310,9 +1323,8 @@ class VoidGUI:
         if not self.simple_view_container:
             return
             
-        # Main container with centered layout
-        main = ttk.Frame(self.simple_view_container, style="Void.TFrame")
-        main.pack(fill="both", expand=True)
+        # Make the simple view scrollable
+        main = self._make_scrollable(self.simple_view_container)
         
         # Welcome section
         welcome_frame = ttk.Frame(main, style="Void.TFrame")
@@ -1620,6 +1632,7 @@ class VoidGUI:
 
         # Main tabs
         dashboard = ttk.Frame(self.notebook, style="Void.TFrame")
+        dashboard_scrollable = self._make_scrollable(dashboard)
         
         # Device Tools - Combined Apps, Files, System, Network
         device_tools_tab = ttk.Frame(self.notebook, style="Void.TFrame")
@@ -1716,12 +1729,12 @@ class VoidGUI:
         tab_controls.bind("<Button-4>", self._on_tab_wheel)
         tab_controls.bind("<Button-5>", self._on_tab_wheel)
 
-        ttk.Label(dashboard, text="Selected Device", style="Void.TLabel").pack(anchor="w")
-        ttk.Label(dashboard, textvariable=self.selected_device_var, style="Void.TLabel").pack(
+        ttk.Label(dashboard_scrollable, text="Selected Device", style="Void.TLabel").pack(anchor="w")
+        ttk.Label(dashboard_scrollable, textvariable=self.selected_device_var, style="Void.TLabel").pack(
             anchor="w", pady=(2, 8)
         )
 
-        details = ttk.Frame(dashboard, style="Void.TFrame")
+        details = ttk.Frame(dashboard_scrollable, style="Void.TFrame")
         details.pack(fill="x", pady=(0, 10))
 
         details_header = ttk.Frame(details, style="Void.TFrame")
@@ -1767,8 +1780,8 @@ class VoidGUI:
 
         self._clear_device_sections()
 
-        ttk.Label(dashboard, text="Actions", style="Void.TLabel").pack(anchor="w", pady=(6, 0))
-        actions = ttk.Frame(dashboard, style="Void.TFrame")
+        ttk.Label(dashboard_scrollable, text="Actions", style="Void.TLabel").pack(anchor="w", pady=(6, 0))
+        actions = ttk.Frame(dashboard_scrollable, style="Void.TFrame")
         actions.pack(fill="x", pady=6)
 
         self.backup_button = ttk.Button(
@@ -1861,7 +1874,7 @@ class VoidGUI:
             text="Problem Categories",
             style="Void.TLabel",
         ).pack(anchor="w", pady=(12, 0))
-        category_card = ttk.Frame(dashboard, style="Void.Card.TFrame")
+        category_card = ttk.Frame(dashboard_scrollable, style="Void.Card.TFrame")
         category_card.pack(fill="x", pady=(6, 0))
         category_card.configure(padding=12)
         ttk.Label(
@@ -1899,7 +1912,7 @@ class VoidGUI:
         ).pack(side="left")
 
         ttk.Label(
-            dashboard,
+            dashboard_scrollable,
             text="Action Descriptions",
             style="Void.TLabel"
         ).pack(anchor="w", pady=(10, 0))
@@ -1911,22 +1924,22 @@ class VoidGUI:
             "Screenshot — Capture the current device screen."
         )
         ttk.Label(
-            dashboard,
+            dashboard_scrollable,
             text=action_descriptions,
             style="Void.TLabel",
             wraplength=520
         ).pack(anchor="w", pady=(4, 0))
 
-        ttk.Label(dashboard, text="Quick Tips", style="Void.TLabel").pack(anchor="w", pady=(10, 0))
+        ttk.Label(dashboard_scrollable, text="Quick Tips", style="Void.TLabel").pack(anchor="w", pady=(10, 0))
         tips = (
             "• Use Refresh Devices before each operation.\n"
             "• Reports are generated in HTML for easy sharing.\n"
             "• Operations run in the background; watch the log for progress."
         )
-        ttk.Label(dashboard, text=tips, style="Void.TLabel", wraplength=520).pack(anchor="w")
+        ttk.Label(dashboard_scrollable, text=tips, style="Void.TLabel", wraplength=520).pack(anchor="w")
 
-        ttk.Label(dashboard, text="Repair Workflow", style="Void.TLabel").pack(anchor="w", pady=(12, 0))
-        workflow_card = ttk.Frame(dashboard, style="Void.Card.TFrame")
+        ttk.Label(dashboard_scrollable, text="Repair Workflow", style="Void.TLabel").pack(anchor="w", pady=(12, 0))
+        workflow_card = ttk.Frame(dashboard_scrollable, style="Void.Card.TFrame")
         workflow_card.pack(fill="x", pady=(6, 0))
         workflow_card.configure(padding=12)
         ttk.Label(
@@ -2341,8 +2354,11 @@ class VoidGUI:
             wraplength=600,
         ).pack(anchor="w", pady=(10, 0))
 
-        ttk.Label(plugins_panel, text="Registered Plugins", style="Void.TLabel").pack(anchor="w")
-        plugin_controls = ttk.Frame(plugins_panel, style="Void.TFrame")
+        # Make plugins panel scrollable
+        plugins_scrollable = self._make_scrollable(plugins_panel)
+        
+        ttk.Label(plugins_scrollable, text="Registered Plugins", style="Void.TLabel").pack(anchor="w")
+        plugin_controls = ttk.Frame(plugins_scrollable, style="Void.TFrame")
         plugin_controls.pack(fill="both", expand=True, pady=(6, 0))
 
         self.plugin_list = tk.Listbox(
