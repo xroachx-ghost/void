@@ -290,6 +290,10 @@ class VoidGUI:
         
         self._show_splash()
 
+    def _format_timestamp(self) -> str:
+        """Format current timestamp for logging."""
+        return datetime.now().strftime('%H:%M:%S')
+
     def _show_splash(self) -> None:
         """Display the animated splash screen before loading the main UI."""
         self._splash_window = tk.Toplevel(self.root)
@@ -2989,7 +2993,7 @@ class VoidGUI:
             warning_frame,
             text="⚠️ Legal Warning",
             font=("Consolas", 12, "bold"),
-            foreground="#ff6b6b",
+            foreground=self.theme.get("error", "#ff6b6b"),
             background=self.theme["panel"]
         ).pack(anchor="w")
         
@@ -3237,10 +3241,8 @@ Current Mode: {mode}"""
             display_name = f"{method.replace('_', ' ').title()} [{success_rate}]"
             method_listbox.insert(tk.END, display_name)
         
-        # Store method names for later retrieval
-        if not hasattr(self, '_frp_method_map'):
-            self._frp_method_map = {}
-        self._frp_method_map[id(method_listbox)] = methods
+        # Store method names directly on the widget for retrieval
+        method_listbox._frp_methods = methods  # Store as widget attribute
         
         # Update detail text
         detail_text.configure(state="normal")
@@ -3270,7 +3272,7 @@ Current Mode: {mode}"""
             return
         
         index = selection[0]
-        methods = self._frp_method_map.get(id(method_listbox), [])
+        methods = getattr(method_listbox, '_frp_methods', [])
         
         if index >= len(methods):
             return
@@ -3351,7 +3353,7 @@ TOOLS NEEDED:
             return
         
         index = selection[0]
-        methods = self._frp_method_map.get(id(method_listbox), [])
+        methods = getattr(method_listbox, '_frp_methods', [])
         
         if index >= len(methods):
             return
@@ -3455,9 +3457,9 @@ TOOLS NEEDED:
         def execute_in_thread() -> None:
             """Execute the FRP method in a separate thread."""
             try:
-                log_message(f"[{datetime.now().strftime('%H:%M:%S')}] Starting FRP bypass method...")
-                log_message(f"[{datetime.now().strftime('%H:%M:%S')}] Method: {method_id}")
-                log_message(f"[{datetime.now().strftime('%H:%M:%S')}] Device: {device_id}")
+                log_message(f"[{self._format_timestamp()}] Starting FRP bypass method...")
+                log_message(f"[{self._format_timestamp()}] Method: {method_id}")
+                log_message(f"[{self._format_timestamp()}] Device: {device_id}")
                 log_message("")
                 
                 status_var.set("Executing method...")
@@ -3465,7 +3467,7 @@ TOOLS NEEDED:
                 # Execute the method
                 result = self.frp_engine.execute_method(method_id, device_id)
                 
-                log_message(f"[{datetime.now().strftime('%H:%M:%S')}] Execution completed")
+                log_message(f"[{self._format_timestamp()}] Execution completed")
                 log_message("")
                 
                 if result.get('success'):
@@ -3496,7 +3498,7 @@ TOOLS NEEDED:
                     log_message("4. Check device connection and mode")
                 
             except Exception as e:
-                log_message(f"[{datetime.now().strftime('%H:%M:%S')}] ❌ EXCEPTION OCCURRED")
+                log_message(f"[{self._format_timestamp()}] ❌ EXCEPTION OCCURRED")
                 log_message(f"Error: {str(e)}")
                 log_message("")
                 log_message("The method encountered an unexpected error.")
