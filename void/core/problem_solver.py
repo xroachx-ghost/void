@@ -434,10 +434,15 @@ class AndroidProblemSolver:
         diagnosis = AndroidProblemSolver.diagnose_problem(device_id)
         
         suggestions = []
+        seen_types = set()
         for problem in diagnosis.get('problems', []):
-            suggestion = AndroidProblemSolver.SUGGESTION_MAP.get(problem.get('type'))
+            problem_type = problem.get('type')
+            if problem_type in seen_types:
+                continue
+            suggestion = AndroidProblemSolver.SUGGESTION_MAP.get(problem_type)
             if suggestion:
                 suggestions.append(suggestion)
+                seen_types.add(problem_type)
         
         if not suggestions:
             suggestions.append(AndroidProblemSolver.DEFAULT_HEALTHY_SUGGESTION)
