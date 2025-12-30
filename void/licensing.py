@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """
 VOID Licensing System
 
@@ -7,7 +9,7 @@ Made by James Michael Roach Jr.
 Unauthorized copying, modification, distribution, or disclosure is prohibited.
 """
 
-from __future__ import annotations
+
 
 import hashlib
 import json

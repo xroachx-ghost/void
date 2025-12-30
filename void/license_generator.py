@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 #!/usr/bin/env python3
 """
 VOID License Generator
@@ -12,7 +14,7 @@ Unauthorized copying, modification, distribution, or disclosure is prohibited.
 SECURITY WARNING: Keep the private key secure and never commit it to version control.
 """
 
-from __future__ import annotations
+
 
 import argparse
 import json
