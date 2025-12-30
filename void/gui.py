@@ -2021,24 +2021,10 @@ class VoidGUI:
         self._build_data_exports_panel(data_exports_panel)
         self._build_db_tools_panel(db_tools_panel)
         self._build_command_panel(command_panel)
+        self._build_plugins_panel(plugins_panel)
         if self.browser_panel is not None:
             self._build_browser_panel(self.browser_panel)
-
-        ttk.Label(help_panel_scrollable, text="Action Details", style="Void.TLabel").pack(anchor="w")
-        ttk.Label(
-            help_panel_scrollable,
-            textvariable=self.action_help_var,
-            style="Void.TLabel",
-            wraplength=600
-        ).pack(anchor="w", pady=(6, 12))
-
-        guide = (
-            "Device List: Shows connected devices. Select one to view metadata.\n"
-            "Dashboard: Overview of the selected device and quick actions.\n"
-            "Operations Log: Live status output for running tasks.\n"
-            "Status Bar: Displays the most recent operation summary."
-        )
-        ttk.Label(help_panel_scrollable, text=guide, style="Void.TLabel", wraplength=600).pack(anchor="w")
+        self._build_help_panel(help_panel)
 
         ttk.Label(
             self.troubleshooting_scrollable,
@@ -2353,54 +2339,6 @@ class VoidGUI:
             style="Void.TLabel",
             wraplength=600,
         ).pack(anchor="w", pady=(10, 0))
-
-        # Make plugins panel scrollable
-        plugins_scrollable = self._make_scrollable(plugins_panel)
-        
-        ttk.Label(plugins_scrollable, text="Registered Plugins", style="Void.TLabel").pack(anchor="w")
-        plugin_controls = ttk.Frame(plugins_scrollable, style="Void.TFrame")
-        plugin_controls.pack(fill="both", expand=True, pady=(6, 0))
-
-        self.plugin_list = tk.Listbox(
-            plugin_controls,
-            width=36,
-            height=12,
-            bg=self.theme["panel_alt"],
-            fg=self.theme["accent"],
-            selectbackground=self.theme["button_active"],
-            selectforeground=self.theme["text"],
-            highlightthickness=0,
-            font=("Consolas", 10),
-        )
-        self.plugin_list.pack(side="left", fill="y", padx=(0, 12))
-        self.plugin_list.bind("<<ListboxSelect>>", lambda _: self._on_plugin_select())
-        Tooltip(self.plugin_list, "Select a plugin to see details or run it.")
-
-        plugin_details = ttk.Frame(plugin_controls, style="Void.TFrame")
-        plugin_details.pack(side="left", fill="both", expand=True)
-
-        ttk.Label(plugin_details, text="Details", style="Void.TLabel").pack(anchor="w")
-        ttk.Label(
-            plugin_details,
-            textvariable=self.plugin_description_var,
-            style="Void.TLabel",
-            wraplength=420,
-        ).pack(anchor="w", pady=(4, 10))
-
-        plugin_actions = ttk.Frame(plugin_details, style="Void.TFrame")
-        plugin_actions.pack(anchor="w")
-        ttk.Button(
-            plugin_actions,
-            text="Refresh Plugins",
-            style="Void.TButton",
-            command=self._load_plugins,
-        ).pack(side="left", padx=(0, 8))
-        ttk.Button(
-            plugin_actions,
-            text="Run Plugin",
-            style="Void.TButton",
-            command=self._run_selected_plugin,
-        ).pack(side="left")
 
         status = ttk.Frame(self.root, style="Void.TFrame")
         status.pack(fill="x", padx=20, pady=(0, 12))
@@ -5126,6 +5064,75 @@ class VoidGUI:
             text="Settings apply immediately to GUI actions.",
             style="Void.TLabel",
         ).pack(side="left", padx=(12, 0))
+
+    def _build_plugins_panel(self, panel: ttk.Frame) -> None:
+        """Build the plugins management panel."""
+        scrollable = self._make_scrollable(panel)
+        
+        ttk.Label(scrollable, text="Registered Plugins", style="Void.TLabel").pack(anchor="w")
+        plugin_controls = ttk.Frame(scrollable, style="Void.TFrame")
+        plugin_controls.pack(fill="both", expand=True, pady=(6, 0))
+
+        self.plugin_list = tk.Listbox(
+            plugin_controls,
+            width=36,
+            height=12,
+            bg=self.theme["panel_alt"],
+            fg=self.theme["accent"],
+            selectbackground=self.theme["button_active"],
+            selectforeground=self.theme["text"],
+            highlightthickness=0,
+            font=("Consolas", 10),
+        )
+        self.plugin_list.pack(side="left", fill="y", padx=(0, 12))
+        self.plugin_list.bind("<<ListboxSelect>>", lambda _: self._on_plugin_select())
+        Tooltip(self.plugin_list, "Select a plugin to see details or run it.")
+
+        plugin_details = ttk.Frame(plugin_controls, style="Void.TFrame")
+        plugin_details.pack(side="left", fill="both", expand=True)
+
+        ttk.Label(plugin_details, text="Details", style="Void.TLabel").pack(anchor="w")
+        ttk.Label(
+            plugin_details,
+            textvariable=self.plugin_description_var,
+            style="Void.TLabel",
+            wraplength=420,
+        ).pack(anchor="w", pady=(4, 10))
+
+        plugin_actions = ttk.Frame(plugin_details, style="Void.TFrame")
+        plugin_actions.pack(anchor="w")
+        ttk.Button(
+            plugin_actions,
+            text="Refresh Plugins",
+            style="Void.TButton",
+            command=self._load_plugins,
+        ).pack(side="left", padx=(0, 8))
+        ttk.Button(
+            plugin_actions,
+            text="Run Plugin",
+            style="Void.TButton",
+            command=self._run_selected_plugin,
+        ).pack(side="left")
+
+    def _build_help_panel(self, panel: ttk.Frame) -> None:
+        """Build the help and documentation panel."""
+        scrollable = self._make_scrollable(panel)
+        
+        ttk.Label(scrollable, text="Action Details", style="Void.TLabel").pack(anchor="w")
+        ttk.Label(
+            scrollable,
+            textvariable=self.action_help_var,
+            style="Void.TLabel",
+            wraplength=600
+        ).pack(anchor="w", pady=(6, 12))
+
+        guide = (
+            "Device List: Shows connected devices. Select one to view metadata.\n"
+            "Dashboard: Overview of the selected device and quick actions.\n"
+            "Operations Log: Live status output for running tasks.\n"
+            "Status Bar: Displays the most recent operation summary."
+        )
+        ttk.Label(scrollable, text=guide, style="Void.TLabel", wraplength=600).pack(anchor="w")
 
     def _scroll_tabs(self, direction: int) -> None:
         if not self.notebook:
