@@ -1370,7 +1370,7 @@ class VoidGUI:
         actions_grid = ttk.Frame(main, style="Void.TFrame")
         actions_grid.pack(fill="x", pady=(0, 20))
         
-        # Row 1
+        # Row 1 - Backup & Reports
         row1 = ttk.Frame(actions_grid, style="Void.TFrame")
         row1.pack(fill="x", pady=(0, 12))
         
@@ -1391,7 +1391,7 @@ class VoidGUI:
             padx=(12, 0)
         )
         
-        # Row 2
+        # Row 2 - Diagnostics
         row2 = ttk.Frame(actions_grid, style="Void.TFrame")
         row2.pack(fill="x", pady=(0, 12))
         
@@ -1412,23 +1412,65 @@ class VoidGUI:
             padx=(12, 0)
         )
         
-        # Row 3
+        # Row 3 - File & App Management
         row3 = ttk.Frame(actions_grid, style="Void.TFrame")
-        row3.pack(fill="x")
+        row3.pack(fill="x", pady=(0, 12))
         
         self._create_action_card(
             row3,
             "📁 Browse Files",
             "Access device files and folders",
-            lambda: self.notebook.select(2) if self.notebook else None,  # Files tab
+            lambda: self._switch_to_advanced_tab(1, 1) if self.notebook else None,  # Device Tools > Files
             side="left"
         )
         
         self._create_action_card(
             row3,
+            "📱 Manage Apps",
+            "View and manage installed apps",
+            lambda: self._switch_to_advanced_tab(1, 0) if self.notebook else None,  # Device Tools > Apps
+            side="left",
+            padx=(12, 0)
+        )
+        
+        # Row 4 - Performance & Logs
+        row4 = ttk.Frame(actions_grid, style="Void.TFrame")
+        row4.pack(fill="x", pady=(0, 12))
+        
+        self._create_action_card(
+            row4,
             "🔍 Analyze Performance",
             "Check device health and performance",
             self._analyze,
+            side="left"
+        )
+        
+        self._create_action_card(
+            row4,
+            "📋 View Logs",
+            "View device logs and diagnostics",
+            lambda: self._switch_to_advanced_tab(3, 0) if self.notebook else None,  # Diagnostics > Logcat
+            side="left",
+            padx=(12, 0)
+        )
+        
+        # Row 5 - Recovery & Network
+        row5 = ttk.Frame(actions_grid, style="Void.TFrame")
+        row5.pack(fill="x")
+        
+        self._create_action_card(
+            row5,
+            "🔄 Data Recovery",
+            "Recover contacts and messages",
+            lambda: self._switch_to_advanced_tab(2, 0) if self.notebook else None,  # Recovery > Data Recovery
+            side="left"
+        )
+        
+        self._create_action_card(
+            row5,
+            "🌐 Network Tools",
+            "Network settings and diagnostics",
+            lambda: self._switch_to_advanced_tab(1, 3) if self.notebook else None,  # Device Tools > Network
             side="left",
             padx=(12, 0)
         )
@@ -3680,6 +3722,124 @@ class VoidGUI:
             command=self._recover_sms,
         ).pack(side="left")
 
+        # Partition Operations
+        partition_card = ttk.Frame(scrollable, style="Void.Card.TFrame")
+        partition_card.pack(fill="x", pady=(0, 12))
+        partition_card.configure(padding=12)
+        ttk.Label(partition_card, text="Partition Operations", style="Void.TLabel").pack(anchor="w")
+        
+        partition_list_row = ttk.Frame(partition_card, style="Void.TFrame")
+        partition_list_row.pack(fill="x", pady=(6, 6))
+        ttk.Button(
+            partition_list_row,
+            text="List Partitions",
+            style="Void.TButton",
+            command=self._list_partitions,
+        ).pack(side="left", padx=(0, 6))
+        ttk.Button(
+            partition_list_row,
+            text="View Partition Table",
+            style="Void.TButton",
+            command=self._view_partition_table,
+        ).pack(side="left")
+        
+        partition_backup_row = ttk.Frame(partition_card, style="Void.TFrame")
+        partition_backup_row.pack(fill="x", pady=(0, 6))
+        ttk.Label(partition_backup_row, text="Partition Name:", style="Void.TLabel").pack(side="left")
+        self.partition_name_var = tk.StringVar(value="boot")
+        partition_entry = tk.Entry(
+            partition_backup_row,
+            textvariable=self.partition_name_var,
+            bg=self.theme["panel_alt"],
+            fg=self.theme["text"],
+            insertbackground=self.theme["accent"],
+            relief="flat",
+            font=("Consolas", 10),
+            width=15,
+        )
+        partition_entry.pack(side="left", padx=(8, 12))
+        ttk.Button(
+            partition_backup_row,
+            text="Backup Partition",
+            style="Void.TButton",
+            command=self._backup_partition,
+        ).pack(side="left", padx=(0, 6))
+        ttk.Button(
+            partition_backup_row,
+            text="⚠️ Wipe Partition",
+            style="Void.TButton",
+            command=self._wipe_partition,
+        ).pack(side="left")
+
+        # Root & Recovery Management
+        root_card = ttk.Frame(scrollable, style="Void.Card.TFrame")
+        root_card.pack(fill="x", pady=(0, 12))
+        root_card.configure(padding=12)
+        ttk.Label(root_card, text="Root & Recovery", style="Void.TLabel").pack(anchor="w")
+        
+        root_row1 = ttk.Frame(root_card, style="Void.TFrame")
+        root_row1.pack(fill="x", pady=(6, 6))
+        ttk.Button(
+            root_row1,
+            text="Verify Root",
+            style="Void.TButton",
+            command=self._verify_root,
+        ).pack(side="left", padx=(0, 6))
+        ttk.Button(
+            root_row1,
+            text="Safety Check",
+            style="Void.TButton",
+            command=self._run_safety_check,
+        ).pack(side="left", padx=(0, 6))
+        ttk.Button(
+            root_row1,
+            text="Extract Boot Image",
+            style="Void.TButton",
+            command=self._extract_boot_image,
+        ).pack(side="left")
+        
+        root_row2 = ttk.Frame(root_card, style="Void.TFrame")
+        root_row2.pack(fill="x", pady=(0, 6))
+        ttk.Button(
+            root_row2,
+            text="Stage Magisk Patch",
+            style="Void.TButton",
+            command=self._stage_magisk_patch,
+        ).pack(side="left", padx=(0, 6))
+        ttk.Button(
+            root_row2,
+            text="Pull Magisk Image",
+            style="Void.TButton",
+            command=self._pull_magisk_image,
+        ).pack(side="left", padx=(0, 6))
+        ttk.Button(
+            root_row2,
+            text="Verify TWRP",
+            style="Void.TButton",
+            command=self._verify_twrp,
+        ).pack(side="left")
+        
+        root_row3 = ttk.Frame(root_card, style="Void.TFrame")
+        root_row3.pack(fill="x")
+        ttk.Button(
+            root_row3,
+            text="Flash TWRP",
+            style="Void.TButton",
+            command=self._flash_twrp,
+        ).pack(side="left", padx=(0, 6))
+        ttk.Button(
+            root_row3,
+            text="Boot TWRP",
+            style="Void.TButton",
+            command=self._boot_twrp,
+        ).pack(side="left", padx=(0, 6))
+        ttk.Button(
+            root_row3,
+            text="Rollback Flash",
+            style="Void.TButton",
+            command=self._rollback_flash,
+        ).pack(side="left")
+
         frp_card = ttk.Frame(scrollable, style="Void.Card.TFrame")
         frp_card.pack(fill="x")
         frp_card.configure(padding=12)
@@ -4080,7 +4240,7 @@ class VoidGUI:
         ).pack(side="left")
 
         dump_card = ttk.Frame(scrollable, style="Void.Card.TFrame")
-        dump_card.pack(fill="x")
+        dump_card.pack(fill="x", pady=(0, 12))
         dump_card.configure(padding=12)
         ttk.Label(dump_card, text="EDL Dump", style="Void.TLabel").pack(anchor="w")
         dump_row = ttk.Frame(dump_card, style="Void.TFrame")
@@ -4101,6 +4261,74 @@ class VoidGUI:
             text="Dump",
             style="Void.TButton",
             command=self._edl_dump,
+        ).pack(side="left")
+
+        # EDL Tools
+        edl_tools_card = ttk.Frame(scrollable, style="Void.Card.TFrame")
+        edl_tools_card.pack(fill="x", pady=(0, 12))
+        edl_tools_card.configure(padding=12)
+        ttk.Label(edl_tools_card, text="EDL Tools", style="Void.TLabel").pack(anchor="w")
+        edl_tools_row1 = ttk.Frame(edl_tools_card, style="Void.TFrame")
+        edl_tools_row1.pack(fill="x", pady=(6, 6))
+        ttk.Button(
+            edl_tools_row1,
+            text="List Programmers",
+            style="Void.TButton",
+            command=self._edl_list_programmers,
+        ).pack(side="left", padx=(0, 6))
+        ttk.Button(
+            edl_tools_row1,
+            text="Detect EDL Devices",
+            style="Void.TButton",
+            command=self._edl_detect_devices,
+        ).pack(side="left", padx=(0, 6))
+        ttk.Button(
+            edl_tools_row1,
+            text="Compatibility Matrix",
+            style="Void.TButton",
+            command=self._edl_compat_matrix,
+        ).pack(side="left")
+        
+        edl_tools_row2 = ttk.Frame(edl_tools_card, style="Void.TFrame")
+        edl_tools_row2.pack(fill="x", pady=(0, 6))
+        ttk.Button(
+            edl_tools_row2,
+            text="Sparse to Raw",
+            style="Void.TButton",
+            command=self._edl_sparse_to_raw,
+        ).pack(side="left", padx=(0, 6))
+        ttk.Button(
+            edl_tools_row2,
+            text="Raw to Sparse",
+            style="Void.TButton",
+            command=self._edl_raw_to_sparse,
+        ).pack(side="left", padx=(0, 6))
+        ttk.Button(
+            edl_tools_row2,
+            text="Verify Image Hash",
+            style="Void.TButton",
+            command=self._edl_verify_hash,
+        ).pack(side="left")
+        
+        edl_tools_row3 = ttk.Frame(edl_tools_card, style="Void.TFrame")
+        edl_tools_row3.pack(fill="x")
+        ttk.Button(
+            edl_tools_row3,
+            text="Unbrick Checklist",
+            style="Void.TButton",
+            command=self._edl_unbrick_checklist,
+        ).pack(side="left", padx=(0, 6))
+        ttk.Button(
+            edl_tools_row3,
+            text="Device Notes",
+            style="Void.TButton",
+            command=self._edl_device_notes,
+        ).pack(side="left", padx=(0, 6))
+        ttk.Button(
+            edl_tools_row3,
+            text="Capture EDL Log",
+            style="Void.TButton",
+            command=self._edl_capture_log,
         ).pack(side="left")
 
     def _build_data_exports_panel(self, panel: ttk.Frame) -> None:
@@ -5578,6 +5806,261 @@ class VoidGUI:
 
         self._run_task(f"FRP {method_name}", runner)
 
+    def _list_partitions(self) -> None:
+        device_id = self._get_selected_device()
+        if not device_id:
+            return
+
+        def runner() -> Dict[str, Any]:
+            result = list_partitions(device_id)
+            if result.get("success") and result.get("partitions"):
+                self._log(f"Found {len(result['partitions'])} partitions:")
+                for p in result["partitions"]:
+                    self._log(f"  {p.get('name', 'unknown')}: {p.get('size', 'unknown')} ({p.get('filesystem', 'unknown')})")
+            return result
+
+        self._run_task("List partitions", runner)
+
+    def _view_partition_table(self) -> None:
+        device_id = self._get_selected_device()
+        if not device_id:
+            return
+
+        def runner() -> Dict[str, Any]:
+            from .core.edl_toolkit import read_partition_table
+            result = read_partition_table(device_id)
+            if result.success and result.data:
+                self._log("Partition table:")
+                for line in str(result.data).split('\n'):
+                    self._log(f"  {line}")
+            return {"success": result.success, "message": result.message}
+
+        self._run_task("Read partition table", runner)
+
+    def _backup_partition(self) -> None:
+        device_id = self._get_selected_device()
+        if not device_id:
+            return
+        partition_name = self.partition_name_var.get().strip()
+        if not partition_name:
+            messagebox.showwarning("Void", "Enter a partition name (e.g., 'boot', 'recovery').")
+            return
+
+        def runner() -> Dict[str, Any]:
+            result = backup_partition(device_id, partition_name)
+            if result.get("success"):
+                self._log(f"Partition backup saved to: {result.get('path')}")
+            return result
+
+        self._run_task(f"Backup {partition_name} partition", runner)
+
+    def _wipe_partition(self) -> None:
+        device_id = self._get_selected_device()
+        if not device_id:
+            return
+        partition_name = self.partition_name_var.get().strip()
+        if not partition_name:
+            messagebox.showwarning("Void", "Enter a partition name to wipe.")
+            return
+        
+        confirm = messagebox.askyesno(
+            "Confirm Partition Wipe",
+            f"⚠️ WARNING: This will PERMANENTLY ERASE the '{partition_name}' partition!\n\n"
+            f"This action CANNOT be undone. Are you absolutely sure?",
+            icon="warning"
+        )
+        if not confirm:
+            return
+
+        def runner() -> Dict[str, Any]:
+            result = wipe_partition(device_id, partition_name)
+            return result
+
+        self._run_task(f"Wipe {partition_name} partition", runner)
+
+    def _verify_root(self) -> None:
+        device_id = self._get_selected_device()
+        if not device_id:
+            return
+
+        def runner() -> Dict[str, Any]:
+            from .core.edl_toolkit import verify_root
+            result = verify_root(device_id)
+            if result.success:
+                self._log("✅ Root access verified!")
+                if result.data:
+                    self._log(f"  Details: {result.data}")
+            else:
+                self._log("❌ No root access detected")
+            return {"success": result.success, "message": result.message}
+
+        self._run_task("Verify root", runner)
+
+    def _run_safety_check(self) -> None:
+        device_id = self._get_selected_device()
+        if not device_id:
+            return
+
+        def runner() -> Dict[str, Any]:
+            from .core.edl_toolkit import safety_check
+            result = safety_check(device_id)
+            if result.success and result.data:
+                self._log("Safety checklist:")
+                for check in result.data.get('checks', []):
+                    status = "✅" if check.get('passed') else "❌"
+                    self._log(f"  {status} {check.get('name')}: {check.get('message')}")
+            return {"success": result.success, "message": result.message}
+
+        self._run_task("Safety check", runner)
+
+    def _extract_boot_image(self) -> None:
+        from tkinter import filedialog
+        boot_img_path = filedialog.askopenfilename(
+            title="Select Boot Image",
+            filetypes=[("Image Files", "*.img"), ("All Files", "*.*")]
+        )
+        if not boot_img_path:
+            return
+
+        def runner() -> Dict[str, Any]:
+            from .core.edl_toolkit import extract_boot_image
+            result = extract_boot_image(boot_img_path)
+            if result.success:
+                self._log(f"Boot image extracted successfully")
+                if result.data:
+                    self._log(f"  Output: {result.data}")
+            return {"success": result.success, "message": result.message}
+
+        self._run_task("Extract boot image", runner)
+
+    def _stage_magisk_patch(self) -> None:
+        device_id = self._get_selected_device()
+        if not device_id:
+            return
+        from tkinter import filedialog
+        boot_img_path = filedialog.askopenfilename(
+            title="Select Boot Image",
+            filetypes=[("Image Files", "*.img"), ("All Files", "*.*")]
+        )
+        if not boot_img_path:
+            return
+
+        def runner() -> Dict[str, Any]:
+            from .core.edl_toolkit import stage_magisk_patch
+            result = stage_magisk_patch(device_id, boot_img_path)
+            if result.success:
+                self._log("Boot image staged for Magisk patching")
+                self._log("Next: Open Magisk Manager on device and patch the boot image")
+            return {"success": result.success, "message": result.message}
+
+        self._run_task("Stage Magisk patch", runner)
+
+    def _pull_magisk_image(self) -> None:
+        device_id = self._get_selected_device()
+        if not device_id:
+            return
+
+        def runner() -> Dict[str, Any]:
+            from .core.edl_toolkit import pull_magisk_patched
+            result = pull_magisk_patched(device_id)
+            if result.success and result.data:
+                self._log(f"Pulled Magisk patched image to: {result.data}")
+            return {"success": result.success, "message": result.message}
+
+        self._run_task("Pull Magisk image", runner)
+
+    def _verify_twrp(self) -> None:
+        device_id = self._get_selected_device()
+        if not device_id:
+            return
+        from tkinter import filedialog
+        twrp_img_path = filedialog.askopenfilename(
+            title="Select TWRP Image",
+            filetypes=[("Image Files", "*.img"), ("All Files", "*.*")]
+        )
+        if not twrp_img_path:
+            return
+
+        def runner() -> Dict[str, Any]:
+            from .core.edl_toolkit import verify_twrp_image
+            result = verify_twrp_image(device_id, twrp_img_path)
+            if result.success:
+                self._log("✅ TWRP image verified successfully")
+            return {"success": result.success, "message": result.message}
+
+        self._run_task("Verify TWRP", runner)
+
+    def _flash_twrp(self) -> None:
+        device_id = self._get_selected_device()
+        if not device_id:
+            return
+        from tkinter import filedialog
+        twrp_img_path = filedialog.askopenfilename(
+            title="Select TWRP Image",
+            filetypes=[("Image Files", "*.img"), ("All Files", "*.*")]
+        )
+        if not twrp_img_path:
+            return
+
+        confirm = messagebox.askyesno(
+            "Confirm TWRP Flash",
+            "This will permanently flash TWRP to the recovery partition.\n\nContinue?",
+            icon="question"
+        )
+        if not confirm:
+            return
+
+        def runner() -> Dict[str, Any]:
+            from .core.edl_toolkit import flash_recovery
+            result = flash_recovery(device_id, twrp_img_path, mode="flash")
+            return {"success": result.success, "message": result.message}
+
+        self._run_task("Flash TWRP", runner)
+
+    def _boot_twrp(self) -> None:
+        device_id = self._get_selected_device()
+        if not device_id:
+            return
+        from tkinter import filedialog
+        twrp_img_path = filedialog.askopenfilename(
+            title="Select TWRP Image",
+            filetypes=[("Image Files", "*.img"), ("All Files", "*.*")]
+        )
+        if not twrp_img_path:
+            return
+
+        def runner() -> Dict[str, Any]:
+            from .core.edl_toolkit import flash_recovery
+            result = flash_recovery(device_id, twrp_img_path, mode="boot")
+            if result.success:
+                self._log("Device will boot into TWRP temporarily")
+            return {"success": result.success, "message": result.message}
+
+        self._run_task("Boot TWRP", runner)
+
+    def _rollback_flash(self) -> None:
+        device_id = self._get_selected_device()
+        if not device_id:
+            return
+        partition_name = self.partition_name_var.get().strip()
+        if not partition_name:
+            messagebox.showwarning("Void", "Enter a partition name to rollback (e.g., 'boot').")
+            return
+        from tkinter import filedialog
+        backup_img_path = filedialog.askopenfilename(
+            title="Select Backup Image",
+            filetypes=[("Image Files", "*.img"), ("All Files", "*.*")]
+        )
+        if not backup_img_path:
+            return
+
+        def runner() -> Dict[str, Any]:
+            from .core.edl_toolkit import rollback_flash
+            result = rollback_flash(device_id, partition_name, backup_img_path)
+            return {"success": result.success, "message": result.message}
+
+        self._run_task(f"Rollback {partition_name}", runner)
+
     def _apply_tweak(self) -> None:
         device_id = self._get_selected_device()
         if not device_id:
@@ -6000,6 +6483,146 @@ class VoidGUI:
             return result
 
         self._run_task("EDL dump", runner)
+
+    def _edl_list_programmers(self) -> None:
+        def runner() -> Dict[str, Any]:
+            from .core.edl_toolkit import list_firehose_programmers
+            result = list_firehose_programmers()
+            if result.success and result.data:
+                self._log("Available Firehose Programmers:")
+                for prog in result.data.get('programmers', []):
+                    self._log(f"  • {prog.get('chipset')}: {prog.get('file')}", level="DATA")
+            return {"success": result.success, "message": result.message}
+
+        self._run_task("List EDL programmers", runner)
+
+    def _edl_detect_devices(self) -> None:
+        def runner() -> Dict[str, Any]:
+            from .core.edl_toolkit import detect_edl_devices
+            result = detect_edl_devices()
+            if result.success and result.data:
+                self._log(f"Detected {len(result.data.get('devices', []))} EDL device(s):")
+                for dev in result.data.get('devices', []):
+                    self._log(f"  • {dev.get('usb_id')}: {dev.get('chipset', 'Unknown')}", level="DATA")
+            return {"success": result.success, "message": result.message}
+
+        self._run_task("Detect EDL devices", runner)
+
+    def _edl_compat_matrix(self) -> None:
+        def runner() -> Dict[str, Any]:
+            from .core.edl_toolkit import compatibility_matrix
+            result = compatibility_matrix()
+            if result.success and result.data:
+                self._log("EDL Compatibility Matrix:")
+                for entry in result.data.get('matrix', []):
+                    self._log(f"  {entry.get('chipset')}: {entry.get('tools', 'N/A')}", level="DATA")
+            return {"success": result.success, "message": result.message}
+
+        self._run_task("Show compatibility matrix", runner)
+
+    def _edl_sparse_to_raw(self) -> None:
+        from tkinter import filedialog
+        source_path = filedialog.askopenfilename(
+            title="Select Sparse Image",
+            filetypes=[("Image Files", "*.img"), ("All Files", "*.*")]
+        )
+        if not source_path:
+            return
+        
+        dest_path = filedialog.asksaveasfilename(
+            title="Save Raw Image As",
+            defaultextension=".img",
+            filetypes=[("Image Files", "*.img"), ("All Files", "*.*")]
+        )
+        if not dest_path:
+            return
+
+        def runner() -> Dict[str, Any]:
+            from .core.edl_toolkit import convert_sparse_image
+            result = convert_sparse_image("to-raw", source_path, dest_path)
+            return {"success": result.success, "message": result.message}
+
+        self._run_task("Convert sparse to raw", runner)
+
+    def _edl_raw_to_sparse(self) -> None:
+        from tkinter import filedialog
+        source_path = filedialog.askopenfilename(
+            title="Select Raw Image",
+            filetypes=[("Image Files", "*.img"), ("All Files", "*.*")]
+        )
+        if not source_path:
+            return
+        
+        dest_path = filedialog.asksaveasfilename(
+            title="Save Sparse Image As",
+            defaultextension=".img",
+            filetypes=[("Image Files", "*.img"), ("All Files", "*.*")]
+        )
+        if not dest_path:
+            return
+
+        def runner() -> Dict[str, Any]:
+            from .core.edl_toolkit import convert_sparse_image
+            result = convert_sparse_image("to-sparse", source_path, dest_path)
+            return {"success": result.success, "message": result.message}
+
+        self._run_task("Convert raw to sparse", runner)
+
+    def _edl_verify_hash(self) -> None:
+        from tkinter import filedialog
+        image_path = filedialog.askopenfilename(
+            title="Select Image to Verify",
+            filetypes=[("Image Files", "*.img"), ("All Files", "*.*")]
+        )
+        if not image_path:
+            return
+
+        def runner() -> Dict[str, Any]:
+            from .core.edl_toolkit import verify_hash
+            result = verify_hash(image_path)
+            if result.success and result.data:
+                self._log(f"SHA256: {result.data.get('hash')}", level="DATA")
+            return {"success": result.success, "message": result.message}
+
+        self._run_task("Verify image hash", runner)
+
+    def _edl_unbrick_checklist(self) -> None:
+        def runner() -> Dict[str, Any]:
+            from .core.edl_toolkit import edl_unbrick_plan
+            result = edl_unbrick_plan()
+            if result.success and result.data:
+                self._log("Unbrick Checklist:")
+                for step in result.data.get('steps', []):
+                    self._log(f"  {step.get('number')}. {step.get('description')}", level="DATA")
+            return {"success": result.success, "message": result.message}
+
+        self._run_task("Show unbrick checklist", runner)
+
+    def _edl_device_notes(self) -> None:
+        from tkinter import simpledialog
+        vendor = simpledialog.askstring("Device Notes", "Enter vendor name (e.g., 'qualcomm', 'mediatek'):")
+        if not vendor:
+            return
+
+        def runner() -> Dict[str, Any]:
+            from .core.edl_toolkit import device_notes
+            result = device_notes(vendor)
+            if result.success and result.data:
+                self._log(f"Device Notes for {vendor}:")
+                self._log(result.data.get('notes', 'No notes available'), level="DATA")
+            return {"success": result.success, "message": result.message}
+
+        self._run_task(f"Device notes: {vendor}", runner)
+
+    def _edl_capture_log(self) -> None:
+        def runner() -> Dict[str, Any]:
+            from .core.edl_toolkit import capture_edl_log
+            result = capture_edl_log()
+            if result.success and result.data:
+                self._log(f"EDL log captured to: {result.data.get('path')}", level="DATA")
+            return {"success": result.success, "message": result.message}
+
+        self._run_task("Capture EDL log", runner)
 
     def _parse_limit(self, value: str, fallback: int = 10) -> int:
         try:
@@ -6670,6 +7293,27 @@ class VoidGUI:
         # Refresh device info in simple mode
         if not self.is_advanced_mode.get():
             self.root.after(100, self._update_simple_device_info)
+    
+    def _switch_to_advanced_tab(self, main_tab_index: int, sub_tab_index: Optional[int] = None) -> None:
+        """Switch to advanced mode and navigate to a specific tab."""
+        # Switch to advanced mode if not already there
+        if not self.is_advanced_mode.get():
+            self.is_advanced_mode.set(True)
+            self._switch_view()
+        
+        # Navigate to the specified tab
+        if self.notebook and main_tab_index < len(self.notebook.tabs()):
+            self.notebook.select(main_tab_index)
+            
+            # If sub-tab index is provided, navigate to it
+            if sub_tab_index is not None:
+                # Get the current tab widget
+                current_tab = self.notebook.nametowidget(self.notebook.select())
+                # Find notebooks within the tab
+                for child in current_tab.winfo_children():
+                    if isinstance(child, ttk.Notebook) and sub_tab_index < len(child.tabs()):
+                        child.select(sub_tab_index)
+                        break
     
     def _update_simple_device_info(self) -> None:
         """Update device info display in simple mode."""
