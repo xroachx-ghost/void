@@ -431,6 +431,7 @@ class AndroidProblemSolver:
             'crashes': 'Clear tombstones and fix app permissions to improve stability.',
             'permissions': 'Consider setting SELinux permissive temporarily or fixing permissions.'
         }
+        default_suggestion = 'Device appears healthy. Keep firmware updated and maintain backups.'
         
         suggestions = []
         for problem in diagnosis.get('problems', []):
@@ -439,7 +440,7 @@ class AndroidProblemSolver:
                 suggestions.append(suggestion)
         
         if not suggestions:
-            suggestions.append('Device appears healthy. Keep firmware updated and maintain backups.')
+            suggestions.append(default_suggestion)
         
         return {
             'device_id': device_id,
