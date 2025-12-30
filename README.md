@@ -67,6 +67,7 @@ All rights reserved. This is proprietary and confidential software. Unauthorized
 - [Key Features](#-key-features)
 - [Prerequisites](#-prerequisites)
 - [Installation](#-installation)
+- [Licensing](#-licensing)
 - [Quick Start](#-quick-start)
 - [GUI Overview](#-gui-overview)
 - [Common Commands](#-common-commands)
@@ -357,6 +358,111 @@ git pull
 # Reinstall
 pip install --upgrade .
 ```
+
+---
+
+## 🔑 Licensing
+
+Void Suite uses a flexible licensing system with multiple tiers to meet different user needs.
+
+### License Tiers
+
+| Tier | Duration | Devices | Commercial Use | Support | Price |
+|------|----------|---------|----------------|---------|-------|
+| **Trial** | 14 days | 1 | ❌ | Community | FREE |
+| **Personal** | Lifetime | 1 | ❌ | Email (48h) | Contact Sales |
+| **Professional** | Lifetime + 1yr updates | 3 | ✅ | Priority (24h) | Contact Sales |
+| **Enterprise** | Custom | Unlimited | ✅ | Dedicated (4h) | Custom |
+
+### License Activation
+
+#### During Installation
+
+The installer will prompt you to:
+1. Activate a license key (if you have one)
+2. Start a 14-day free trial
+3. Skip (activate later)
+
+#### After Installation
+
+Activate a license using the CLI:
+
+```bash
+# Start a free 14-day trial
+void license trial
+
+# Activate from license file
+void license activate --file /path/to/license.key
+
+# Check license status
+void license status
+
+# Deactivate (before transferring to new device)
+void license deactivate
+```
+
+#### In the GUI
+
+1. Open Void Suite GUI
+2. Go to **Help** → **License Manager**
+3. Click **Activate License**
+4. Browse to your license file or start trial
+
+### Getting a License
+
+- **Trial**: Automatically available, no purchase needed
+- **Paid Licenses**: Contact sales@roach-labs.com
+- **Educational Discount**: 50% off for students/educators
+- **Volume Licensing**: Available for 5+ licenses
+
+### License Features
+
+**All license tiers include:**
+- ✅ Full access to all 250+ features
+- ✅ FRP bypass capabilities
+- ✅ EDL operations
+- ✅ Backup and recovery tools
+- ✅ Device diagnostics
+- ✅ Regular updates (varies by tier)
+
+**Professional and Enterprise add:**
+- ✅ Commercial use rights
+- ✅ Multi-device support
+- ✅ Priority support
+- ✅ Extended update period
+- ✅ Compliance features
+
+### Refund Policy
+
+- **14-day money-back guarantee** for Personal and Professional
+- No questions asked within first 14 days
+- Enterprise licenses have custom terms
+
+### Documentation
+
+For detailed licensing information:
+- 📖 [Licensing Guide](docs/LICENSING_GUIDE.md) - Complete guide to licenses
+- 📋 [Features Comparison](docs/FEATURES_COMPARISON.md) - Feature matrix by tier
+- 📜 [EULA](EULA.md) - End User License Agreement
+- 💰 [Terms of Sale](TERMS_OF_SALE.md) - Purchase and refund policies
+- ⚖️ [Compliance Guide](COMPLIANCE.md) - Legal requirements and compliance
+
+### FAQ
+
+**Q: Can I use Void Suite without a license?**  
+A: Yes, with limited functionality. Most advanced features require a license.
+
+**Q: Does the trial have full features?**  
+A: Yes! The 14-day trial includes complete access to all features.
+
+**Q: Can I transfer my license to a new device?**  
+A: Yes! Deactivate on old device, then activate on new one. One transfer per year is free.
+
+**Q: Do you offer educational discounts?**  
+A: Yes! 50% off for students and 40% off for educators with verification.
+
+**Q: What if I have issues with my license?**  
+A: Contact licensing@roach-labs.com or support@roach-labs.com for assistance.
 
 ---
 
