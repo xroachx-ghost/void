@@ -1,4 +1,4 @@
-VOID SUITE PROPRIETARY LICENSE
+VOID SUITE COMMERCIAL LICENSE AGREEMENT
 
 Copyright (c) 2024 Roach Labs. All rights reserved.
 Made by James Michael Roach Jr.
@@ -7,17 +7,271 @@ Proprietary and confidential. Unauthorized use or distribution is prohibited.
 Owner: Roach Labs
 Author: James Michael Roach Jr.
 
-This software and all associated documentation are proprietary and confidential.
-No license or rights are granted to use, copy, modify, distribute, sublicense,
-publish, transmit, or disclose any portion of this software without express
-written agreement from Roach Labs.
+================================================================================
+COMMERCIAL LICENSING TERMS
+================================================================================
 
-Permission is hereby granted to use this software solely for internal purposes
-authorized by Roach Labs.
+This software is licensed, not sold. By purchasing and using Void Suite, you 
+agree to the following terms and conditions.
 
+--------------------------------------------------------------------------------
+1. LICENSE TIERS
+--------------------------------------------------------------------------------
+
+TRIAL LICENSE:
+  - Duration: 14 days from activation
+  - Features: Full feature access
+  - Devices: 1 device
+  - Support: Community support only
+  - Commercial Use: Not permitted
+  - Price: Free
+
+PERSONAL LICENSE:
+  - Duration: Perpetual
+  - Features: Full feature access
+  - Devices: 1 device per license
+  - Support: Email support (48-hour response)
+  - Commercial Use: Personal projects only
+  - Upgrades: Free minor updates, paid major updates
+  - Price: Contact sales
+
+PROFESSIONAL LICENSE:
+  - Duration: Perpetual
+  - Features: Full feature access + priority updates
+  - Devices: Up to 3 devices per license
+  - Support: Priority email support (24-hour response)
+  - Commercial Use: Permitted for individual professionals
+  - Upgrades: Free minor and major updates for 1 year
+  - Price: Contact sales
+
+ENTERPRISE LICENSE:
+  - Duration: Perpetual
+  - Features: Full feature access + custom integrations
+  - Devices: Unlimited within organization
+  - Support: Dedicated support with SLA (4-hour response)
+  - Commercial Use: Permitted for organizations
+  - Upgrades: Free updates for license duration
+  - Custom Terms: Available upon request
+  - Price: Contact sales
+
+--------------------------------------------------------------------------------
+2. USAGE RIGHTS AND RESTRICTIONS
+--------------------------------------------------------------------------------
+
+PERMITTED USES:
+  - Installation on authorized devices only (up to license limit)
+  - Use for legitimate Android device management and recovery
+  - Backup and archival copies for disaster recovery
+  - Use of FRP bypass features on devices you own or have authorization for
+
+PROHIBITED USES:
+  - Unauthorized copying, distribution, or sublicensing
+  - Reverse engineering, decompilation, or disassembly
+  - Use on devices exceeding license device limit
+  - Sharing license keys with unauthorized parties
+  - Using FRP bypass on devices without proper authorization
+  - Commercial use with Personal tier license
+  - Reselling or redistributing the software
+  - Removing or modifying copyright notices
+  - Use for illegal activities or unauthorized device access
+
+COMPLIANCE REQUIREMENTS:
+  - All use of FRP bypass features must comply with local laws
+  - Device access must be authorized by device owner
+  - Documentation of authorization required for commercial use
+  - Users must maintain audit logs for regulated industries
+  - Geographic restrictions apply where FRP bypass is prohibited by law
+
+--------------------------------------------------------------------------------
+3. WARRANTY DISCLAIMERS AND LIABILITY LIMITATIONS
+--------------------------------------------------------------------------------
+
+NO WARRANTY:
 THIS SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE, AND NON-INFRINGEMENT. IN NO EVENT SHALL
-ROACH LABS BE LIABLE FOR ANY CLAIM, DAMAGES, OR OTHER LIABILITY, WHETHER IN AN
-ACTION OF CONTRACT, TORT, OR OTHERWISE, ARISING FROM, OUT OF, OR IN
-CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+FITNESS FOR A PARTICULAR PURPOSE, AND NON-INFRINGEMENT.
+
+Roach Labs makes no warranties that:
+  - The software will be error-free or uninterrupted
+  - The software will meet your specific requirements
+  - All defects will be corrected
+  - The software is compatible with all devices or configurations
+
+LIMITATION OF LIABILITY:
+IN NO EVENT SHALL ROACH LABS BE LIABLE FOR ANY CLAIM, DAMAGES, OR OTHER 
+LIABILITY, INCLUDING BUT NOT LIMITED TO:
+  - Direct, indirect, incidental, special, or consequential damages
+  - Loss of profits, data, or business opportunities
+  - Damages arising from device damage or data loss
+  - Legal consequences from improper or unauthorized use
+  - Damages exceeding the amount paid for the license
+
+This limitation applies even if Roach Labs has been advised of the possibility
+of such damages.
+
+MAXIMUM LIABILITY:
+The total liability of Roach Labs for any claim shall not exceed the amount
+paid by you for the license within the twelve (12) months preceding the claim.
+
+--------------------------------------------------------------------------------
+4. SUPPORT AND MAINTENANCE TERMS
+--------------------------------------------------------------------------------
+
+SUPPORT LEVELS:
+  - Trial: Community support via GitHub issues
+  - Personal: Email support (48-hour response, business days)
+  - Professional: Priority email support (24-hour response)
+  - Enterprise: Dedicated support with SLA (4-hour response)
+
+SUPPORT INCLUDES:
+  - Bug reports and issue resolution
+  - Usage assistance and best practices
+  - Installation and configuration help
+  - License activation support
+
+SUPPORT EXCLUDES:
+  - Custom development or integrations (except Enterprise)
+  - Training or consulting services
+  - Third-party software or hardware issues
+  - Issues caused by improper use or modifications
+
+MAINTENANCE AND UPDATES:
+  - Security updates provided to all license tiers
+  - Bug fixes provided based on severity and license tier
+  - Feature updates vary by license tier (see tier details)
+  - Breaking changes communicated at least 30 days in advance
+
+--------------------------------------------------------------------------------
+5. REFUND POLICY
+--------------------------------------------------------------------------------
+
+14-DAY MONEY-BACK GUARANTEE:
+  - Full refund available within 14 days of purchase
+  - Applies to Personal and Professional licenses only
+  - Must provide reason for refund request
+  - License will be deactivated upon refund
+  - Refund excludes any setup or consulting fees
+
+NO REFUND CONDITIONS:
+  - After 14-day refund period
+  - For Enterprise licenses (custom terms apply)
+  - If license has been used for commercial projects
+  - If license terms have been violated
+  - For renewal fees (must cancel before renewal)
+
+REFUND PROCESS:
+  - Email support with order number and reason
+  - Deactivate license before refund is processed
+  - Refund processed within 7-10 business days
+  - Original payment method used for refund
+
+--------------------------------------------------------------------------------
+6. GEOGRAPHIC RESTRICTIONS
+--------------------------------------------------------------------------------
+
+FRP BYPASS RESTRICTIONS:
+Certain jurisdictions prohibit or restrict FRP (Factory Reset Protection) 
+bypass tools. By using this software, you certify that:
+
+  - You are located in a jurisdiction where such tools are legal
+  - You have proper authorization for all device access
+  - You comply with all local laws regarding device security
+  - You will not export or transfer the software to prohibited jurisdictions
+
+PROHIBITED JURISDICTIONS:
+The software may not be used in jurisdictions where FRP bypass tools are 
+explicitly prohibited. Users are responsible for determining local law compliance.
+
+EXPORT CONTROLS:
+This software may be subject to export control laws. You agree not to export
+or re-export the software in violation of any applicable laws or regulations.
+
+--------------------------------------------------------------------------------
+7. LICENSE ACTIVATION AND ENFORCEMENT
+--------------------------------------------------------------------------------
+
+ACTIVATION:
+  - License keys are unique and tied to your purchase
+  - Activation binds license to specific device hardware
+  - Device limit enforced through hardware fingerprinting
+  - Internet connection required for initial activation
+  - Offline validation supported after activation
+
+DEACTIVATION:
+  - Deactivate license before transferring to new device
+  - Deactivation frees up device slot in license
+  - Automatic deactivation after 90 days of inactivity (Enterprise only)
+
+LICENSE ENFORCEMENT:
+  - Software checks license validity on startup
+  - Invalid or expired licenses restrict functionality
+  - License violations may result in permanent deactivation
+  - Audit rights reserved for commercial users
+
+--------------------------------------------------------------------------------
+8. TERMINATION
+--------------------------------------------------------------------------------
+
+Roach Labs may terminate your license immediately if:
+  - You violate any terms of this agreement
+  - You use the software for illegal purposes
+  - You exceed device limits or share license keys
+  - Payment is not received for subscription renewals
+  - You engage in unauthorized distribution
+
+Upon termination:
+  - You must cease all use of the software
+  - You must delete all copies of the software
+  - No refund will be provided for violations
+  - You remain liable for any violations that occurred
+
+--------------------------------------------------------------------------------
+9. UPDATES TO TERMS
+--------------------------------------------------------------------------------
+
+Roach Labs reserves the right to modify these terms at any time. 
+
+  - Changes effective 30 days after notification
+  - Continued use after changes constitutes acceptance
+  - Major changes will be communicated via email
+  - Previous version terms apply to existing licenses until renewal
+
+--------------------------------------------------------------------------------
+10. GOVERNING LAW
+--------------------------------------------------------------------------------
+
+This agreement is governed by the laws of the jurisdiction where Roach Labs
+is registered, without regard to conflict of law provisions.
+
+Any disputes shall be resolved through:
+  1. Good faith negotiation between parties
+  2. Mediation if negotiation fails
+  3. Binding arbitration if mediation fails
+  4. Litigation as last resort in designated jurisdiction
+
+--------------------------------------------------------------------------------
+11. CONTACT INFORMATION
+--------------------------------------------------------------------------------
+
+For licensing questions, sales inquiries, or support:
+
+  Email: support@roach-labs.com (replace with actual email)
+  Website: https://github.com/xroachx-ghost/void
+  License Portal: (to be implemented - see docs/CUSTOMER_PORTAL.md)
+
+For license violations or abuse reports:
+  Email: legal@roach-labs.com (replace with actual email)
+
+================================================================================
+ACCEPTANCE
+================================================================================
+
+By installing, copying, or using the software, you acknowledge that you have
+read, understood, and agree to be bound by these terms and conditions.
+
+If you do not agree to these terms, do not install or use the software.
+
+================================================================================
+
+Last Updated: 2024-12-30
+Version: 1.0

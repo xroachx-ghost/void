@@ -15,6 +15,7 @@ import platform
 import shutil
 import subprocess
 import sys
+import json
 from pathlib import Path
 
 
@@ -44,6 +45,10 @@ class VoidInstaller:
         print("Installing dependencies...")
         self._install_dependencies()
         
+        # Handle licensing
+        print()
+        self._handle_licensing()
+        
         # Create shortcuts based on OS
         if self.system == "Windows":
             self._install_windows()
@@ -71,6 +76,65 @@ class VoidInstaller:
             print("  - Application Menu > Void Suite (CLI)")
         print("=" * 60)
         return True
+    
+    def _handle_licensing(self):
+        """Handle license activation during installation"""
+        try:
+            from void.licensing import LicenseManager
+            
+            print("=" * 60)
+            print("License Activation")
+            print("=" * 60)
+            print()
+            print("Void Suite requires a license to use.")
+            print("You can:")
+            print("  1. Activate a license key (if you have one)")
+            print("  2. Start a 14-day free trial")
+            print("  3. Skip for now (activate later)")
+            print()
+            
+            choice = input("Enter choice (1/2/3): ").strip()
+            
+            manager = LicenseManager()
+            
+            if choice == "1":
+                # Activate license key
+                license_file = input("Enter path to license key file: ").strip()
+                if Path(license_file).exists():
+                    try:
+                        import json
+                        with open(license_file, 'r') as f:
+                            license_data = json.load(f)
+                        
+                        if manager.activate_license(license_data):
+                            print("✓ License activated successfully!")
+                        else:
+                            print("✗ License activation failed.")
+                    except Exception as e:
+                        print(f"✗ Error activating license: {e}")
+                else:
+                    print("✗ License file not found.")
+            
+            elif choice == "2":
+                # Start trial
+                if manager.start_trial():
+                    print("✓ 14-day trial started successfully!")
+                    print("  You can purchase a license anytime from our website.")
+                else:
+                    print("✗ Failed to start trial.")
+            
+            else:
+                # Skip
+                print("⚠ Skipping license activation.")
+                print("  You can activate a license later using: void license activate")
+            
+            print()
+        
+        except ImportError:
+            print("⚠ Licensing module not available. Skipping license activation.")
+        except Exception as e:
+            print(f"⚠ Error during licensing: {e}")
+            print("  You can activate a license later using: void license activate")
 
     def _install_dependencies(self):
         """Install Python dependencies"""

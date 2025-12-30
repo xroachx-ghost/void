@@ -1,0 +1,120 @@
+# Pre-commit hooks for code quality
+# See https://pre-commit.com for more information
+
+repos:
+  # General file formatting
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.5.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-json
+      - id: check-toml
+      - id: check-added-large-files
+        args: ['--maxkb=1000']
+      - id: check-case-conflict
+      - id: check-merge-conflict
+      - id: check-docstring-first
+      - id: debug-statements
+      - id: mixed-line-ending
+        args: ['--fix=lf']
+      - id: requirements-txt-fixer
+
+  # Python code formatting with Black
+  - repo: https://github.com/psf/black
+    rev: 24.1.1
+    hooks:
+      - id: black
+        language_version: python3.11
+        args: ['--line-length=100']
+
+  # Python linting with Ruff
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.1.14
+    hooks:
+      - id: ruff
+        args: ['--fix', '--exit-non-zero-on-fix']
+
+  # Python type checking with mypy
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.8.0
+    hooks:
+      - id: mypy
+        additional_dependencies: [types-all]
+        args: ['--ignore-missing-imports', '--no-strict-optional']
+        exclude: ^(tests/|docs/)
+
+  # Security scanning with Bandit
+  - repo: https://github.com/PyCQA/bandit
+    rev: 1.7.6
+    hooks:
+      - id: bandit
+        args: ['-ll', '-r', 'void']
+        exclude: ^tests/
+
+  # Markdown formatting
+  - repo: https://github.com/executablebooks/mdformat
+    rev: 0.7.17
+    hooks:
+      - id: mdformat
+        additional_dependencies:
+          - mdformat-gfm
+          - mdformat-black
+        args: ['--wrap', '100']
+
+  # YAML formatting
+  - repo: https://github.com/macisamuele/language-formatters-pre-commit-hooks
+    rev: v2.12.0
+    hooks:
+      - id: pretty-format-yaml
+        args: ['--autofix', '--indent', '2']
+
+  # Check for secrets
+  - repo: https://github.com/Yelp/detect-secrets
+    rev: v1.4.0
+    hooks:
+      - id: detect-secrets
+        args: ['--baseline', '.secrets.baseline']
+        exclude: package.lock.json
+
+  # Python docstring formatting
+  - repo: https://github.com/PyCQA/docformatter
+    rev: v1.7.5
+    hooks:
+      - id: docformatter
+        args: ['--in-place', '--wrap-summaries', '100', '--wrap-descriptions', '100']
+
+  # Check Python package metadata
+  - repo: https://github.com/mgedmin/check-manifest
+    rev: '0.49'
+    hooks:
+      - id: check-manifest
+        args: ['--ignore', '.github/**,tests/**,docs/**']
+
+# Configuration
+default_language_version:
+  python: python3.11
+
+# Files to exclude
+exclude: |
+  (?x)^(
+    \.git/|
+    \.pytest_cache/|
+    \.mypy_cache/|
+    \.venv/|
+    venv/|
+    __pycache__/|
+    \.eggs/|
+    build/|
+    dist/|
+    \.coverage|
+    htmlcov/|
+    docs/_build/
+  )
+
+# Fail fast - stop on first failure
+fail_fast: false
+
+# Additional settings
+minimum_pre_commit_version: '2.20.0'

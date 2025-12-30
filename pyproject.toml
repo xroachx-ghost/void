@@ -40,6 +40,7 @@ dependencies = [
     "psutil>=5.9.0",
     "pycryptodome>=3.19.0",
     "rich>=13.0.0",
+    "cryptography>=41.0.0",
 ]
 
 [project.urls]
