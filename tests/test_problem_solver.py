@@ -62,6 +62,15 @@ def test_fix_wifi_issues(mock_subprocess):
     assert 'steps' in result
 
 
+def test_identify_and_suggest_improvements(mock_subprocess):
+    """Test identifying problems and suggesting improvements"""
+    result = AndroidProblemSolver.identify_and_suggest_improvements('test_device')
+    
+    assert result['device_id'] == 'test_device'
+    assert isinstance(result.get('suggestions'), list)
+    assert len(result['suggestions']) > 0
+
+
 def test_emergency_factory_reset(mock_subprocess):
     """Test emergency factory reset"""
     # Should not execute without confirmation

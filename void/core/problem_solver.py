@@ -415,6 +415,37 @@ class AndroidProblemSolver:
             'fixes_applied': fixes_applied,
             'overall_success': any(fix['fix_result'].get('success', False) for fix in fixes_applied)
         }
+    
+    @staticmethod
+    def identify_and_suggest_improvements(device_id: str) -> Dict:
+        """Identify problems and suggest targeted improvements."""
+        diagnosis = AndroidProblemSolver.diagnose_problem(device_id)
+        
+        suggestion_map = {
+            'connectivity': 'Check USB cable, drivers, and enable USB debugging.',
+            'bootloop': 'Try clearing cache/dalvik and rebooting into recovery.',
+            'storage': 'Free space by clearing cache or removing unused apps.',
+            'frp_lock': 'Use authorized FRP bypass or sign in with original account.',
+            'battery': 'Calibrate or replace the battery for better health.',
+            'battery_low': 'Charge the device before performing intensive tasks.',
+            'crashes': 'Clear tombstones and fix app permissions to improve stability.',
+            'permissions': 'Consider setting SELinux permissive temporarily or fixing permissions.'
+        }
+        
+        suggestions: List[str] = []
+        for problem in diagnosis.get('problems', []):
+            suggestion = suggestion_map.get(problem.get('type'))
+            if suggestion:
+                suggestions.append(suggestion)
+        
+        if not suggestions:
+            suggestions.append('Device appears healthy. Keep firmware updated and maintain backups.')
+        
+        return {
+            'device_id': device_id,
+            'problems_found': diagnosis.get('problems_found', 0),
+            'suggestions': suggestions
+        }
 
 
 class EmergencyRecovery:
