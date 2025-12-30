@@ -39,7 +39,7 @@ git --version
 
 ```bash
 # Clone the repository
-git clone <REPO_URL>
+git clone https://github.com/xroachx-ghost/void.git
 cd void
 
 # Create virtual environment

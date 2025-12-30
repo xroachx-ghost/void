@@ -224,7 +224,7 @@ Tkinter is not installed by `pip`. It comes with your OS or Python installation.
 
 ```bash
 # Clone the repository
-git clone <REPO_URL>
+git clone https://github.com/xroachx-ghost/void.git
 cd void
 
 # Create and activate virtual environment
@@ -243,7 +243,7 @@ pip install .[gui]
 
 ```powershell
 # Clone the repository
-git clone <REPO_URL>
+git clone https://github.com/xroachx-ghost/void.git
 cd void
 
 # Create and activate virtual environment

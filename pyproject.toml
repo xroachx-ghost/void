@@ -6,10 +6,10 @@ readme = "README.md"
 requires-python = ">=3.9"
 license = {text = "Proprietary"}
 authors = [
-    {name = "James Michael Roach Jr.", email = "roach-labs@example.com"}
+    {name = "James Michael Roach Jr."}
 ]
 maintainers = [
-    {name = "Roach Labs", email = "roach-labs@example.com"}
+    {name = "Roach Labs"}
 ]
 keywords = [
     "android",
@@ -59,9 +59,6 @@ dev = [
     "black>=23.0.0",
     "flake8>=6.0.0",
     "mypy>=1.0.0",
-]
-all = [
-    "void-suite[gui,dev]",
 ]
 
 [project.scripts]
