@@ -184,3 +184,82 @@ def test_frp_warnings_generation():
     # Should have warnings for recent patch and limited access
     assert len(warnings) > 0
     assert any('patch' in w.lower() or 'android 13+' in w.lower() for w in warnings)
+
+
+def test_frp_wizard_status_integration():
+    """Test that setup wizard status is properly integrated."""
+    engine = FRPEngine()
+    
+    # Test with wizard loop suspected
+    device_info = {
+        'manufacturer': 'Samsung',
+        'model': 'Galaxy S21',
+        'android_version': '12',
+        'security_patch': '2023-05-01',
+        'chipset': 'Qualcomm',
+        'mode': 'adb',
+        'bootloader_locked': True,
+        'usb_debugging': True,
+        'wizard_status': 'wizard loop suspected',
+        'wizard_running': True,
+        'user_setup_complete': True
+    }
+    
+    recommendations = engine.detect_best_methods(device_info)
+    
+    # Check that wizard loop warning is present
+    wizard_warnings = [w for w in recommendations['warnings'] if 'WIZARD LOOP' in w]
+    assert len(wizard_warnings) > 0
+    assert 'FRP' in wizard_warnings[0]
+    
+    # Check that adb_setup_complete is prioritized
+    assert 'adb_setup_complete' in recommendations['primary_methods'][:3]
+
+
+def test_frp_wizard_status_setup_incomplete():
+    """Test detection of setup incomplete status."""
+    engine = FRPEngine()
+    
+    device_info = {
+        'manufacturer': 'Xiaomi',
+        'model': 'Redmi Note 10',
+        'android_version': '11',
+        'security_patch': '2022-12-01',
+        'chipset': 'Qualcomm',
+        'mode': 'fastboot',
+        'bootloader_locked': False,
+        'usb_debugging': False,
+        'wizard_status': 'setup incomplete',
+        'wizard_running': False,
+        'user_setup_complete': False
+    }
+    
+    recommendations = engine.detect_best_methods(device_info)
+    
+    # Check for setup incomplete warning
+    setup_warnings = [w for w in recommendations['warnings'] if 'setup incomplete' in w.lower()]
+    assert len(setup_warnings) > 0
+
+
+def test_frp_wizard_backward_compatibility():
+    """Test that FRP engine works without wizard status (backward compatibility)."""
+    engine = FRPEngine()
+    
+    # Device info without wizard status fields
+    device_info = {
+        'manufacturer': 'OnePlus',
+        'model': 'OnePlus 9',
+        'android_version': '12',
+        'security_patch': '2023-03-01',
+        'chipset': 'Qualcomm',
+        'mode': 'adb',
+        'bootloader_locked': True,
+        'usb_debugging': True
+    }
+    
+    # Should work without errors
+    recommendations = engine.detect_best_methods(device_info)
+    
+    assert 'primary_methods' in recommendations
+    assert len(recommendations['primary_methods']) > 0
+    assert 'warnings' in recommendations

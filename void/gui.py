@@ -3164,6 +3164,33 @@ class VoidGUI:
             )
         )
 
+    def _get_device_info_with_wizard_diagnostics(self, device_id: str) -> Dict:
+        """Get device info dict enriched with setup wizard diagnostics.
+        
+        Args:
+            device_id: The device ID to get info for
+            
+        Returns:
+            Dictionary with device info including wizard diagnostics
+        """
+        # Get base device info
+        device_info_dict = {'id': device_id, 'mode': 'unknown'}
+        for dev in self.all_device_info:
+            if dev.get('id') == device_id:
+                device_info_dict = dev
+                break
+        
+        # Add setup wizard diagnostics
+        try:
+            diagnostics = SetupWizardDiagnostics.analyze(device_id)
+            device_info_dict['wizard_status'] = diagnostics.get('status', 'unknown')
+            device_info_dict['wizard_running'] = diagnostics.get('wizard_running', False)
+            device_info_dict['user_setup_complete'] = diagnostics.get('user_setup_complete', None)
+        except Exception:
+            pass  # Continue without diagnostics if they fail
+        
+        return device_info_dict
+
     def _get_device_info_for_frp(self, device_id: str) -> str:
         """Get device information formatted for FRP wizard."""
         device_info_dict = None
@@ -3181,12 +3208,30 @@ class VoidGUI:
         security_patch = device_info_dict.get('security_patch', 'Unknown')
         mode = device_info_dict.get('mode', 'Unknown')
         
+        # Get setup wizard diagnostics
+        wizard_status = "Unknown"
+        wizard_details = ""
+        try:
+            diagnostics = SetupWizardDiagnostics.analyze(device_id)
+            wizard_status = diagnostics.get('status', 'Unknown')
+            
+            # Add relevant wizard information
+            if diagnostics.get('wizard_running'):
+                wizard_details = "\n⚠️  Setup Wizard is currently running"
+            if wizard_status == "wizard loop suspected":
+                wizard_details = "\n⚠️  WIZARD LOOP DETECTED - FRP likely active"
+            elif wizard_status == "setup incomplete":
+                wizard_details = "\n⚠️  Setup incomplete - FRP may be active"
+        except Exception:
+            pass  # If diagnostics fail, continue without them
+        
         info_text = f"""Device ID: {device_id}
 Manufacturer: {manufacturer}
 Model: {model}
 Android Version: {android_ver}
 Security Patch: {security_patch}
-Current Mode: {mode}"""
+Current Mode: {mode}
+Setup Wizard Status: {wizard_status}{wizard_details}"""
         
         return info_text
 
@@ -3200,12 +3245,8 @@ Current Mode: {mode}"""
         """Populate the FRP methods list based on category."""
         method_listbox.delete(0, tk.END)
         
-        # Get device info for detection
-        device_info_dict = {'id': device_id, 'mode': 'unknown'}
-        for dev in self.all_device_info:
-            if dev.get('id') == device_id:
-                device_info_dict = dev
-                break
+        # Get device info with wizard diagnostics
+        device_info_dict = self._get_device_info_with_wizard_diagnostics(device_id)
         
         # Get recommendations from FRP engine
         recommendations = self.frp_engine.detect_best_methods(device_info_dict)
@@ -3279,12 +3320,8 @@ Current Mode: {mode}"""
         
         method_id = methods[index]
         
-        # Get device info
-        device_info_dict = {'id': device_id, 'mode': 'unknown'}
-        for dev in self.all_device_info:
-            if dev.get('id') == device_id:
-                device_info_dict = dev
-                break
+        # Get device info with wizard diagnostics
+        device_info_dict = self._get_device_info_with_wizard_diagnostics(device_id)
         
         # Get recommendations to get requirements and success rate
         recommendations = self.frp_engine.detect_best_methods(device_info_dict)

@@ -35,6 +35,14 @@ class FRPEngine:
                 - mode: Current device mode (adb, fastboot, edl, recovery)
                 - bootloader_locked: Whether bootloader is locked
                 - usb_debugging: Whether USB debugging is enabled
+                - wizard_status: Setup wizard status (optional). Possible values:
+                    * "wizard loop suspected" - Device stuck in setup wizard loop
+                    * "setup incomplete" - Setup wizard not completed
+                    * "setup complete" - Setup wizard completed normally
+                    * "boot incomplete" - Device boot not completed
+                    * "unknown" - Status could not be determined
+                - wizard_running: Whether setup wizard is currently running (optional, bool)
+                - user_setup_complete: User setup completion status (optional, bool or None)
         
         Returns:
             Dictionary with recommended methods, priority order, and guidance
@@ -58,15 +66,37 @@ class FRPEngine:
         mode = device_info.get('mode', 'unknown')
         usb_debugging = device_info.get('usb_debugging', False)
         bootloader_locked = device_info.get('bootloader_locked', True)
+        wizard_status = device_info.get('wizard_status', 'unknown')
+        wizard_running = device_info.get('wizard_running', False)
+        user_setup_complete = device_info.get('user_setup_complete', None)
         
         # Analyze Android version for method compatibility
         android_ver_int = self._parse_android_version(android_version)
         patch_date = self._parse_security_patch(security_patch)
         
+        # Setup wizard status analysis - warnings only, prioritization happens after methods are added
+        if wizard_status == 'wizard loop suspected':
+            recommendations['warnings'].append('⚠️ WIZARD LOOP DETECTED - Device likely has active FRP lock')
+        elif wizard_status == 'setup incomplete' or (wizard_running and user_setup_complete is False):
+            recommendations['warnings'].append('⚠️ Setup incomplete - FRP bypass likely needed')
+        elif wizard_running:
+            recommendations['warnings'].append('ℹ️ Setup wizard is running - device may have FRP active')
+        
         # Mode-based method selection
         if mode == 'adb' and usb_debugging:
             recommendations['primary_methods'].extend(self._get_adb_methods(android_ver_int, patch_date))
             recommendations['warnings'].append('✓ ADB access available - highest success rate')
+            
+            # Prioritize wizard-specific methods if wizard loop detected
+            if wizard_status == 'wizard loop suspected':
+                # Move wizard-specific methods to the front if they exist in the list
+                wizard_methods = ['adb_setup_complete', 'adb_device_provisioned']
+                for method in reversed(wizard_methods):
+                    if method in recommendations['primary_methods']:
+                        recommendations['primary_methods'].remove(method)
+                        recommendations['primary_methods'].insert(0, method)
+                    else:
+                        recommendations['primary_methods'].insert(0, method)
         elif mode == 'fastboot':
             recommendations['primary_methods'].extend(self._get_fastboot_methods(bootloader_locked))
             if bootloader_locked:
