@@ -28,7 +28,7 @@ from .terms import ensure_terms_acceptance_cli
 def main() -> None:
     """Main entry point."""
     parser = argparse.ArgumentParser(
-        description=f"Void v{Config.VERSION} - Ultimate Android Toolkit"
+        description=f"Void v{Config.VERSION} - Ultimate Android Toolkit\nCopyright (c) 2024 Roach Labs. Made by James Michael Roach Jr."
     )
 
     parser.add_argument('--version', action='store_true', help='Show version')
@@ -55,6 +55,18 @@ def main() -> None:
         )
         logger.info(
             "200+ Automated Features",
+            extra={"category": "startup", "device_id": "-", "method": "-"},
+        )
+        logger.info(
+            "Copyright (c) 2024 Roach Labs. All rights reserved.",
+            extra={"category": "startup", "device_id": "-", "method": "-"},
+        )
+        logger.info(
+            "Made by James Michael Roach Jr.",
+            extra={"category": "startup", "device_id": "-", "method": "-"},
+        )
+        logger.info(
+            "Proprietary and confidential. Unauthorized use or distribution is prohibited.",
             extra={"category": "startup", "device_id": "-", "method": "-"},
         )
         return
