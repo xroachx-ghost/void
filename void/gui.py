@@ -1599,6 +1599,9 @@ class VoidGUI:
         recovery_notebook.add(edl_recovery, text="EDL Mode")
         recovery_notebook.add(edl_tools_panel, text="Flash/Dump")
         
+        # Make EDL recovery panel scrollable
+        edl_recovery_scrollable = self._make_scrollable(edl_recovery)
+        
         # Diagnostics - Combined Logcat, Monitoring, Troubleshooting
         self.diagnostics_tab = ttk.Frame(self.notebook, style="Void.TFrame")
         self.diagnostics_notebook = ttk.Notebook(self.diagnostics_tab, style="Void.TNotebook")
@@ -1609,6 +1612,9 @@ class VoidGUI:
         self.diagnostics_notebook.add(logcat_panel, text="Logcat")
         self.diagnostics_notebook.add(monitor_panel, text="Monitor")
         self.diagnostics_notebook.add(self.troubleshooting_panel, text="Troubleshoot")
+        
+        # Make troubleshooting panel scrollable
+        self.troubleshooting_scrollable = self._make_scrollable(self.troubleshooting_panel)
         
         # Data Management - Combined exports and database tools
         data_tab = ttk.Frame(self.notebook, style="Void.TFrame")
@@ -1643,6 +1649,9 @@ class VoidGUI:
         help_panel = ttk.Frame(settings_notebook, style="Void.TFrame")
         settings_notebook.add(settings_panel, text="Configuration")
         settings_notebook.add(help_panel, text="Help")
+        
+        # Make help panel scrollable
+        help_panel_scrollable = self._make_scrollable(help_panel)
         
         # Add main tabs to notebook (reduced from 20 to 8 tabs)
         self.notebook.add(dashboard, text="📊 Dashboard")
@@ -1956,9 +1965,9 @@ class VoidGUI:
         if self.browser_panel is not None:
             self._build_browser_panel(self.browser_panel)
 
-        ttk.Label(help_panel, text="Action Details", style="Void.TLabel").pack(anchor="w")
+        ttk.Label(help_panel_scrollable, text="Action Details", style="Void.TLabel").pack(anchor="w")
         ttk.Label(
-            help_panel,
+            help_panel_scrollable,
             textvariable=self.action_help_var,
             style="Void.TLabel",
             wraplength=600
@@ -1970,14 +1979,14 @@ class VoidGUI:
             "Operations Log: Live status output for running tasks.\n"
             "Status Bar: Displays the most recent operation summary."
         )
-        ttk.Label(help_panel, text=guide, style="Void.TLabel", wraplength=600).pack(anchor="w")
+        ttk.Label(help_panel_scrollable, text=guide, style="Void.TLabel", wraplength=600).pack(anchor="w")
 
         ttk.Label(
-            self.troubleshooting_panel,
+            self.troubleshooting_scrollable,
             text="Troubleshooting",
             style="Void.TLabel",
         ).pack(anchor="w")
-        diagnostics_card = ttk.Frame(self.troubleshooting_panel, style="Void.Card.TFrame")
+        diagnostics_card = ttk.Frame(self.troubleshooting_scrollable, style="Void.Card.TFrame")
         diagnostics_card.pack(fill="x", pady=(6, 12))
         diagnostics_card.configure(padding=12)
         ttk.Label(
@@ -2020,7 +2029,7 @@ class VoidGUI:
             command=self._update_diagnostics,
         ).pack(anchor="w", pady=(8, 0))
 
-        downloads_card = ttk.Frame(self.troubleshooting_panel, style="Void.Card.TFrame")
+        downloads_card = ttk.Frame(self.troubleshooting_scrollable, style="Void.Card.TFrame")
         downloads_card.pack(fill="x", pady=(0, 12))
         downloads_card.configure(padding=12)
         ttk.Label(
@@ -2092,14 +2101,14 @@ class VoidGUI:
             "Still stuck? Visit the Android developer documentation for platform tooling."
         )
         ttk.Label(
-            self.troubleshooting_panel,
+            self.troubleshooting_scrollable,
             text=troubleshoot_text,
             style="Void.TLabel",
             wraplength=600,
             justify="left",
         ).pack(anchor="w", pady=(6, 12))
         ttk.Button(
-            self.troubleshooting_panel,
+            self.troubleshooting_scrollable,
             text="Open Android Platform Tools Docs",
             style="Void.TButton",
             command=lambda: webbrowser.open(
@@ -2107,8 +2116,8 @@ class VoidGUI:
             ),
         ).pack(anchor="w")
 
-        ttk.Label(edl_recovery, text="Mode Detection", style="Void.TLabel").pack(anchor="w")
-        detection_panel = ttk.Frame(edl_recovery, style="Void.TFrame")
+        ttk.Label(edl_recovery_scrollable, text="Mode Detection", style="Void.TLabel").pack(anchor="w")
+        detection_panel = ttk.Frame(edl_recovery_scrollable, style="Void.TFrame")
         detection_panel.pack(fill="x", pady=(6, 10))
 
         ttk.Label(
@@ -2127,8 +2136,8 @@ class VoidGUI:
         detect_button.pack(anchor="w", pady=(6, 0))
         Tooltip(detect_button, "Run chipset detection for the selected device.")
 
-        ttk.Label(edl_recovery, text="Readiness Check", style="Void.TLabel").pack(anchor="w")
-        readiness_panel = ttk.Frame(edl_recovery, style="Void.TFrame")
+        ttk.Label(edl_recovery_scrollable, text="Readiness Check", style="Void.TLabel").pack(anchor="w")
+        readiness_panel = ttk.Frame(edl_recovery_scrollable, style="Void.TFrame")
         readiness_panel.pack(fill="x", pady=(6, 10))
 
         ttk.Label(
@@ -2149,8 +2158,8 @@ class VoidGUI:
             command=self._update_edl_preflight,
         ).pack(anchor="w", pady=(6, 0))
 
-        ttk.Label(edl_recovery, text="Tool Selection", style="Void.TLabel").pack(anchor="w", pady=(10, 0))
-        tool_panel = ttk.Frame(edl_recovery, style="Void.TFrame")
+        ttk.Label(edl_recovery_scrollable, text="Tool Selection", style="Void.TLabel").pack(anchor="w", pady=(10, 0))
+        tool_panel = ttk.Frame(edl_recovery_scrollable, style="Void.TFrame")
         tool_panel.pack(fill="x", pady=(6, 10))
 
         ttk.Label(tool_panel, text="Chipset Override", style="Void.TLabel").pack(side="left")
@@ -2177,8 +2186,8 @@ class VoidGUI:
         mode_menu.pack(side="left", padx=(8, 0))
         Tooltip(mode_menu, "Select the target mode for entry workflows.")
 
-        ttk.Label(edl_recovery, text="Workflows", style="Void.TLabel").pack(anchor="w", pady=(10, 0))
-        workflow_panel = ttk.Frame(edl_recovery, style="Void.TFrame")
+        ttk.Label(edl_recovery_scrollable, text="Workflows", style="Void.TLabel").pack(anchor="w", pady=(10, 0))
+        workflow_panel = ttk.Frame(edl_recovery_scrollable, style="Void.TFrame")
         workflow_panel.pack(fill="x", pady=(6, 12))
 
         entry_button = ttk.Button(
@@ -2208,8 +2217,8 @@ class VoidGUI:
         dump_button.pack(side="left")
         Tooltip(dump_button, "Validate dump tool availability for the selected chipset.")
 
-        ttk.Label(edl_recovery, text="Test-Point Guidance", style="Void.TLabel").pack(anchor="w")
-        testpoint_panel = ttk.Frame(edl_recovery, style="Void.TFrame")
+        ttk.Label(edl_recovery_scrollable, text="Test-Point Guidance", style="Void.TLabel").pack(anchor="w")
+        testpoint_panel = ttk.Frame(edl_recovery_scrollable, style="Void.TFrame")
         testpoint_panel.pack(fill="x", pady=(6, 0))
 
         warnings = (
@@ -2247,7 +2256,7 @@ class VoidGUI:
         ).pack(anchor="w", pady=(8, 0))
 
         ttk.Label(
-            edl_recovery,
+            edl_recovery_scrollable,
             textvariable=self.chipset_status_var,
             style="Void.TLabel",
             wraplength=600,
@@ -3069,10 +3078,85 @@ class VoidGUI:
 
         return {"success": True, "summary": summary, "details": details}
 
-    def _build_apps_panel(self, panel: ttk.Frame) -> None:
-        ttk.Label(panel, text="Apps", style="Void.TLabel").pack(anchor="w")
+    def _make_scrollable(self, parent: ttk.Frame) -> ttk.Frame:
+        """
+        Create a scrollable frame within the given parent frame.
+        Returns the inner frame where content should be packed.
+        """
+        # Create canvas and scrollbar
+        canvas = tk.Canvas(
+            parent,
+            bg=self.theme["bg"],
+            highlightthickness=0,
+            bd=0
+        )
+        scrollbar = ttk.Scrollbar(parent, orient="vertical", command=canvas.yview)
+        
+        # Create inner frame to hold the actual content
+        scrollable_frame = ttk.Frame(canvas, style="Void.TFrame")
+        
+        # Configure the canvas scrolling
+        def _on_frame_configure(event):
+            # Update scroll region to encompass the inner frame
+            canvas.configure(scrollregion=canvas.bbox("all"))
+        
+        def _on_canvas_configure(event):
+            # Make the canvas window width match the canvas width
+            canvas.itemconfig(canvas_window, width=event.width)
+        
+        scrollable_frame.bind("<Configure>", _on_frame_configure)
+        canvas.bind("<Configure>", _on_canvas_configure)
+        
+        # Create window in canvas
+        canvas_window = canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
+        canvas.configure(yscrollcommand=scrollbar.set)
+        
+        # Pack canvas and scrollbar
+        canvas.pack(side="left", fill="both", expand=True)
+        scrollbar.pack(side="right", fill="y")
+        
+        # Bind mouse wheel events for scrolling
+        def _on_mousewheel(event):
+            canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
+        
+        def _on_mousewheel_linux(event):
+            if event.num == 4:
+                canvas.yview_scroll(-1, "units")
+            elif event.num == 5:
+                canvas.yview_scroll(1, "units")
+        
+        # Bind to canvas for mouse wheel scrolling
+        canvas.bind("<MouseWheel>", _on_mousewheel)
+        canvas.bind("<Button-4>", _on_mousewheel_linux)
+        canvas.bind("<Button-5>", _on_mousewheel_linux)
+        
+        # Also bind to scrollable_frame for when mouse is over content
+        scrollable_frame.bind("<MouseWheel>", _on_mousewheel)
+        scrollable_frame.bind("<Button-4>", _on_mousewheel_linux)
+        scrollable_frame.bind("<Button-5>", _on_mousewheel_linux)
+        
+        # Bind enter/leave events to enable scrolling when mouse is over the panel
+        def _bind_to_mousewheel(event):
+            canvas.bind_all("<MouseWheel>", _on_mousewheel)
+            canvas.bind_all("<Button-4>", _on_mousewheel_linux)
+            canvas.bind_all("<Button-5>", _on_mousewheel_linux)
+        
+        def _unbind_from_mousewheel(event):
+            canvas.unbind_all("<MouseWheel>")
+            canvas.unbind_all("<Button-4>")
+            canvas.unbind_all("<Button-5>")
+        
+        canvas.bind("<Enter>", _bind_to_mousewheel)
+        canvas.bind("<Leave>", _unbind_from_mousewheel)
+        
+        return scrollable_frame
 
-        filters = ttk.Frame(panel, style="Void.Card.TFrame")
+    def _build_apps_panel(self, panel: ttk.Frame) -> None:
+        scrollable = self._make_scrollable(panel)
+        
+        ttk.Label(scrollable, text="Apps", style="Void.TLabel").pack(anchor="w")
+
+        filters = ttk.Frame(scrollable, style="Void.Card.TFrame")
         filters.pack(fill="x", pady=(6, 12))
         filters.configure(padding=12)
         ttk.Label(filters, text="List Apps", style="Void.TLabel").pack(anchor="w")
@@ -3094,7 +3178,7 @@ class VoidGUI:
             command=self._list_apps,
         ).pack(side="left")
 
-        actions = ttk.Frame(panel, style="Void.Card.TFrame")
+        actions = ttk.Frame(scrollable, style="Void.Card.TFrame")
         actions.pack(fill="x", pady=(0, 12))
         actions.configure(padding=12)
         ttk.Label(actions, text="Package Actions", style="Void.TLabel").pack(anchor="w")
@@ -3147,9 +3231,11 @@ class VoidGUI:
         ).pack(side="left")
 
     def _build_files_panel(self, panel: ttk.Frame) -> None:
-        ttk.Label(panel, text="Files", style="Void.TLabel").pack(anchor="w")
+        scrollable = self._make_scrollable(panel)
+        
+        ttk.Label(scrollable, text="Files", style="Void.TLabel").pack(anchor="w")
 
-        list_card = ttk.Frame(panel, style="Void.Card.TFrame")
+        list_card = ttk.Frame(scrollable, style="Void.Card.TFrame")
         list_card.pack(fill="x", pady=(6, 12))
         list_card.configure(padding=12)
         ttk.Label(list_card, text="List Files", style="Void.TLabel").pack(anchor="w")
@@ -3173,7 +3259,7 @@ class VoidGUI:
             command=self._list_files,
         ).pack(side="left")
 
-        pull_card = ttk.Frame(panel, style="Void.Card.TFrame")
+        pull_card = ttk.Frame(scrollable, style="Void.Card.TFrame")
         pull_card.pack(fill="x", pady=(0, 12))
         pull_card.configure(padding=12)
         ttk.Label(pull_card, text="Pull File", style="Void.TLabel").pack(anchor="w")
@@ -3216,7 +3302,7 @@ class VoidGUI:
             command=self._pull_file,
         ).pack(side="left")
 
-        push_card = ttk.Frame(panel, style="Void.Card.TFrame")
+        push_card = ttk.Frame(scrollable, style="Void.Card.TFrame")
         push_card.pack(fill="x", pady=(0, 12))
         push_card.configure(padding=12)
         ttk.Label(push_card, text="Push File", style="Void.TLabel").pack(anchor="w")
@@ -3259,7 +3345,7 @@ class VoidGUI:
             command=self._push_file,
         ).pack(side="left")
 
-        delete_card = ttk.Frame(panel, style="Void.Card.TFrame")
+        delete_card = ttk.Frame(scrollable, style="Void.Card.TFrame")
         delete_card.pack(fill="x")
         delete_card.configure(padding=12)
         ttk.Label(delete_card, text="Delete File", style="Void.TLabel").pack(anchor="w")
@@ -3284,9 +3370,11 @@ class VoidGUI:
         ).pack(side="left")
 
     def _build_recovery_panel(self, panel: ttk.Frame) -> None:
-        ttk.Label(panel, text="Recovery", style="Void.TLabel").pack(anchor="w")
+        scrollable = self._make_scrollable(panel)
+        
+        ttk.Label(scrollable, text="Recovery", style="Void.TLabel").pack(anchor="w")
 
-        data_card = ttk.Frame(panel, style="Void.Card.TFrame")
+        data_card = ttk.Frame(scrollable, style="Void.Card.TFrame")
         data_card.pack(fill="x", pady=(6, 12))
         data_card.configure(padding=12)
         ttk.Label(data_card, text="Data Recovery", style="Void.TLabel").pack(anchor="w")
@@ -3305,7 +3393,7 @@ class VoidGUI:
             command=self._recover_sms,
         ).pack(side="left")
 
-        frp_card = ttk.Frame(panel, style="Void.Card.TFrame")
+        frp_card = ttk.Frame(scrollable, style="Void.Card.TFrame")
         frp_card.pack(fill="x")
         frp_card.configure(padding=12)
         ttk.Label(frp_card, text="FRP Bypass", style="Void.TLabel").pack(anchor="w")
@@ -3330,9 +3418,11 @@ class VoidGUI:
         ).pack(side="left")
 
     def _build_system_panel(self, panel: ttk.Frame) -> None:
-        ttk.Label(panel, text="System Tweaks", style="Void.TLabel").pack(anchor="w")
+        scrollable = self._make_scrollable(panel)
+        
+        ttk.Label(scrollable, text="System Tweaks", style="Void.TLabel").pack(anchor="w")
 
-        tweak_card = ttk.Frame(panel, style="Void.Card.TFrame")
+        tweak_card = ttk.Frame(scrollable, style="Void.Card.TFrame")
         tweak_card.pack(fill="x", pady=(6, 12))
         tweak_card.configure(padding=12)
         ttk.Label(tweak_card, text="Apply Tweak", style="Void.TLabel").pack(anchor="w")
@@ -3366,7 +3456,7 @@ class VoidGUI:
             command=self._apply_tweak,
         ).pack(side="left")
 
-        usb_card = ttk.Frame(panel, style="Void.Card.TFrame")
+        usb_card = ttk.Frame(scrollable, style="Void.Card.TFrame")
         usb_card.pack(fill="x")
         usb_card.configure(padding=12)
         ttk.Label(usb_card, text="USB Debugging", style="Void.TLabel").pack(anchor="w")
@@ -3386,9 +3476,11 @@ class VoidGUI:
         ).pack(side="left")
 
     def _build_network_panel(self, panel: ttk.Frame) -> None:
-        ttk.Label(panel, text="Network", style="Void.TLabel").pack(anchor="w")
+        scrollable = self._make_scrollable(panel)
+        
+        ttk.Label(scrollable, text="Network", style="Void.TLabel").pack(anchor="w")
 
-        net_card = ttk.Frame(panel, style="Void.Card.TFrame")
+        net_card = ttk.Frame(scrollable, style="Void.Card.TFrame")
         net_card.pack(fill="x", pady=(6, 12))
         net_card.configure(padding=12)
         ttk.Label(net_card, text="Connectivity Check", style="Void.TLabel").pack(anchor="w")
@@ -3400,9 +3492,11 @@ class VoidGUI:
         ).pack(anchor="w", pady=(6, 0))
 
     def _build_logcat_panel(self, panel: ttk.Frame) -> None:
-        ttk.Label(panel, text="Logcat", style="Void.TLabel").pack(anchor="w")
+        scrollable = self._make_scrollable(panel)
+        
+        ttk.Label(scrollable, text="Logcat", style="Void.TLabel").pack(anchor="w")
 
-        logcat_card = ttk.Frame(panel, style="Void.Card.TFrame")
+        logcat_card = ttk.Frame(scrollable, style="Void.Card.TFrame")
         logcat_card.pack(fill="x", pady=(6, 12))
         logcat_card.configure(padding=12)
         ttk.Label(logcat_card, text="Stream Logs", style="Void.TLabel").pack(anchor="w")
@@ -3433,9 +3527,11 @@ class VoidGUI:
         ).pack(side="left")
 
     def _build_monitor_panel(self, panel: ttk.Frame) -> None:
-        ttk.Label(panel, text="Monitoring", style="Void.TLabel").pack(anchor="w")
+        scrollable = self._make_scrollable(panel)
+        
+        ttk.Label(scrollable, text="Monitoring", style="Void.TLabel").pack(anchor="w")
 
-        monitor_card = ttk.Frame(panel, style="Void.Card.TFrame")
+        monitor_card = ttk.Frame(scrollable, style="Void.Card.TFrame")
         monitor_card.pack(fill="x", pady=(6, 12))
         monitor_card.configure(padding=12)
         ttk.Label(monitor_card, text="System Monitor", style="Void.TLabel").pack(anchor="w")
@@ -3466,9 +3562,11 @@ class VoidGUI:
         ).pack(side="left")
 
     def _build_edl_tools_panel(self, panel: ttk.Frame) -> None:
-        ttk.Label(panel, text="EDL Flash/Dump", style="Void.TLabel").pack(anchor="w")
+        scrollable = self._make_scrollable(panel)
+        
+        ttk.Label(scrollable, text="EDL Flash/Dump", style="Void.TLabel").pack(anchor="w")
 
-        flash_card = ttk.Frame(panel, style="Void.Card.TFrame")
+        flash_card = ttk.Frame(scrollable, style="Void.Card.TFrame")
         flash_card.pack(fill="x", pady=(6, 12))
         flash_card.configure(padding=12)
         ttk.Label(flash_card, text="EDL Flash", style="Void.TLabel").pack(anchor="w")
@@ -3517,7 +3615,7 @@ class VoidGUI:
             command=self._edl_flash,
         ).pack(side="left")
 
-        dump_card = ttk.Frame(panel, style="Void.Card.TFrame")
+        dump_card = ttk.Frame(scrollable, style="Void.Card.TFrame")
         dump_card.pack(fill="x")
         dump_card.configure(padding=12)
         ttk.Label(dump_card, text="EDL Dump", style="Void.TLabel").pack(anchor="w")
@@ -3542,9 +3640,11 @@ class VoidGUI:
         ).pack(side="left")
 
     def _build_data_exports_panel(self, panel: ttk.Frame) -> None:
-        ttk.Label(panel, text="Data / Reports / Exports", style="Void.TLabel").pack(anchor="w")
+        scrollable = self._make_scrollable(panel)
+        
+        ttk.Label(scrollable, text="Data / Reports / Exports", style="Void.TLabel").pack(anchor="w")
 
-        list_card = ttk.Frame(panel, style="Void.Card.TFrame")
+        list_card = ttk.Frame(scrollable, style="Void.Card.TFrame")
         list_card.pack(fill="x", pady=(6, 12))
         list_card.configure(padding=12)
         ttk.Label(list_card, text="Recent Items", style="Void.TLabel").pack(anchor="w")
@@ -3581,7 +3681,7 @@ class VoidGUI:
             command=self._list_exports,
         ).pack(side="left")
 
-        export_card = ttk.Frame(panel, style="Void.Card.TFrame")
+        export_card = ttk.Frame(scrollable, style="Void.Card.TFrame")
         export_card.pack(fill="x", pady=(0, 12))
         export_card.configure(padding=12)
         ttk.Label(export_card, text="Export Helpers", style="Void.TLabel").pack(anchor="w")
@@ -3634,9 +3734,11 @@ class VoidGUI:
         ).pack(side="left")
 
     def _build_db_tools_panel(self, panel: ttk.Frame) -> None:
-        ttk.Label(panel, text="Database Tools", style="Void.TLabel").pack(anchor="w")
+        scrollable = self._make_scrollable(panel)
+        
+        ttk.Label(scrollable, text="Database Tools", style="Void.TLabel").pack(anchor="w")
 
-        health_card = ttk.Frame(panel, style="Void.Card.TFrame")
+        health_card = ttk.Frame(scrollable, style="Void.Card.TFrame")
         health_card.pack(fill="x", pady=(6, 12))
         health_card.configure(padding=12)
         ttk.Label(health_card, text="Health & Stats", style="Void.TLabel").pack(anchor="w")
@@ -3647,7 +3749,7 @@ class VoidGUI:
             command=self._db_health,
         ).pack(anchor="w", pady=(6, 0))
 
-        records_card = ttk.Frame(panel, style="Void.Card.TFrame")
+        records_card = ttk.Frame(scrollable, style="Void.Card.TFrame")
         records_card.pack(fill="x", pady=(0, 12))
         records_card.configure(padding=12)
         ttk.Label(records_card, text="Recent Records", style="Void.TLabel").pack(anchor="w")
@@ -3696,7 +3798,7 @@ class VoidGUI:
             command=self._show_top_methods,
         ).pack(side="left")
 
-        export_card = ttk.Frame(panel, style="Void.Card.TFrame")
+        export_card = ttk.Frame(scrollable, style="Void.Card.TFrame")
         export_card.pack(fill="x")
         export_card.configure(padding=12)
         ttk.Label(export_card, text="Logs Export", style="Void.TLabel").pack(anchor="w")
@@ -3756,9 +3858,11 @@ class VoidGUI:
             entry.pack(anchor="w")
 
     def _build_command_panel(self, panel: ttk.Frame) -> None:
-        ttk.Label(panel, text="Command Center", style="Void.TLabel").pack(anchor="w")
+        scrollable = self._make_scrollable(panel)
+        
+        ttk.Label(scrollable, text="Command Center", style="Void.TLabel").pack(anchor="w")
 
-        search_card = ttk.Frame(panel, style="Void.Card.TFrame")
+        search_card = ttk.Frame(scrollable, style="Void.Card.TFrame")
         search_card.pack(fill="x", pady=(6, 12))
         search_card.configure(padding=12)
         ttk.Label(search_card, text="Search Commands", style="Void.TLabel").pack(anchor="w")
@@ -3783,7 +3887,7 @@ class VoidGUI:
         Tooltip(search_entry, "Filter CLI commands by name, summary, category, or usage.")
         self.command_search_var.trace_add("write", lambda *_: self._refresh_command_list())
 
-        list_card = ttk.Frame(panel, style="Void.Card.TFrame")
+        list_card = ttk.Frame(scrollable, style="Void.Card.TFrame")
         list_card.pack(fill="both", expand=True, pady=(0, 12))
         list_card.configure(padding=12)
         ttk.Label(list_card, text="Available Commands", style="Void.TLabel").pack(anchor="w")
@@ -3813,7 +3917,7 @@ class VoidGUI:
             justify="left",
         ).pack(anchor="w", pady=(4, 0))
 
-        input_card = ttk.Frame(panel, style="Void.Card.TFrame")
+        input_card = ttk.Frame(scrollable, style="Void.Card.TFrame")
         input_card.pack(fill="x")
         input_card.configure(padding=12)
         ttk.Label(input_card, text="Run Command", style="Void.TLabel").pack(anchor="w")
@@ -3861,20 +3965,22 @@ class VoidGUI:
         self._refresh_command_list()
 
     def _build_browser_panel(self, panel: ttk.Frame) -> None:
-        ttk.Label(panel, text="Browser Automation", style="Void.TLabel").pack(anchor="w")
+        scrollable = self._make_scrollable(panel)
+        
+        ttk.Label(scrollable, text="Browser Automation", style="Void.TLabel").pack(anchor="w")
         description = (
             "Launch a headed browser session and drive navigation, clicks, and typing. "
             "Automated actions require confirmation by default."
         )
         ttk.Label(
-            panel,
+            scrollable,
             text=description,
             style="Void.TLabel",
             wraplength=640,
             justify="left",
         ).pack(anchor="w", pady=(4, 8))
 
-        controls_card = ttk.Frame(panel, style="Void.Card.TFrame")
+        controls_card = ttk.Frame(scrollable, style="Void.Card.TFrame")
         controls_card.pack(fill="x", pady=(0, 12))
         controls_card.configure(padding=12)
 
@@ -3983,7 +4089,7 @@ class VoidGUI:
             command=self._browser_type,
         ).pack(side="left")
 
-        log_card = ttk.Frame(panel, style="Void.Card.TFrame")
+        log_card = ttk.Frame(scrollable, style="Void.Card.TFrame")
         log_card.pack(fill="both", expand=True)
         log_card.configure(padding=12)
         ttk.Label(log_card, text="Browser Action Log", style="Void.TLabel").pack(anchor="w")
@@ -4000,21 +4106,23 @@ class VoidGUI:
         self.browser_log.pack(fill="both", expand=True, pady=(6, 0))
 
     def _build_assistant_panel(self, panel: ttk.Frame) -> None:
-        ttk.Label(panel, text="Gemini Assistant", style="Void.TLabel").pack(anchor="w")
+        scrollable = self._make_scrollable(panel)
+        
+        ttk.Label(scrollable, text="Gemini Assistant", style="Void.TLabel").pack(anchor="w")
 
         description = (
             "Chat with Gemini to plan workflows. The assistant maintains a task list "
             "and updates it as you refine your goal."
         )
         ttk.Label(
-            panel,
+            scrollable,
             text=description,
             style="Void.TLabel",
             wraplength=600,
             justify="left",
         ).pack(anchor="w", pady=(4, 8))
 
-        header = ttk.Frame(panel, style="Void.TFrame")
+        header = ttk.Frame(scrollable, style="Void.TFrame")
         header.pack(fill="x", pady=(0, 8))
         ttk.Label(header, text="Model", style="Void.TLabel").pack(side="left")
         model_entry = tk.Entry(
@@ -4041,7 +4149,7 @@ class VoidGUI:
             command=self._prompt_gemini_api_key,
         ).pack(side="left", padx=(8, 0))
 
-        endpoint_row = ttk.Frame(panel, style="Void.TFrame")
+        endpoint_row = ttk.Frame(scrollable, style="Void.TFrame")
         endpoint_row.pack(fill="x", pady=(0, 8))
         ttk.Label(endpoint_row, text="API Base", style="Void.TLabel").pack(side="left")
         api_entry = tk.Entry(
@@ -4062,7 +4170,7 @@ class VoidGUI:
             command=self._save_gemini_api_base,
         ).pack(side="left")
 
-        advanced_card = ttk.Frame(panel, style="Void.Card.TFrame")
+        advanced_card = ttk.Frame(scrollable, style="Void.Card.TFrame")
         advanced_card.pack(fill="x", pady=(0, 12))
         advanced_card.configure(padding=12)
         ttk.Label(advanced_card, text="Advanced Gemini Payload", style="Void.TLabel").pack(
@@ -4129,7 +4237,7 @@ class VoidGUI:
             command=self._save_gemini_advanced,
         ).pack(anchor="w", pady=(4, 0))
 
-        content_row = ttk.Frame(panel, style="Void.TFrame")
+        content_row = ttk.Frame(scrollable, style="Void.TFrame")
         content_row.pack(fill="both", expand=True)
 
         tasks_card = ttk.Frame(content_row, style="Void.Card.TFrame")
@@ -4198,9 +4306,11 @@ class VoidGUI:
         ).pack(anchor="w", pady=(8, 0))
 
     def _build_settings_panel(self, panel: ttk.Frame) -> None:
-        ttk.Label(panel, text="Settings", style="Void.TLabel").pack(anchor="w")
+        scrollable = self._make_scrollable(panel)
+        
+        ttk.Label(scrollable, text="Settings", style="Void.TLabel").pack(anchor="w")
 
-        toggles = ttk.Frame(panel, style="Void.Card.TFrame")
+        toggles = ttk.Frame(scrollable, style="Void.Card.TFrame")
         toggles.pack(fill="x", pady=(6, 12))
         toggles.configure(padding=12)
         ttk.Label(toggles, text="Feature Toggles", style="Void.TLabel").pack(anchor="w")
@@ -4224,7 +4334,7 @@ class VoidGUI:
             style="Void.TCheckbutton",
         ).pack(anchor="w", pady=(4, 0))
 
-        export_card = ttk.Frame(panel, style="Void.Card.TFrame")
+        export_card = ttk.Frame(scrollable, style="Void.Card.TFrame")
         export_card.pack(fill="x", pady=(0, 12))
         export_card.configure(padding=12)
         ttk.Label(export_card, text="Export Directories", style="Void.TLabel").pack(anchor="w")
@@ -4269,7 +4379,7 @@ class VoidGUI:
             command=self._browse_reports_dir,
         ).pack(side="left")
 
-        actions = ttk.Frame(panel, style="Void.TFrame")
+        actions = ttk.Frame(scrollable, style="Void.TFrame")
         actions.pack(fill="x")
         ttk.Button(
             actions,

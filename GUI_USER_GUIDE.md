@@ -26,6 +26,7 @@ Full-featured interface with complete control:
 - Complete access to every feature
 - Device list panel on the left
 - Tab navigation with scroll controls
+- **Scrollable panels** - All sub-tabs support vertical scrolling, allowing you to access all options even in small windows or when panels have many options
 
 **Best for:** Power users, development, advanced troubleshooting
 
@@ -216,9 +217,16 @@ Configuration and help:
 ## Navigation Tips
 
 ### Keyboard Shortcuts
-- **Mouse Wheel** - Scroll through tabs
+- **Mouse Wheel** - Scroll through tabs OR scroll within panel content (when mouse is over a tab)
 - **Ctrl+C** - Copy selected text
 - **Ctrl+A** - Select all text (in log areas)
+
+### Scrolling in Panels
+- All Advanced mode sub-tabs support vertical scrolling
+- Scroll with mouse wheel when hovering over the panel
+- Scroll bar appears on the right side of each panel when content exceeds visible area
+- Works in both fullscreen and windowed modes
+- No horizontal scrolling - content adapts to window width
 
 ### Tab Controls
 - **◀ ▶ Buttons** - Navigate tabs (when too many to display)
