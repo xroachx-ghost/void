@@ -60,9 +60,15 @@ dev = [
     "flake8>=6.0.0",
     "mypy>=1.0.0",
 ]
+windows = [
+    "pywin32>=305; platform_system=='Windows'",
+    "winshell>=0.6; platform_system=='Windows'",
+]
 
 [project.scripts]
 void = "void.main:main"
+void-gui = "void.main:main"
+void-cli = "void.main:main_cli"
 
 [build-system]
 requires = ["setuptools>=65.0", "wheel"]

@@ -2274,40 +2274,117 @@ class CLI:
 
     def _cmd_usb_debug(self, args: List[str]) -> None:
         """Enable or force USB debugging."""
-        device_id = self._resolve_device_id(args, "usb-debug <device_id|smart> [force]")
+        # Check for help/info flag
+        if len(args) > 0 and args[0].lower() in {'--help', '-h', 'help', 'methods', 'info'}:
+            methods_info = SystemTweaker.get_usb_debugging_methods()
+            print("\n📱 USB Debugging Force-Enable Methods")
+            print("=" * 70)
+            print("\nAvailable Methods:")
+            for method in methods_info['methods']:
+                print(f"\n🔹 {method['name']} ({method['id']})")
+                print(f"   Description: {method['description']}")
+                print(f"   Requirements: {', '.join(method['requirements'])}")
+                print(f"   Risk Level: {method['risk_level']}")
+                print(f"   Success Rate: {method['success_rate']}")
+            
+            print("\n\n⚠️  WARNINGS:")
+            for warning in methods_info['warnings']:
+                print(f"  • {warning}")
+            
+            print("\n\n📋 Usage:")
+            print("  usb-debug <device_id|smart> [method] [force]")
+            print("  usb-debug <device_id|smart> --methods  (show methods)")
+            print("\nExamples:")
+            print("  usb-debug smart                    # Standard enable")
+            print("  usb-debug smart force              # All methods")
+            print("  usb-debug smart standard           # Standard only")
+            print("  usb-debug smart properties         # Properties only")
+            print("  usb-debug smart settings_db force  # Settings DB (needs confirmation)")
+            return
+        
+        device_id = self._resolve_device_id(args, "usb-debug <device_id|smart> [method] [force]")
         if not device_id:
             return
-        force = len(args) > 1 and args[1].lower() in {"force", "--force", "-f"}
+        
+        # Determine method and force flag
+        method = 'standard'  # default
+        force_confirm = False
+        
+        if len(args) > 1:
+            potential_method = args[1].lower()
+            if potential_method in ['all', 'standard', 'properties', 'settings_db', 
+                                   'build_prop', 'adb_keys', 'recovery', 'root']:
+                method = potential_method
+                if len(args) > 2 and args[2].lower() in {'force', '--force', '-f'}:
+                    force_confirm = True
+            elif potential_method in {'force', '--force', '-f'}:
+                method = 'all'
+                force_confirm = True
 
-        if force and not self._smart_confirm(f"Force USB debugging on {device_id}?"):
-            print("⚠️  Action cancelled.")
-            return
+        # Require confirmation for risky methods
+        risky_methods = ['all', 'settings_db', 'build_prop', 'adb_keys', 'root']
+        if method in risky_methods:
+            if not force_confirm or not self._smart_confirm(
+                f"Use method '{method}' on {device_id}? (May require root/modify system)"
+            ):
+                print("⚠️  Action cancelled. Use 'force' flag to confirm risky operations.")
+                return
 
-        if force:
-            result = SystemTweaker.force_usb_debugging(device_id)
+        print(f"🔧 Attempting to enable USB debugging on {device_id}")
+        print(f"   Method: {method}")
+        print()
+
+        if method != 'standard':
+            result = SystemTweaker.force_usb_debugging(device_id, method)
         else:
             result = {
                 "steps": [
                     {
                         "step": "enable_developer_options",
+                        "category": "standard",
                         "success": SystemTweaker.enable_developer_options(device_id),
                         "detail": None,
                     },
                     {
                         "step": "enable_usb_debugging_setting",
+                        "category": "standard",
                         "success": SystemTweaker.enable_usb_debugging(device_id),
                         "detail": None,
                     },
-                ]
+                ],
+                "methods_attempted": method,
             }
             result["success"] = all(step["success"] for step in result["steps"])
             result["adb_enabled"] = result["success"]
             result["usb_config"] = None
+            result["has_root"] = False
 
-        status = "✅" if result["success"] else "⚠️"
-        print(f"{status} USB debugging {'forced' if force else 'enabled'} for {device_id}")
-        for step in result["steps"]:
+        # Display results
+        status = "✅" if result.get("success") else "⚠️"
+        print(f"{status} USB debugging attempt completed")
+        print(f"   ADB Enabled: {'✅ Yes' if result.get('adb_enabled') else '❌ No'}")
+        if result.get('usb_config'):
+            print(f"   USB Config: {result['usb_config']}")
+        if 'has_root' in result:
+            print(f"   Root Access: {'✅ Yes' if result['has_root'] else '❌ No'}")
+        
+        print("\n📊 Steps Executed:")
+        for step in result.get("steps", []):
             icon = "✅" if step["success"] else "❌"
+            category = step.get('category', 'unknown')
+            print(f"   {icon} [{category}] {step['step']}")
+            if step.get("detail"):
+                print(f"      {step['detail']}")
+        
+        if 'total_steps' in result:
+            print(f"\n📈 Summary: {result.get('successful_steps', 0)}/{result.get('total_steps', 0)} steps successful")
+        
+        if not result.get("success"):
+            print("\n💡 Tips:")
+            print("   • Try: usb-debug <device> properties  (more methods)")
+            print("   • Try: usb-debug <device> all force   (all methods, needs root)")
+            print("   • See: usb-debug --help                (view all methods)")
+            print("   • Some methods require root access or unlocked bootloader")
             detail = f" ({step['detail']})" if step.get("detail") else ""
             print(f"  {icon} {step['step']}{detail}")
         if result.get("usb_config"):
