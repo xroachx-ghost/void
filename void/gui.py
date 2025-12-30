@@ -3164,6 +3164,33 @@ class VoidGUI:
             )
         )
 
+    def _get_device_info_with_wizard_diagnostics(self, device_id: str) -> Dict:
+        """Get device info dict enriched with setup wizard diagnostics.
+        
+        Args:
+            device_id: The device ID to get info for
+            
+        Returns:
+            Dictionary with device info including wizard diagnostics
+        """
+        # Get base device info
+        device_info_dict = {'id': device_id, 'mode': 'unknown'}
+        for dev in self.all_device_info:
+            if dev.get('id') == device_id:
+                device_info_dict = dev
+                break
+        
+        # Add setup wizard diagnostics
+        try:
+            diagnostics = SetupWizardDiagnostics.analyze(device_id)
+            device_info_dict['wizard_status'] = diagnostics.get('status', 'unknown')
+            device_info_dict['wizard_running'] = diagnostics.get('wizard_running', False)
+            device_info_dict['user_setup_complete'] = diagnostics.get('user_setup_complete', None)
+        except Exception:
+            pass  # Continue without diagnostics if they fail
+        
+        return device_info_dict
+
     def _get_device_info_for_frp(self, device_id: str) -> str:
         """Get device information formatted for FRP wizard."""
         device_info_dict = None
@@ -3218,21 +3245,8 @@ Setup Wizard Status: {wizard_status}{wizard_details}"""
         """Populate the FRP methods list based on category."""
         method_listbox.delete(0, tk.END)
         
-        # Get device info for detection
-        device_info_dict = {'id': device_id, 'mode': 'unknown'}
-        for dev in self.all_device_info:
-            if dev.get('id') == device_id:
-                device_info_dict = dev
-                break
-        
-        # Add setup wizard diagnostics to device info
-        try:
-            diagnostics = SetupWizardDiagnostics.analyze(device_id)
-            device_info_dict['wizard_status'] = diagnostics.get('status', 'unknown')
-            device_info_dict['wizard_running'] = diagnostics.get('wizard_running', False)
-            device_info_dict['user_setup_complete'] = diagnostics.get('user_setup_complete', None)
-        except Exception:
-            pass  # Continue without diagnostics if they fail
+        # Get device info with wizard diagnostics
+        device_info_dict = self._get_device_info_with_wizard_diagnostics(device_id)
         
         # Get recommendations from FRP engine
         recommendations = self.frp_engine.detect_best_methods(device_info_dict)
@@ -3306,21 +3320,8 @@ Setup Wizard Status: {wizard_status}{wizard_details}"""
         
         method_id = methods[index]
         
-        # Get device info
-        device_info_dict = {'id': device_id, 'mode': 'unknown'}
-        for dev in self.all_device_info:
-            if dev.get('id') == device_id:
-                device_info_dict = dev
-                break
-        
-        # Add setup wizard diagnostics to device info
-        try:
-            diagnostics = SetupWizardDiagnostics.analyze(device_id)
-            device_info_dict['wizard_status'] = diagnostics.get('status', 'unknown')
-            device_info_dict['wizard_running'] = diagnostics.get('wizard_running', False)
-            device_info_dict['user_setup_complete'] = diagnostics.get('user_setup_complete', None)
-        except Exception:
-            pass  # Continue without diagnostics if they fail
+        # Get device info with wizard diagnostics
+        device_info_dict = self._get_device_info_with_wizard_diagnostics(device_id)
         
         # Get recommendations to get requirements and success rate
         recommendations = self.frp_engine.detect_best_methods(device_info_dict)
