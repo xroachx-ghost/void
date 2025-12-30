@@ -115,3 +115,144 @@ class SystemTweaker:
             ['adb', '-s', device_id, 'shell', 'settings', 'put', 'system', 'screen_off_timeout', str(ms)]
         )
         return code == 0
+
+    @staticmethod
+    def reboot(device_id: str, mode: str = 'system') -> bool:
+        """Reboot device to specified mode
+        
+        Args:
+            device_id: Device identifier
+            mode: One of 'system', 'recovery', 'bootloader', 'edl', 'safe'
+            
+        Returns:
+            bool: True if command succeeded
+        """
+        mode_map = {
+            'system': [],
+            'recovery': ['recovery'],
+            'bootloader': ['bootloader'],
+            'edl': ['edl'],
+            'safe': ['safe-mode']
+        }
+        
+        args = ['adb', '-s', device_id, 'reboot'] + mode_map.get(mode, [])
+        code, _, _ = SafeSubprocess.run(args)
+        return code == 0
+
+    @staticmethod
+    def shutdown(device_id: str) -> bool:
+        """Shutdown device"""
+        code, _, _ = SafeSubprocess.run(['adb', '-s', device_id, 'shell', 'reboot', '-p'])
+        return code == 0
+
+    @staticmethod
+    def get_adb_tcpip_status(device_id: str) -> dict:
+        """Get ADB over TCP/IP status"""
+        code, stdout, _ = SafeSubprocess.run(['adb', '-s', device_id, 'shell', 'getprop', 'service.adb.tcp.port'])
+        port = stdout.strip() if code == 0 else ''
+        
+        # Get device IP
+        code, stdout, _ = SafeSubprocess.run(['adb', '-s', device_id, 'shell', 'ip', 'addr', 'show', 'wlan0'])
+        ip = ''
+        if code == 0:
+            for line in stdout.split('\n'):
+                if 'inet ' in line:
+                    ip = line.strip().split()[1].split('/')[0]
+                    break
+        
+        return {
+            'enabled': port and port != '-1' and port != '',
+            'port': port if port and port != '-1' else None,
+            'ip': ip if ip else None
+        }
+
+    @staticmethod
+    def enable_adb_tcpip(device_id: str, port: int = 5555) -> bool:
+        """Enable ADB over TCP/IP"""
+        code, _, _ = SafeSubprocess.run(['adb', '-s', device_id, 'tcpip', str(port)])
+        return code == 0
+
+    @staticmethod
+    def disable_adb_tcpip(device_id: str) -> bool:
+        """Disable ADB over TCP/IP (return to USB)"""
+        code, _, _ = SafeSubprocess.run(['adb', '-s', device_id, 'usb'])
+        return code == 0
+
+    @staticmethod
+    def set_font_scale(device_id: str, scale: float) -> bool:
+        """Change system font scale"""
+        code, _, _ = SafeSubprocess.run(
+            ['adb', '-s', device_id, 'shell', 'settings', 'put', 'system', 'font_scale', str(scale)]
+        )
+        return code == 0
+
+    @staticmethod
+    def toggle_battery_saver(device_id: str, enable: bool) -> bool:
+        """Toggle battery saver mode"""
+        value = '1' if enable else '0'
+        code, _, _ = SafeSubprocess.run(
+            ['adb', '-s', device_id, 'shell', 'settings', 'put', 'global', 'low_power', value]
+        )
+        return code == 0
+
+    @staticmethod
+    def toggle_stay_awake(device_id: str, enable: bool) -> bool:
+        """Toggle stay awake while charging"""
+        value = '7' if enable else '0'  # Bit flags: USB=2, AC=4, Wireless=1
+        code, _, _ = SafeSubprocess.run(
+            ['adb', '-s', device_id, 'shell', 'settings', 'put', 'global', 'stay_on_while_plugged_in', value]
+        )
+        return code == 0
+
+    @staticmethod
+    def get_oem_unlock_status(device_id: str) -> dict:
+        """Check OEM unlock status"""
+        code, stdout, _ = SafeSubprocess.run(
+            ['adb', '-s', device_id, 'shell', 'settings', 'get', 'global', 'oem_unlock_enabled']
+        )
+        enabled = code == 0 and stdout.strip() == '1'
+        
+        code, stdout, _ = SafeSubprocess.run(
+            ['adb', '-s', device_id, 'shell', 'getprop', 'sys.oem_unlock_allowed']
+        )
+        allowed = code == 0 and stdout.strip() == '1'
+        
+        return {
+            'enabled': enabled,
+            'allowed': allowed
+        }
+
+    @staticmethod
+    def get_encryption_status(device_id: str) -> dict:
+        """Check device encryption status"""
+        code, stdout, _ = SafeSubprocess.run(
+            ['adb', '-s', device_id, 'shell', 'getprop', 'ro.crypto.state']
+        )
+        state = stdout.strip() if code == 0 else ''
+        
+        code, stdout, _ = SafeSubprocess.run(
+            ['adb', '-s', device_id, 'shell', 'getprop', 'ro.crypto.type']
+        )
+        crypto_type = stdout.strip() if code == 0 else ''
+        
+        return {
+            'encrypted': state == 'encrypted',
+            'state': state,
+            'type': crypto_type
+        }
+
+    @staticmethod
+    def start_screen_recording(device_id: str, output_path: str, time_limit: int = 180) -> bool:
+        """Start screen recording
+        
+        Args:
+            device_id: Device identifier
+            output_path: Output path on device (e.g., '/sdcard/screenrecord.mp4')
+            time_limit: Recording time limit in seconds (max 180)
+        """
+        time_limit = min(time_limit, 180)  # Android limit
+        code, _, _ = SafeSubprocess.run([
+            'adb', '-s', device_id, 'shell', 'screenrecord', 
+            '--time-limit', str(time_limit), output_path
+        ])
+        return code == 0

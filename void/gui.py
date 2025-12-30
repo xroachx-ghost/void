@@ -119,6 +119,10 @@ class Tooltip:
 
 class VoidGUI:
     """User-friendly GUI with an anonymous hacktivist theme."""
+    
+    # Constants
+    MAX_SHELL_OUTPUT_LINES = 100
+    ADB_TCPIP_WAIT_SECONDS = 2
 
     def __init__(self):
         if not GUI_AVAILABLE:
@@ -2029,6 +2033,39 @@ class VoidGUI:
             command=self._update_diagnostics,
         ).pack(anchor="w", pady=(8, 0))
 
+        # Device health diagnostics
+        health_card = ttk.Frame(self.troubleshooting_scrollable, style="Void.Card.TFrame")
+        health_card.pack(fill="x", pady=(0, 12))
+        health_card.configure(padding=12)
+        ttk.Label(health_card, text="Device Health Checks", style="Void.TLabel").pack(anchor="w")
+        health_row = ttk.Frame(health_card, style="Void.TFrame")
+        health_row.pack(fill="x", pady=(6, 0))
+        ttk.Button(
+            health_row,
+            text="Battery Health",
+            style="Void.TButton",
+            command=self._check_battery_health,
+        ).pack(side="left", padx=(0, 6))
+        ttk.Button(
+            health_row,
+            text="Storage Health",
+            style="Void.TButton",
+            command=self._check_storage_health,
+        ).pack(side="left", padx=(0, 6))
+        ttk.Button(
+            health_row,
+            text="Temperature",
+            style="Void.TButton",
+            command=self._check_temperature,
+        ).pack(side="left", padx=(0, 6))
+        ttk.Button(
+            health_row,
+            text="Full Diagnostics",
+            style="Void.TButton",
+            command=self._run_full_diagnostics,
+        ).pack(side="left")
+
+
         downloads_card = ttk.Frame(self.troubleshooting_scrollable, style="Void.Card.TFrame")
         downloads_card.pack(fill="x", pady=(0, 12))
         downloads_card.configure(padding=12)
@@ -2466,6 +2503,32 @@ class VoidGUI:
 
         self._run_task(f"Command: {command_line}", runner)
 
+    def _execute_shell_command(self) -> None:
+        from .core.shell import ShellController
+        
+        device_id = self._get_selected_device()
+        if not device_id:
+            return
+        
+        command = self.shell_command_var.get().strip()
+        if not command:
+            messagebox.showwarning("Void", "Enter a shell command to execute.")
+            return
+
+        def runner() -> Dict[str, Any]:
+            result = ShellController.execute_command(device_id, command)
+            if result.get('output'):
+                lines = result['output'].strip().split('\n')
+                for line in lines[:self.MAX_SHELL_OUTPUT_LINES]:
+                    self._log(line, level="DATA")
+                if len(lines) > self.MAX_SHELL_OUTPUT_LINES:
+                    self._log(f"... and {len(lines) - self.MAX_SHELL_OUTPUT_LINES} more lines", level="DATA")
+            if result.get('error'):
+                self._log(f"Error: {result['error']}", level="ERROR")
+            return result
+
+        self._run_task(f"Shell: {command}", runner)
+
     def _run_task(
         self,
         label: str,
@@ -2888,6 +2951,86 @@ class VoidGUI:
 
         threading.Thread(target=runner, daemon=True).start()
 
+    def _check_battery_health(self) -> None:
+        from .core.diagnostics import DiagnosticsTools
+        
+        device_id = self._get_selected_device()
+        if not device_id:
+            return
+
+        def runner() -> Dict[str, Any]:
+            battery = DiagnosticsTools.check_battery_health(device_id)
+            self._log("Battery Health:")
+            for key, value in battery.items():
+                self._log(f"  {key}: {value}", level="DATA")
+            return {"success": True, "message": "Battery health checked"}
+
+        self._run_task("Battery Health", runner)
+
+    def _check_storage_health(self) -> None:
+        from .core.diagnostics import DiagnosticsTools
+        
+        device_id = self._get_selected_device()
+        if not device_id:
+            return
+
+        def runner() -> Dict[str, Any]:
+            storage = DiagnosticsTools.check_storage_health(device_id)
+            self._log("Storage Health:")
+            for partition in storage.get('partitions', []):
+                self._log(f"  {partition.get('mounted_on')}: {partition.get('used')}/{partition.get('size')} ({partition.get('use_percent')})", level="DATA")
+            return {"success": True, "message": "Storage health checked"}
+
+        self._run_task("Storage Health", runner)
+
+    def _check_temperature(self) -> None:
+        from .core.diagnostics import DiagnosticsTools
+        
+        device_id = self._get_selected_device()
+        if not device_id:
+            return
+
+        def runner() -> Dict[str, Any]:
+            temps = DiagnosticsTools.get_device_temperature(device_id)
+            self._log("Device Temperature:")
+            if temps:
+                for sensor, value in temps.items():
+                    self._log(f"  {sensor}: {value}", level="DATA")
+            else:
+                self._log("  No temperature data available", level="DATA")
+            return {"success": True, "message": "Temperature checked"}
+
+        self._run_task("Temperature Check", runner)
+
+    def _run_full_diagnostics(self) -> None:
+        from .core.diagnostics import DiagnosticsTools
+        
+        device_id = self._get_selected_device()
+        if not device_id:
+            return
+
+        def runner() -> Dict[str, Any]:
+            diagnostics = DiagnosticsTools.run_device_diagnostics(device_id)
+            self._log("Full Device Diagnostics:")
+            
+            self._log("Battery:", level="DATA")
+            for key, value in diagnostics.get('battery', {}).items():
+                self._log(f"  {key}: {value}", level="DATA")
+            
+            self._log("Storage:", level="DATA")
+            for partition in diagnostics.get('storage', {}).get('partitions', [])[:5]:
+                self._log(f"  {partition.get('mounted_on')}: {partition.get('available')} available", level="DATA")
+            
+            if diagnostics.get('imei'):
+                self._log(f"IMEI: {diagnostics['imei']}", level="DATA")
+            
+            if diagnostics.get('build_fingerprint'):
+                self._log(f"Build: {diagnostics['build_fingerprint']}", level="DATA")
+            
+            return {"success": True, "message": "Full diagnostics complete"}
+
+        self._run_task("Full Diagnostics", runner)
+
     def _format_display_diagnostics_result(self, result: Dict[str, Any]) -> tuple[str, str]:
         analysis = result.get("screenshot_analysis") or {}
         black_frame = result.get("black_frame_detected")
@@ -3230,6 +3373,49 @@ class VoidGUI:
             command=self._backup_app,
         ).pack(side="left")
 
+        # New app actions row
+        button_row2 = ttk.Frame(actions, style="Void.TFrame")
+        button_row2.pack(anchor="w", pady=(6, 0))
+        ttk.Button(
+            button_row2,
+            text="Force Stop",
+            style="Void.TButton",
+            command=lambda: self._run_app_action("Force stop app", AppManager.force_stop_app),
+        ).pack(side="left", padx=(0, 6))
+        ttk.Button(
+            button_row2,
+            text="Launch",
+            style="Void.TButton",
+            command=lambda: self._run_app_action("Launch app", AppManager.launch_app),
+        ).pack(side="left", padx=(0, 6))
+        ttk.Button(
+            button_row2,
+            text="View Info",
+            style="Void.TButton",
+            command=self._view_app_info,
+        ).pack(side="left", padx=(0, 6))
+        ttk.Button(
+            button_row2,
+            text="Export List",
+            style="Void.TButton",
+            command=self._export_app_list,
+        ).pack(side="left")
+
+        # Install APK section
+        install_card = ttk.Frame(scrollable, style="Void.Card.TFrame")
+        install_card.pack(fill="x", pady=(0, 12))
+        install_card.configure(padding=12)
+        ttk.Label(install_card, text="Install APK", style="Void.TLabel").pack(anchor="w")
+        install_row = ttk.Frame(install_card, style="Void.TFrame")
+        install_row.pack(fill="x", pady=(6, 0))
+        ttk.Button(
+            install_row,
+            text="Select & Install APK",
+            style="Void.TButton",
+            command=self._install_apk,
+        ).pack(side="left")
+
+
     def _build_files_panel(self, panel: ttk.Frame) -> None:
         scrollable = self._make_scrollable(panel)
         
@@ -3369,6 +3555,107 @@ class VoidGUI:
             command=self._delete_file,
         ).pack(side="left")
 
+        # File operations
+        ops_card = ttk.Frame(scrollable, style="Void.Card.TFrame")
+        ops_card.pack(fill="x", pady=(12, 12))
+        ops_card.configure(padding=12)
+        ttk.Label(ops_card, text="File Operations", style="Void.TLabel").pack(anchor="w")
+        
+        # Create folder
+        mkdir_row = ttk.Frame(ops_card, style="Void.TFrame")
+        mkdir_row.pack(fill="x", pady=(6, 6))
+        ttk.Label(mkdir_row, text="Create Folder", style="Void.TLabel").pack(side="left")
+        self.files_mkdir_var = tk.StringVar()
+        mkdir_entry = tk.Entry(
+            mkdir_row,
+            textvariable=self.files_mkdir_var,
+            bg=self.theme["panel_alt"],
+            fg=self.theme["text"],
+            insertbackground=self.theme["accent"],
+            relief="flat",
+            font=("Consolas", 10),
+        )
+        mkdir_entry.pack(side="left", fill="x", expand=True, padx=(8, 6))
+        ttk.Button(
+            mkdir_row,
+            text="Create",
+            style="Void.TButton",
+            command=self._create_folder,
+        ).pack(side="left")
+        
+        # Rename/Move
+        rename_row = ttk.Frame(ops_card, style="Void.TFrame")
+        rename_row.pack(fill="x", pady=(0, 6))
+        ttk.Label(rename_row, text="Rename/Move", style="Void.TLabel").pack(side="left")
+        self.files_rename_old_var = tk.StringVar()
+        self.files_rename_new_var = tk.StringVar()
+        rename_old = tk.Entry(
+            rename_row,
+            textvariable=self.files_rename_old_var,
+            bg=self.theme["panel_alt"],
+            fg=self.theme["text"],
+            insertbackground=self.theme["accent"],
+            relief="flat",
+            font=("Consolas", 10),
+            width=20,
+        )
+        rename_old.pack(side="left", padx=(8, 6))
+        ttk.Label(rename_row, text="→", style="Void.TLabel").pack(side="left")
+        rename_new = tk.Entry(
+            rename_row,
+            textvariable=self.files_rename_new_var,
+            bg=self.theme["panel_alt"],
+            fg=self.theme["text"],
+            insertbackground=self.theme["accent"],
+            relief="flat",
+            font=("Consolas", 10),
+            width=20,
+        )
+        rename_new.pack(side="left", padx=(6, 6))
+        ttk.Button(
+            rename_row,
+            text="Rename",
+            style="Void.TButton",
+            command=self._rename_file,
+        ).pack(side="left")
+        
+        # Copy
+        copy_row = ttk.Frame(ops_card, style="Void.TFrame")
+        copy_row.pack(fill="x")
+        ttk.Label(copy_row, text="Copy", style="Void.TLabel").pack(side="left")
+        self.files_copy_src_var = tk.StringVar()
+        self.files_copy_dst_var = tk.StringVar()
+        copy_src = tk.Entry(
+            copy_row,
+            textvariable=self.files_copy_src_var,
+            bg=self.theme["panel_alt"],
+            fg=self.theme["text"],
+            insertbackground=self.theme["accent"],
+            relief="flat",
+            font=("Consolas", 10),
+            width=20,
+        )
+        copy_src.pack(side="left", padx=(8, 6))
+        ttk.Label(copy_row, text="→", style="Void.TLabel").pack(side="left")
+        copy_dst = tk.Entry(
+            copy_row,
+            textvariable=self.files_copy_dst_var,
+            bg=self.theme["panel_alt"],
+            fg=self.theme["text"],
+            insertbackground=self.theme["accent"],
+            relief="flat",
+            font=("Consolas", 10),
+            width=20,
+        )
+        copy_dst.pack(side="left", padx=(6, 6))
+        ttk.Button(
+            copy_row,
+            text="Copy",
+            style="Void.TButton",
+            command=self._copy_file,
+        ).pack(side="left")
+
+
     def _build_recovery_panel(self, panel: ttk.Frame) -> None:
         scrollable = self._make_scrollable(panel)
         
@@ -3457,7 +3744,7 @@ class VoidGUI:
         ).pack(side="left")
 
         usb_card = ttk.Frame(scrollable, style="Void.Card.TFrame")
-        usb_card.pack(fill="x")
+        usb_card.pack(fill="x", pady=(0, 12))
         usb_card.configure(padding=12)
         ttk.Label(usb_card, text="USB Debugging", style="Void.TLabel").pack(anchor="w")
         usb_row = ttk.Frame(usb_card, style="Void.TFrame")
@@ -3475,6 +3762,97 @@ class VoidGUI:
             command=self._enable_usb_debugging,
         ).pack(side="left")
 
+        # Reboot options
+        reboot_card = ttk.Frame(scrollable, style="Void.Card.TFrame")
+        reboot_card.pack(fill="x", pady=(0, 12))
+        reboot_card.configure(padding=12)
+        ttk.Label(reboot_card, text="Reboot Options", style="Void.TLabel").pack(anchor="w")
+        reboot_row = ttk.Frame(reboot_card, style="Void.TFrame")
+        reboot_row.pack(fill="x", pady=(6, 0))
+        ttk.Button(
+            reboot_row,
+            text="System",
+            style="Void.TButton",
+            command=lambda: self._reboot_device('system'),
+        ).pack(side="left", padx=(0, 6))
+        ttk.Button(
+            reboot_row,
+            text="Recovery",
+            style="Void.TButton",
+            command=lambda: self._reboot_device('recovery'),
+        ).pack(side="left", padx=(0, 6))
+        ttk.Button(
+            reboot_row,
+            text="Bootloader",
+            style="Void.TButton",
+            command=lambda: self._reboot_device('bootloader'),
+        ).pack(side="left", padx=(0, 6))
+        ttk.Button(
+            reboot_row,
+            text="Shutdown",
+            style="Void.TButton",
+            command=self._shutdown_device,
+        ).pack(side="left")
+
+        # System toggles
+        toggles_card = ttk.Frame(scrollable, style="Void.Card.TFrame")
+        toggles_card.pack(fill="x", pady=(0, 12))
+        toggles_card.configure(padding=12)
+        ttk.Label(toggles_card, text="System Toggles", style="Void.TLabel").pack(anchor="w")
+        toggle_row = ttk.Frame(toggles_card, style="Void.TFrame")
+        toggle_row.pack(fill="x", pady=(6, 0))
+        ttk.Button(
+            toggle_row,
+            text="Stay Awake ON",
+            style="Void.TButton",
+            command=lambda: self._toggle_system_setting('stay_awake', True),
+        ).pack(side="left", padx=(0, 6))
+        ttk.Button(
+            toggle_row,
+            text="Stay Awake OFF",
+            style="Void.TButton",
+            command=lambda: self._toggle_system_setting('stay_awake', False),
+        ).pack(side="left", padx=(0, 6))
+        ttk.Button(
+            toggle_row,
+            text="Battery Saver ON",
+            style="Void.TButton",
+            command=lambda: self._toggle_system_setting('battery_saver', True),
+        ).pack(side="left", padx=(0, 6))
+        ttk.Button(
+            toggle_row,
+            text="Battery Saver OFF",
+            style="Void.TButton",
+            command=lambda: self._toggle_system_setting('battery_saver', False),
+        ).pack(side="left")
+
+        # ADB over TCP/IP
+        adb_tcp_card = ttk.Frame(scrollable, style="Void.Card.TFrame")
+        adb_tcp_card.pack(fill="x")
+        adb_tcp_card.configure(padding=12)
+        ttk.Label(adb_tcp_card, text="ADB over WiFi", style="Void.TLabel").pack(anchor="w")
+        adb_tcp_row = ttk.Frame(adb_tcp_card, style="Void.TFrame")
+        adb_tcp_row.pack(fill="x", pady=(6, 0))
+        ttk.Button(
+            adb_tcp_row,
+            text="Enable (5555)",
+            style="Void.TButton",
+            command=self._enable_adb_tcpip,
+        ).pack(side="left", padx=(0, 6))
+        ttk.Button(
+            adb_tcp_row,
+            text="Disable",
+            style="Void.TButton",
+            command=self._disable_adb_tcpip,
+        ).pack(side="left", padx=(0, 6))
+        ttk.Button(
+            adb_tcp_row,
+            text="Check Status",
+            style="Void.TButton",
+            command=self._check_adb_tcpip_status,
+        ).pack(side="left")
+
+
     def _build_network_panel(self, panel: ttk.Frame) -> None:
         scrollable = self._make_scrollable(panel)
         
@@ -3490,6 +3868,59 @@ class VoidGUI:
             style="Void.TButton",
             command=self._check_internet,
         ).pack(anchor="w", pady=(6, 0))
+
+        # Network toggles
+        toggles_card = ttk.Frame(scrollable, style="Void.Card.TFrame")
+        toggles_card.pack(fill="x", pady=(6, 12))
+        toggles_card.configure(padding=12)
+        ttk.Label(toggles_card, text="Network Toggles", style="Void.TLabel").pack(anchor="w")
+        toggle_row = ttk.Frame(toggles_card, style="Void.TFrame")
+        toggle_row.pack(fill="x", pady=(6, 0))
+        ttk.Button(
+            toggle_row,
+            text="WiFi ON",
+            style="Void.TButton",
+            command=lambda: self._toggle_network('wifi', True),
+        ).pack(side="left", padx=(0, 6))
+        ttk.Button(
+            toggle_row,
+            text="WiFi OFF",
+            style="Void.TButton",
+            command=lambda: self._toggle_network('wifi', False),
+        ).pack(side="left", padx=(0, 6))
+        ttk.Button(
+            toggle_row,
+            text="Data ON",
+            style="Void.TButton",
+            command=lambda: self._toggle_network('data', True),
+        ).pack(side="left", padx=(0, 6))
+        ttk.Button(
+            toggle_row,
+            text="Data OFF",
+            style="Void.TButton",
+            command=lambda: self._toggle_network('data', False),
+        ).pack(side="left")
+
+        # Network info
+        info_card = ttk.Frame(scrollable, style="Void.Card.TFrame")
+        info_card.pack(fill="x")
+        info_card.configure(padding=12)
+        ttk.Label(info_card, text="Network Information", style="Void.TLabel").pack(anchor="w")
+        info_row = ttk.Frame(info_card, style="Void.TFrame")
+        info_row.pack(fill="x", pady=(6, 0))
+        ttk.Button(
+            info_row,
+            text="Show IP/MAC",
+            style="Void.TButton",
+            command=self._show_network_info,
+        ).pack(side="left", padx=(0, 6))
+        ttk.Button(
+            info_row,
+            text="List WiFi Networks",
+            style="Void.TButton",
+            command=self._list_wifi_networks,
+        ).pack(side="left")
+
 
     def _build_logcat_panel(self, panel: ttk.Frame) -> None:
         scrollable = self._make_scrollable(panel)
@@ -3525,6 +3956,39 @@ class VoidGUI:
             style="Void.TButton",
             command=self._stop_logcat,
         ).pack(side="left")
+
+        # Log capture and management
+        capture_card = ttk.Frame(scrollable, style="Void.Card.TFrame")
+        capture_card.pack(fill="x", pady=(0, 12))
+        capture_card.configure(padding=12)
+        ttk.Label(capture_card, text="Log Management", style="Void.TLabel").pack(anchor="w")
+        capture_row = ttk.Frame(capture_card, style="Void.TFrame")
+        capture_row.pack(fill="x", pady=(6, 0))
+        ttk.Button(
+            capture_row,
+            text="Export Logcat",
+            style="Void.TButton",
+            command=self._export_logcat,
+        ).pack(side="left", padx=(0, 6))
+        ttk.Button(
+            capture_row,
+            text="Clear Buffer",
+            style="Void.TButton",
+            command=self._clear_logcat,
+        ).pack(side="left", padx=(0, 6))
+        ttk.Button(
+            capture_row,
+            text="Kernel Log",
+            style="Void.TButton",
+            command=self._view_kernel_log,
+        ).pack(side="left", padx=(0, 6))
+        ttk.Button(
+            capture_row,
+            text="Crash Logs",
+            style="Void.TButton",
+            command=self._view_crash_logs,
+        ).pack(side="left")
+
 
     def _build_monitor_panel(self, panel: ttk.Frame) -> None:
         scrollable = self._make_scrollable(panel)
@@ -3960,6 +4424,32 @@ class VoidGUI:
             text="Run",
             style="Void.TButton",
             command=self._run_command_line,
+        ).pack(side="left")
+
+        # Shell command execution
+        shell_card = ttk.Frame(scrollable, style="Void.Card.TFrame")
+        shell_card.pack(fill="x", pady=(12, 0))
+        shell_card.configure(padding=12)
+        ttk.Label(shell_card, text="Shell Commands (ADB)", style="Void.TLabel").pack(anchor="w")
+        shell_row = ttk.Frame(shell_card, style="Void.TFrame")
+        shell_row.pack(fill="x", pady=(6, 0))
+        ttk.Label(shell_row, text="Command", style="Void.TLabel").pack(side="left")
+        self.shell_command_var = tk.StringVar()
+        shell_entry = tk.Entry(
+            shell_row,
+            textvariable=self.shell_command_var,
+            bg=self.theme["panel_alt"],
+            fg=self.theme["text"],
+            insertbackground=self.theme["accent"],
+            relief="flat",
+            font=("Consolas", 10),
+        )
+        shell_entry.pack(side="left", fill="x", expand=True, padx=(8, 6))
+        ttk.Button(
+            shell_row,
+            text="Execute",
+            style="Void.TButton",
+            command=self._execute_shell_command,
         ).pack(side="left")
 
         self._refresh_command_list()
@@ -4831,6 +5321,63 @@ class VoidGUI:
 
         self._run_task("Backup APK", runner)
 
+    def _view_app_info(self) -> None:
+        device_id = self._get_selected_device()
+        if not device_id:
+            return
+        package = self.apps_package_var.get().strip()
+        if not package:
+            messagebox.showwarning("Void", "Enter a package name first.")
+            return
+
+        def runner() -> Dict[str, Any]:
+            info = AppManager.get_app_info_detailed(device_id, package)
+            self._log(f"App Info for {package}:")
+            for key, value in info.items():
+                if key != 'permissions':
+                    self._log(f"  {key}: {value}", level="DATA")
+            if 'permissions' in info:
+                self._log(f"  Permissions: {len(info['permissions'])} granted", level="DATA")
+            return {"success": True, "message": "App info retrieved."}
+
+        self._run_task("View App Info", runner)
+
+    def _export_app_list(self) -> None:
+        device_id = self._get_selected_device()
+        if not device_id:
+            return
+
+        def runner() -> Dict[str, Any]:
+            result = AppManager.export_app_list(device_id, format='csv')
+            if result.get("success"):
+                self._log(f"App list exported: {result.get('path')} ({result.get('count')} apps)")
+                message = f"Exported {result.get('count')} apps to {result.get('path')}"
+            else:
+                message = "Export failed."
+            return {"success": bool(result.get("success")), "message": message}
+
+        self._run_task("Export App List", runner)
+
+    def _install_apk(self) -> None:
+        device_id = self._get_selected_device()
+        if not device_id:
+            return
+
+        apk_path = filedialog.askopenfilename(
+            title="Select APK File",
+            filetypes=[("APK Files", "*.apk"), ("All Files", "*.*")]
+        )
+        if not apk_path:
+            return
+
+        def runner() -> Dict[str, Any]:
+            success = AppManager.install_apk(device_id, apk_path)
+            message = f"APK installation {'succeeded' if success else 'failed'}."
+            self._log(message)
+            return {"success": success, "message": message}
+
+        self._run_task("Install APK", runner)
+
     def _list_files(self) -> None:
         device_id = self._get_selected_device()
         if not device_id:
@@ -4911,6 +5458,59 @@ class VoidGUI:
             return {"success": success, "message": message}
 
         self._run_task("Delete file", runner)
+
+    def _create_folder(self) -> None:
+        device_id = self._get_selected_device()
+        if not device_id:
+            return
+        path = self.files_mkdir_var.get().strip()
+        if not path:
+            messagebox.showwarning("Void", "Enter a folder path to create.")
+            return
+
+        def runner() -> Dict[str, Any]:
+            success = FileManager.create_folder(device_id, path)
+            message = f"Folder created: {path}" if success else "Create folder failed."
+            self._log(message)
+            return {"success": success, "message": message}
+
+        self._run_task("Create folder", runner)
+
+    def _rename_file(self) -> None:
+        device_id = self._get_selected_device()
+        if not device_id:
+            return
+        old_path = self.files_rename_old_var.get().strip()
+        new_path = self.files_rename_new_var.get().strip()
+        if not old_path or not new_path:
+            messagebox.showwarning("Void", "Enter both old and new paths.")
+            return
+
+        def runner() -> Dict[str, Any]:
+            success = FileManager.rename_file(device_id, old_path, new_path)
+            message = f"Renamed {old_path} to {new_path}" if success else "Rename failed."
+            self._log(message)
+            return {"success": success, "message": message}
+
+        self._run_task("Rename file", runner)
+
+    def _copy_file(self) -> None:
+        device_id = self._get_selected_device()
+        if not device_id:
+            return
+        src = self.files_copy_src_var.get().strip()
+        dst = self.files_copy_dst_var.get().strip()
+        if not src or not dst:
+            messagebox.showwarning("Void", "Enter both source and destination paths.")
+            return
+
+        def runner() -> Dict[str, Any]:
+            success = FileManager.copy_file(device_id, src, dst)
+            message = f"Copied {src} to {dst}" if success else "Copy failed."
+            self._log(message)
+            return {"success": success, "message": message}
+
+        self._run_task("Copy file", runner)
 
     def _recover_contacts(self) -> None:
         device_id = self._get_selected_device()
@@ -5044,6 +5644,116 @@ class VoidGUI:
 
         self._run_task("USB debugging", runner)
 
+    def _reboot_device(self, mode: str) -> None:
+        device_id = self._get_selected_device()
+        if not device_id:
+            return
+
+        if not messagebox.askyesno("Confirm Reboot", f"Reboot device to {mode}?"):
+            return
+
+        def runner() -> Dict[str, Any]:
+            success = SystemTweaker.reboot(device_id, mode)
+            message = f"Reboot to {mode} {'succeeded' if success else 'failed'}."
+            self._log(message)
+            return {"success": success, "message": message}
+
+        self._run_task(f"Reboot to {mode}", runner)
+
+    def _shutdown_device(self) -> None:
+        device_id = self._get_selected_device()
+        if not device_id:
+            return
+
+        if not messagebox.askyesno("Confirm Shutdown", "Shutdown the device?"):
+            return
+
+        def runner() -> Dict[str, Any]:
+            success = SystemTweaker.shutdown(device_id)
+            message = f"Shutdown {'succeeded' if success else 'failed'}."
+            self._log(message)
+            return {"success": success, "message": message}
+
+        self._run_task("Shutdown device", runner)
+
+    def _toggle_system_setting(self, setting: str, enable: bool) -> None:
+        device_id = self._get_selected_device()
+        if not device_id:
+            return
+
+        def runner() -> Dict[str, Any]:
+            if setting == 'stay_awake':
+                success = SystemTweaker.toggle_stay_awake(device_id, enable)
+                setting_name = "Stay Awake"
+            elif setting == 'battery_saver':
+                success = SystemTweaker.toggle_battery_saver(device_id, enable)
+                setting_name = "Battery Saver"
+            else:
+                success = False
+                setting_name = setting
+
+            state = "enabled" if enable else "disabled"
+            message = f"{setting_name} {state} {'successfully' if success else 'failed'}."
+            self._log(message)
+            return {"success": success, "message": message}
+
+        self._run_task(f"Toggle {setting}", runner)
+
+    def _enable_adb_tcpip(self) -> None:
+        device_id = self._get_selected_device()
+        if not device_id:
+            return
+
+        def runner() -> Dict[str, Any]:
+            success = SystemTweaker.enable_adb_tcpip(device_id)
+            if success:
+                import time
+                time.sleep(self.ADB_TCPIP_WAIT_SECONDS)  # Wait for service to start
+                status = SystemTweaker.get_adb_tcpip_status(device_id)
+                if status.get('ip'):
+                    message = f"ADB over WiFi enabled. Connect with: adb connect {status['ip']}:5555"
+                    self._log(message)
+                else:
+                    message = "ADB over WiFi enabled on port 5555."
+                    self._log(message)
+            else:
+                message = "Failed to enable ADB over WiFi."
+            return {"success": success, "message": message}
+
+        self._run_task("Enable ADB over WiFi", runner)
+
+    def _disable_adb_tcpip(self) -> None:
+        device_id = self._get_selected_device()
+        if not device_id:
+            return
+
+        def runner() -> Dict[str, Any]:
+            success = SystemTweaker.disable_adb_tcpip(device_id)
+            message = f"ADB over WiFi disabled {'successfully' if success else 'failed'}."
+            self._log(message)
+            return {"success": success, "message": message}
+
+        self._run_task("Disable ADB over WiFi", runner)
+
+    def _check_adb_tcpip_status(self) -> None:
+        device_id = self._get_selected_device()
+        if not device_id:
+            return
+
+        def runner() -> Dict[str, Any]:
+            status = SystemTweaker.get_adb_tcpip_status(device_id)
+            if status.get('enabled'):
+                message = f"ADB over WiFi: ENABLED on port {status.get('port')}"
+                if status.get('ip'):
+                    message += f"\nDevice IP: {status['ip']}"
+                    message += f"\nConnect with: adb connect {status['ip']}:{status['port']}"
+            else:
+                message = "ADB over WiFi: DISABLED (using USB)"
+            self._log(message)
+            return {"success": True, "message": message}
+
+        self._run_task("Check ADB WiFi status", runner)
+
     def _check_internet(self) -> None:
         def runner() -> Dict[str, Any]:
             online = NetworkTools.check_internet()
@@ -5052,6 +5762,65 @@ class VoidGUI:
             return {"success": True, "message": message}
 
         self._run_task("Network check", runner)
+
+    def _toggle_network(self, network_type: str, enable: bool) -> None:
+        device_id = self._get_selected_device()
+        if not device_id:
+            return
+
+        def runner() -> Dict[str, Any]:
+            if network_type == 'wifi':
+                success = NetworkAnalyzer.toggle_wifi(device_id, enable)
+                name = "WiFi"
+            elif network_type == 'data':
+                success = NetworkAnalyzer.toggle_mobile_data(device_id, enable)
+                name = "Mobile Data"
+            else:
+                success = False
+                name = network_type
+
+            state = "enabled" if enable else "disabled"
+            message = f"{name} {state} {'successfully' if success else 'failed'}."
+            self._log(message)
+            return {"success": success, "message": message}
+
+        self._run_task(f"Toggle {network_type}", runner)
+
+    def _show_network_info(self) -> None:
+        device_id = self._get_selected_device()
+        if not device_id:
+            return
+
+        def runner() -> Dict[str, Any]:
+            info = NetworkAnalyzer.get_network_info(device_id)
+            self._log("Network Information:")
+            if info.get('ip'):
+                self._log(f"  IP Address: {info['ip']}", level="DATA")
+            if info.get('mac'):
+                self._log(f"  MAC Address: {info['mac']}", level="DATA")
+            if info.get('gateway'):
+                self._log(f"  Gateway: {info['gateway']}", level="DATA")
+            if not info:
+                self._log("  No network information available", level="DATA")
+            return {"success": True, "message": "Network info retrieved."}
+
+        self._run_task("Network info", runner)
+
+    def _list_wifi_networks(self) -> None:
+        device_id = self._get_selected_device()
+        if not device_id:
+            return
+
+        def runner() -> Dict[str, Any]:
+            networks = NetworkAnalyzer.list_wifi_networks(device_id)
+            self._log(f"Saved WiFi Networks ({len(networks)}):")
+            for network in networks:
+                self._log(f"  {network}", level="DATA")
+            if not networks:
+                self._log("  No saved networks found", level="DATA")
+            return {"success": True, "message": f"{len(networks)} networks listed."}
+
+        self._run_task("List WiFi networks", runner)
 
     def _start_logcat(self) -> None:
         device_id = self._get_selected_device()
@@ -5088,6 +5857,71 @@ class VoidGUI:
             return {"success": True, "message": "Logcat stopped."}
 
         self._run_task("Logcat stop", runner)
+
+    def _export_logcat(self) -> None:
+        device_id = self._get_selected_device()
+        if not device_id:
+            return
+
+        output_path = filedialog.asksaveasfilename(
+            title="Save Logcat",
+            defaultextension=".txt",
+            filetypes=[("Text Files", "*.txt"), ("All Files", "*.*")]
+        )
+        if not output_path:
+            return
+
+        def runner() -> Dict[str, Any]:
+            success = LogcatViewer.export_logcat(device_id, output_path)
+            message = f"Logcat exported to {output_path}" if success else "Export failed"
+            self._log(message)
+            return {"success": success, "message": message}
+
+        self._run_task("Export Logcat", runner)
+
+    def _clear_logcat(self) -> None:
+        device_id = self._get_selected_device()
+        if not device_id:
+            return
+
+        def runner() -> Dict[str, Any]:
+            success = LogcatViewer.clear_logcat(device_id)
+            message = "Logcat buffer cleared" if success else "Clear failed"
+            self._log(message)
+            return {"success": success, "message": message}
+
+        self._run_task("Clear Logcat", runner)
+
+    def _view_kernel_log(self) -> None:
+        device_id = self._get_selected_device()
+        if not device_id:
+            return
+
+        def runner() -> Dict[str, Any]:
+            output = LogcatViewer.get_kernel_log(device_id)
+            lines = output.strip().split('\n')
+            self._log(f"Kernel Log ({len(lines)} lines):")
+            for line in lines[-50:]:  # Show last 50 lines
+                self._log(line, level="DATA")
+            return {"success": True, "message": "Kernel log retrieved"}
+
+        self._run_task("Kernel Log", runner)
+
+    def _view_crash_logs(self) -> None:
+        device_id = self._get_selected_device()
+        if not device_id:
+            return
+
+        def runner() -> Dict[str, Any]:
+            logs = LogcatViewer.get_crash_logs(device_id)
+            self._log(f"Crash Logs ({len(logs)} files):")
+            for log in logs:
+                self._log(f"  {log}", level="DATA")
+            if not logs:
+                self._log("  No crash logs found", level="DATA")
+            return {"success": True, "message": f"{len(logs)} crash logs found"}
+
+        self._run_task("Crash Logs", runner)
 
     def _start_monitoring(self) -> None:
         if not Config.ENABLE_MONITORING:

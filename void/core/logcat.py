@@ -72,3 +72,88 @@ class LogcatViewer:
             except Exception:
                 pass
         return None
+
+    @staticmethod
+    def capture_logcat(device_id: str, level: str = None, tag: str = None, lines: int = None) -> str:
+        """Capture logcat output
+        
+        Args:
+            device_id: Device identifier
+            level: Log level filter (V/D/I/W/E/F)
+            tag: Tag filter
+            lines: Number of lines to capture
+            
+        Returns:
+            Logcat output as string
+        """
+        from .utils import SafeSubprocess
+        
+        cmd = ['adb', '-s', device_id, 'logcat', '-d']
+        
+        if level:
+            cmd.extend(['-v', 'brief', f'*:{level}'])
+        
+        if tag:
+            cmd.extend(['-s', tag])
+        
+        if lines:
+            cmd.extend(['-t', str(lines)])
+        
+        code, stdout, _ = SafeSubprocess.run(cmd)
+        
+        return stdout if code == 0 else ''
+
+    @staticmethod
+    def export_logcat(device_id: str, output_path: str, level: str = None) -> bool:
+        """Export logcat to file
+        
+        Args:
+            device_id: Device identifier
+            output_path: Local output file path
+            level: Optional log level filter
+        """
+        from pathlib import Path
+        
+        output = LogcatViewer.capture_logcat(device_id, level=level)
+        
+        try:
+            Path(output_path).write_text(output, encoding='utf-8')
+            return True
+        except Exception:
+            return False
+
+    @staticmethod
+    def clear_logcat(device_id: str) -> bool:
+        """Clear logcat buffer"""
+        from .utils import SafeSubprocess
+        
+        code, _, _ = SafeSubprocess.run(['adb', '-s', device_id, 'logcat', '-c'])
+        return code == 0
+
+    @staticmethod
+    def get_kernel_log(device_id: str) -> str:
+        """Get kernel log (dmesg)"""
+        from .utils import SafeSubprocess
+        
+        code, stdout, _ = SafeSubprocess.run(['adb', '-s', device_id, 'shell', 'dmesg'])
+        return stdout if code == 0 else ''
+
+    @staticmethod
+    def get_crash_logs(device_id: str) -> list:
+        """Get crash logs (tombstones)"""
+        from .utils import SafeSubprocess
+        
+        code, stdout, _ = SafeSubprocess.run(['adb', '-s', device_id, 'shell', 'ls', '/data/tombstones/'])
+        
+        if code == 0 and stdout:
+            return [line.strip() for line in stdout.strip().split('\n') if line.strip()]
+        
+        return []
+
+    @staticmethod
+    def get_anr_traces(device_id: str) -> str:
+        """Get ANR (Application Not Responding) traces"""
+        from .utils import SafeSubprocess
+        
+        code, stdout, _ = SafeSubprocess.run(['adb', '-s', device_id, 'shell', 'cat', '/data/anr/traces.txt'])
+        return stdout if code == 0 else ''

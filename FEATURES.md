@@ -2203,11 +2203,196 @@ Direct access to support forums:
 
 ---
 
+## Advanced Toolkit Enhancements (v6.0.1+)
+
+### Enhanced App Management
+
+**New Features:**
+- **Install APK** - Sideload APK files to device with file picker
+- **Force Stop App** - Force stop running applications
+- **Launch App** - Start an application by package name
+- **View App Info** - Display detailed info: version, size, install date, permissions, APK path
+- **Export App List** - Export installed apps to CSV/JSON format
+- **Grant/Revoke Permissions** - Manage app permissions programmatically
+
+**GUI Integration:**
+- 4 new buttons in Apps panel
+- File picker for APK installation
+- Detailed app information display
+
+### Enhanced File Operations
+
+**New Features:**
+- **Create Folder** - Create new directories on device
+- **Rename File/Folder** - Rename remote files and directories
+- **Copy Files** - Copy files between locations on device
+- **Move Files** - Move files to different locations
+- **File Permissions** - View and modify file permissions (chmod)
+- **Search Files** - Search for files by name or pattern
+
+**GUI Integration:**
+- 3 new operational sections in Files panel
+- Source → Destination UI for copy/rename operations
+- Path input fields for all operations
+
+### Enhanced System Controls
+
+**New Features:**
+- **Reboot Options** - Reboot to System, Recovery, Bootloader, EDL, Safe Mode
+- **Shutdown Device** - Power off the device
+- **ADB over WiFi** - Toggle ADB over network with IP:port display and connection instructions
+- **Battery Saver Toggle** - Enable/disable battery saver mode
+- **Stay Awake Toggle** - Keep screen on while charging
+- **Font Scale** - Adjust system font scale
+- **OEM Unlock Status** - Check if bootloader can be unlocked
+- **Device Encryption Status** - Check encryption state
+- **Screen Recording** - Record device screen to video file (up to 180 seconds)
+
+**GUI Integration:**
+- Reboot options section with 4 buttons
+- System toggles section with ON/OFF pairs
+- ADB WiFi section with enable/disable/status
+
+### Enhanced Network Tools
+
+**New Features:**
+- **WiFi Toggle** - Enable/disable WiFi
+- **Mobile Data Toggle** - Enable/disable mobile data
+- **List WiFi Networks** - Show configured networks
+- **Forget WiFi Network** - Remove saved network
+- **IP/MAC Address Info** - Display network identifiers and gateway
+- **Ping Test** - Test connectivity to host
+- **Port Forwarding** - ADB forward local:remote ports
+- **Reverse Port Forwarding** - ADB reverse for development
+- **List Port Forwards** - Show active port forwarding rules
+- **Remove Port Forward** - Remove specific port forward
+
+**GUI Integration:**
+- Network toggles section (WiFi/Data ON/OFF)
+- Network information section (IP/MAC/Gateway display)
+
+### Enhanced Logcat & Logging
+
+**New Features:**
+- **Export Logcat** - Save logs to file with file picker
+- **Clear Logcat Buffer** - Clear device log buffer
+- **Kernel Log (dmesg)** - View kernel messages
+- **Crash Log Viewer** - View tombstones/crash dumps
+- **ANR Trace Viewer** - View Application Not Responding traces
+- **Capture Logcat** - Capture logcat with level/tag/line filters
+
+**GUI Integration:**
+- Log management section with 4 buttons
+- File picker for export destination
+
+### New Diagnostics Tools
+
+**New Features:**
+- **Battery Health Check** - Battery capacity, cycles, health, temperature, voltage, status
+- **Storage Health Check** - Available space, health status, partition details
+- **Temperature Monitor** - Display device temperatures from multiple sensors
+- **SIM Card Status** - Display SIM info and status
+- **IMEI/MEID Display** - Show device identifiers
+- **Build Fingerprint** - Display full build info
+- **Screen Density** - Get physical and override density
+- **Screen Size** - Get physical and override screen size
+- **List Sensors** - Enumerate all available device sensors
+- **Full Device Diagnostics** - Comprehensive device health report
+
+**GUI Integration:**
+- Device health checks section with 4 buttons
+- Detailed diagnostic output in log viewer
+
+### New Process Management
+
+**New Features:**
+- **List Processes** - Show all running processes with PID, user, state
+- **Top Processes** - Sort by CPU or memory usage (top 20)
+- **Kill Process** - Terminate process by PID
+- **Force Kill Process** - Force kill with signal 9
+- **Process Info** - Get detailed memory info for package
+
+**Core Module:** `void/core/process.py`
+
+### New Input Control
+
+**New Features:**
+- **Send Text** - Send text input to device
+- **Send Key Event** - Send key events (HOME, BACK, MENU, POWER, VOLUME)
+- **Tap** - Tap at coordinates
+- **Swipe** - Swipe from one point to another with duration
+- **Open URL** - Open URL in device browser
+- **Physical Buttons** - Press Home, Back, Menu, Power, Volume Up/Down
+
+**Core Module:** `void/core/input.py`
+
+### New Fastboot Operations
+
+**New Features:**
+- **Flash Partition** - Flash images (boot, recovery, system, etc.)
+- **Erase Partition** - Erase partitions
+- **Get Variable** - Query device variables (product, version, unlocked)
+- **Get All Variables** - Get all fastboot variables
+- **Boot Image** - Boot from image without flashing
+- **Reboot Modes** - Reboot to system, bootloader, recovery
+- **Continue Boot** - Continue to system boot
+- **OEM Unlock/Lock** - Bootloader unlock/lock commands
+- **Flashing Unlock/Lock** - Critical partition unlock/lock
+- **Format Partition** - Format partition with filesystem type
+- **Flash All** - Flash all partitions from directory
+
+**Core Module:** `void/core/fastboot.py`
+
+### New Shell Execution
+
+**New Features:**
+- **Execute Command** - Run shell command on device
+- **Batch Execution** - Run multiple commands sequentially
+- **Execute Script** - Upload and run shell script
+- **Root Status Check** - Check if device has root access
+- **Execute as Root** - Run command with su privileges
+
+**Core Module:** `void/core/shell.py`
+
+**GUI Integration:**
+- Shell command execution field in Commands panel
+- Output limited to 100 lines with overflow indication
+
+### Statistics
+
+**New Core Modules:** 5
+- `diagnostics.py` - 10 methods
+- `process.py` - 5 methods  
+- `input.py` - 12 methods
+- `fastboot.py` - 14 methods
+- `shell.py` - 5 methods
+
+**Extended Core Modules:** 5
+- `apps.py` - 6 new methods
+- `files.py` - 7 new methods
+- `system.py` - 12 new methods
+- `network.py` - 10 new methods
+- `logcat.py` - 6 new methods
+
+**GUI Panels Updated:** 7
+- Apps panel
+- Files panel
+- System panel
+- Network panel
+- Logcat panel
+- Troubleshoot panel
+- Commands panel
+
+**Total New Methods:** 100+
+**Total New GUI Elements:** 40+
+
+---
+
 ## Conclusion
 
 Void Suite is a comprehensive, professional-grade Android device management toolkit with:
 
-✅ **200+ automated features** covering every aspect of Android device maintenance  
+✅ **250+ automated features** covering every aspect of Android device maintenance  
 ✅ **Zero-configuration** setup - works immediately after installation  
 ✅ **Multi-platform** support (Windows, macOS, Linux)  
 ✅ **Advanced EDL operations** for unbrick and low-level access  
@@ -2217,6 +2402,7 @@ Void Suite is a comprehensive, professional-grade Android device management tool
 ✅ **Professional GUI** and powerful CLI  
 ✅ **Comprehensive logging and analytics**  
 ✅ **Security-focused** with authorization checks and privacy controls  
+✅ **Advanced toolkit** with 100+ new device management features
 
 This tool is designed for device technicians, Android developers, power users, and enthusiasts who need reliable, automated, and comprehensive device management capabilities.
 
