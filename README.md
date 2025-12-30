@@ -216,11 +216,69 @@ Tkinter is not installed by `pip`. It comes with your OS or Python installation.
 
 ## 📦 Installation
 
-> **💡 Tip:** Always use a virtual environment (venv) to keep your system clean and avoid dependency conflicts.
+> **💡 Tip:** Void Suite now includes an automated installer that sets up Start Menu shortcuts and downloads required tools automatically!
 
-### Option 1: Install from Source (Recommended)
+### Quick Install (Recommended for All Users)
+
+Void Suite is now **completely standalone** - it will automatically download and embed all required Android tools (ADB, Fastboot) during first run.
+
+#### Windows
+
+```powershell
+# Clone the repository
+git clone https://github.com/xroachx-ghost/void.git
+cd void
+
+# Run the installer (creates Start Menu shortcuts)
+python installer.py
+
+# Launch Void Suite (GUI launches by default)
+void
+
+# Or launch CLI mode
+void --cli
+```
 
 #### macOS / Linux
+
+```bash
+# Clone the repository
+git clone https://github.com/xroachx-ghost/void.git
+cd void
+
+# Run the installer (creates Application shortcuts)
+python installer.py
+
+# Launch Void Suite (GUI launches by default)
+void
+
+# Or launch CLI mode
+void --cli
+```
+
+### What the Installer Does
+
+The installer automatically:
+- ✅ Installs all Python dependencies
+- ✅ Creates Start Menu shortcuts (Windows) or Application entries (macOS/Linux)
+- ✅ Creates desktop shortcuts for easy access
+- ✅ Sets up both GUI and CLI launch options
+- ✅ Downloads Android platform tools on first run
+- ✅ Embeds all recovery, EDL, and FRP bypass tools
+
+### Start Menu / Application Entries
+
+After installation, you'll find:
+- **Void Suite (GUI)** - Launches the graphical interface (default)
+- **Void Suite (CLI)** - Launches the command-line interface
+
+### Manual Installation (Advanced Users)
+
+If you prefer manual installation:
+
+#### Option 1: Install from Source (Recommended)
+
+##### macOS / Linux
 
 ```bash
 # Clone the repository
@@ -237,9 +295,12 @@ pip install .
 
 # Optional: Install with GUI support
 pip install .[gui]
+
+# Optional: Install Windows-specific dependencies (Windows only)
+pip install .[windows]
 ```
 
-#### Windows (PowerShell)
+##### Windows (PowerShell)
 
 ```powershell
 # Clone the repository
