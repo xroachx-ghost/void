@@ -1,9 +1,14 @@
-from __future__ import annotations
-
-"""Firmware integrity tools for authorized recovery and forensic workflows.
+"""
+Firmware integrity tools for authorized recovery and forensic workflows.
 
 For use only on organization-owned devices or with explicit, written legal authorization.
+
+Copyright (c) 2024 Roach Labs. All rights reserved.
+Made by James Michael Roach Jr.
+Proprietary and confidential. Unauthorized use or distribution is prohibited.
 """
+
+from __future__ import annotations
 
 import hashlib
 from pathlib import Path

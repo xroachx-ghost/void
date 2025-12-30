@@ -1,16 +1,19 @@
 VOID SUITE PROPRIETARY LICENSE
 
-Copyright (c) 2024 Roach Labs.
-All rights reserved.
+Copyright (c) 2024 Roach Labs. All rights reserved.
+Made by James Michael Roach Jr.
+Proprietary and confidential. Unauthorized use or distribution is prohibited.
 
 Owner: Roach Labs
 Author: James Michael Roach Jr.
 
+This software and all associated documentation are proprietary and confidential.
+No license or rights are granted to use, copy, modify, distribute, sublicense,
+publish, transmit, or disclose any portion of this software without express
+written agreement from Roach Labs.
+
 Permission is hereby granted to use this software solely for internal purposes
-authorized by Roach Labs. This software and all associated documentation are
-proprietary and confidential. You may not copy, modify, sublicense, publish,
-transmit, distribute, or disclose any portion of this software without prior
-written permission from Roach Labs.
+authorized by Roach Labs.
 
 THIS SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,

@@ -4,6 +4,14 @@ Gemini AI assistant helper.
 Provides a lightweight wrapper for Gemini API calls and agent-style task updates.
 """
 
+"""
+Gemini AI agent integration.
+
+Copyright (c) 2024 Roach Labs. All rights reserved.
+Made by James Michael Roach Jr.
+Proprietary and confidential. Unauthorized use or distribution is prohibited.
+"""
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
