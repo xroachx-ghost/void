@@ -1888,7 +1888,7 @@ class FRPEngine:
         return {'success': False, 'message': 'Manual: Blankflash → Recovers bricked phone → EDL flash → FRP removed'}
     
     def _method_huawei_oeminfo(self, device_id: str, **kwargs) -> Dict:
-        """Huawei OEM info'''
+        """Huawei OEM info"""
         return {'success': False, 'message': 'Advanced: Fastboot → Write oeminfo → Modify unlock status → FRP'}
     
     def _method_mtk_sp_flash(self, device_id: str, **kwargs) -> Dict:
