@@ -1,0 +1,229 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to release (e.g., 6.0.2)'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  validate:
+    name: Validate Release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Validate version tag
+        run: |
+          if [[ "${{ github.ref }}" =~ ^refs/tags/v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Valid version tag"
+          elif [[ "${{ inputs.version }}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Valid version input"
+          else
+            echo "Invalid version format"
+            exit 1
+          fi
+
+  build:
+    name: Build ${{ matrix.os }} Package
+    needs: validate
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            artifact_name: void-suite-linux
+            build_script: build_linux.sh
+          - os: windows-latest
+            artifact_name: void-suite-windows
+            build_script: build_windows.ps1
+          - os: macos-latest
+            artifact_name: void-suite-macos
+            build_script: build_macos.sh
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install build wheel twine
+          pip install -e .[dev]
+      
+      - name: Build Python package
+        run: python -m build
+      
+      - name: Build platform-specific installer (Linux)
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          pip install stdeb
+          python setup.py --command-packages=stdeb.command bdist_deb || true
+          # Create tarball
+          cd dist
+          tar -czf void-suite-linux-x86_64.tar.gz *.whl
+      
+      - name: Build platform-specific installer (Windows)
+        if: matrix.os == 'windows-latest'
+        run: |
+          pip install pyinstaller
+          # Create executable
+          pyinstaller --onefile --name void-suite void.py || echo "PyInstaller optional"
+      
+      - name: Build platform-specific installer (macOS)
+        if: matrix.os == 'macos-latest'
+        run: |
+          # Create .pkg or .dmg (placeholder for now)
+          cd dist
+          tar -czf void-suite-macos-universal.tar.gz *.whl
+      
+      - name: Generate checksums
+        run: |
+          cd dist
+          sha256sum * > checksums.txt || shasum -a 256 * > checksums.txt
+      
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact_name }}
+          path: dist/*
+          retention-days: 90
+
+  test-installers:
+    name: Test Installers
+    needs: build
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+      
+      - name: Test installation (Linux)
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          pip install void-suite-linux/*.whl
+          void --version
+      
+      - name: Test installation (Windows)
+        if: matrix.os == 'windows-latest'
+        run: |
+          pip install (Get-ChildItem void-suite-windows/*.whl)
+          void --version
+      
+      - name: Test installation (macOS)
+        if: matrix.os == 'macos-latest'
+        run: |
+          pip install void-suite-macos/*.whl
+          void --version
+
+  create-release:
+    name: Create GitHub Release
+    needs: [build, test-installers]
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release-artifacts
+      
+      - name: Get version
+        id: version
+        run: |
+          if [[ "${{ github.ref }}" =~ ^refs/tags/v(.*)$ ]]; then
+            echo "version=${BASH_REMATCH[1]}" >> $GITHUB_OUTPUT
+          else
+            echo "version=${{ inputs.version }}" >> $GITHUB_OUTPUT
+          fi
+      
+      - name: Extract changelog
+        id: changelog
+        run: |
+          # Extract relevant section from CHANGELOG.md
+          if [ -f CHANGELOG.md ]; then
+            sed -n "/## \[${{ steps.version.outputs.version }}\]/,/## \[/p" CHANGELOG.md | head -n -1 > release_notes.md
+          else
+            echo "Release version ${{ steps.version.outputs.version }}" > release_notes.md
+          fi
+      
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: v${{ steps.version.outputs.version }}
+          name: Void Suite v${{ steps.version.outputs.version }}
+          body_path: release_notes.md
+          draft: false
+          prerelease: false
+          files: |
+            release-artifacts/**/*
+            LICENSE
+            EULA.md
+            TERMS_OF_SALE.md
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Upload to PyPI
+        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+        env:
+          TWINE_USERNAME: __token__
+          TWINE_PASSWORD: ${{ secrets.PYPI_TOKEN }}
+        run: |
+          python -m twine upload release-artifacts/void-suite-linux/*.whl release-artifacts/void-suite-linux/*.tar.gz || true
+
+  notify:
+    name: Notify Release
+    needs: create-release
+    runs-on: ubuntu-latest
+    if: success()
+    
+    steps:
+      - name: Get version
+        id: version
+        run: |
+          if [[ "${{ github.ref }}" =~ ^refs/tags/v(.*)$ ]]; then
+            echo "version=${BASH_REMATCH[1]}" >> $GITHUB_OUTPUT
+          else
+            echo "version=${{ inputs.version }}" >> $GITHUB_OUTPUT
+          fi
+      
+      - name: Send notification
+        run: |
+          echo "✅ Release v${{ steps.version.outputs.version }} published successfully!"
+          echo "📦 Packages uploaded to GitHub Releases"
+          echo "🐍 Python package uploaded to PyPI (if configured)"
+          echo "📝 Release notes generated from CHANGELOG.md"
+
+  cleanup:
+    name: Cleanup
+    needs: create-release
+    runs-on: ubuntu-latest
+    if: always()
+    
+    steps:
+      - name: Delete old releases
+        uses: dev-drprasad/delete-older-releases@v0.3.2
+        with:
+          keep_latest: 5
+          delete_tags: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
