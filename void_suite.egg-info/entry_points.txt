@@ -1,0 +1,4 @@
+[console_scripts]
+void = void.main:main
+void-cli = void.main:main_cli
+void-gui = void.main:main
