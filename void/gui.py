@@ -2499,6 +2499,32 @@ class VoidGUI:
 
         self._run_task(f"Command: {command_line}", runner)
 
+    def _execute_shell_command(self) -> None:
+        from .core.shell import ShellController
+        
+        device_id = self._get_selected_device()
+        if not device_id:
+            return
+        
+        command = self.shell_command_var.get().strip()
+        if not command:
+            messagebox.showwarning("Void", "Enter a shell command to execute.")
+            return
+
+        def runner() -> Dict[str, Any]:
+            result = ShellController.execute_command(device_id, command)
+            if result.get('output'):
+                lines = result['output'].strip().split('\n')
+                for line in lines[:100]:  # Limit output
+                    self._log(line, level="DATA")
+                if len(lines) > 100:
+                    self._log(f"... and {len(lines) - 100} more lines", level="DATA")
+            if result.get('error'):
+                self._log(f"Error: {result['error']}", level="ERROR")
+            return result
+
+        self._run_task(f"Shell: {command}", runner)
+
     def _run_task(
         self,
         label: str,
@@ -3525,6 +3551,107 @@ class VoidGUI:
             command=self._delete_file,
         ).pack(side="left")
 
+        # File operations
+        ops_card = ttk.Frame(scrollable, style="Void.Card.TFrame")
+        ops_card.pack(fill="x", pady=(12, 12))
+        ops_card.configure(padding=12)
+        ttk.Label(ops_card, text="File Operations", style="Void.TLabel").pack(anchor="w")
+        
+        # Create folder
+        mkdir_row = ttk.Frame(ops_card, style="Void.TFrame")
+        mkdir_row.pack(fill="x", pady=(6, 6))
+        ttk.Label(mkdir_row, text="Create Folder", style="Void.TLabel").pack(side="left")
+        self.files_mkdir_var = tk.StringVar()
+        mkdir_entry = tk.Entry(
+            mkdir_row,
+            textvariable=self.files_mkdir_var,
+            bg=self.theme["panel_alt"],
+            fg=self.theme["text"],
+            insertbackground=self.theme["accent"],
+            relief="flat",
+            font=("Consolas", 10),
+        )
+        mkdir_entry.pack(side="left", fill="x", expand=True, padx=(8, 6))
+        ttk.Button(
+            mkdir_row,
+            text="Create",
+            style="Void.TButton",
+            command=self._create_folder,
+        ).pack(side="left")
+        
+        # Rename/Move
+        rename_row = ttk.Frame(ops_card, style="Void.TFrame")
+        rename_row.pack(fill="x", pady=(0, 6))
+        ttk.Label(rename_row, text="Rename/Move", style="Void.TLabel").pack(side="left")
+        self.files_rename_old_var = tk.StringVar()
+        self.files_rename_new_var = tk.StringVar()
+        rename_old = tk.Entry(
+            rename_row,
+            textvariable=self.files_rename_old_var,
+            bg=self.theme["panel_alt"],
+            fg=self.theme["text"],
+            insertbackground=self.theme["accent"],
+            relief="flat",
+            font=("Consolas", 10),
+            width=20,
+        )
+        rename_old.pack(side="left", padx=(8, 6))
+        ttk.Label(rename_row, text="→", style="Void.TLabel").pack(side="left")
+        rename_new = tk.Entry(
+            rename_row,
+            textvariable=self.files_rename_new_var,
+            bg=self.theme["panel_alt"],
+            fg=self.theme["text"],
+            insertbackground=self.theme["accent"],
+            relief="flat",
+            font=("Consolas", 10),
+            width=20,
+        )
+        rename_new.pack(side="left", padx=(6, 6))
+        ttk.Button(
+            rename_row,
+            text="Rename",
+            style="Void.TButton",
+            command=self._rename_file,
+        ).pack(side="left")
+        
+        # Copy
+        copy_row = ttk.Frame(ops_card, style="Void.TFrame")
+        copy_row.pack(fill="x")
+        ttk.Label(copy_row, text="Copy", style="Void.TLabel").pack(side="left")
+        self.files_copy_src_var = tk.StringVar()
+        self.files_copy_dst_var = tk.StringVar()
+        copy_src = tk.Entry(
+            copy_row,
+            textvariable=self.files_copy_src_var,
+            bg=self.theme["panel_alt"],
+            fg=self.theme["text"],
+            insertbackground=self.theme["accent"],
+            relief="flat",
+            font=("Consolas", 10),
+            width=20,
+        )
+        copy_src.pack(side="left", padx=(8, 6))
+        ttk.Label(copy_row, text="→", style="Void.TLabel").pack(side="left")
+        copy_dst = tk.Entry(
+            copy_row,
+            textvariable=self.files_copy_dst_var,
+            bg=self.theme["panel_alt"],
+            fg=self.theme["text"],
+            insertbackground=self.theme["accent"],
+            relief="flat",
+            font=("Consolas", 10),
+            width=20,
+        )
+        copy_dst.pack(side="left", padx=(6, 6))
+        ttk.Button(
+            copy_row,
+            text="Copy",
+            style="Void.TButton",
+            command=self._copy_file,
+        ).pack(side="left")
+
+
     def _build_recovery_panel(self, panel: ttk.Frame) -> None:
         scrollable = self._make_scrollable(panel)
         
@@ -4293,6 +4420,32 @@ class VoidGUI:
             text="Run",
             style="Void.TButton",
             command=self._run_command_line,
+        ).pack(side="left")
+
+        # Shell command execution
+        shell_card = ttk.Frame(scrollable, style="Void.Card.TFrame")
+        shell_card.pack(fill="x", pady=(12, 0))
+        shell_card.configure(padding=12)
+        ttk.Label(shell_card, text="Shell Commands (ADB)", style="Void.TLabel").pack(anchor="w")
+        shell_row = ttk.Frame(shell_card, style="Void.TFrame")
+        shell_row.pack(fill="x", pady=(6, 0))
+        ttk.Label(shell_row, text="Command", style="Void.TLabel").pack(side="left")
+        self.shell_command_var = tk.StringVar()
+        shell_entry = tk.Entry(
+            shell_row,
+            textvariable=self.shell_command_var,
+            bg=self.theme["panel_alt"],
+            fg=self.theme["text"],
+            insertbackground=self.theme["accent"],
+            relief="flat",
+            font=("Consolas", 10),
+        )
+        shell_entry.pack(side="left", fill="x", expand=True, padx=(8, 6))
+        ttk.Button(
+            shell_row,
+            text="Execute",
+            style="Void.TButton",
+            command=self._execute_shell_command,
         ).pack(side="left")
 
         self._refresh_command_list()
@@ -5301,6 +5454,59 @@ class VoidGUI:
             return {"success": success, "message": message}
 
         self._run_task("Delete file", runner)
+
+    def _create_folder(self) -> None:
+        device_id = self._get_selected_device()
+        if not device_id:
+            return
+        path = self.files_mkdir_var.get().strip()
+        if not path:
+            messagebox.showwarning("Void", "Enter a folder path to create.")
+            return
+
+        def runner() -> Dict[str, Any]:
+            success = FileManager.create_folder(device_id, path)
+            message = f"Folder created: {path}" if success else "Create folder failed."
+            self._log(message)
+            return {"success": success, "message": message}
+
+        self._run_task("Create folder", runner)
+
+    def _rename_file(self) -> None:
+        device_id = self._get_selected_device()
+        if not device_id:
+            return
+        old_path = self.files_rename_old_var.get().strip()
+        new_path = self.files_rename_new_var.get().strip()
+        if not old_path or not new_path:
+            messagebox.showwarning("Void", "Enter both old and new paths.")
+            return
+
+        def runner() -> Dict[str, Any]:
+            success = FileManager.rename_file(device_id, old_path, new_path)
+            message = f"Renamed {old_path} to {new_path}" if success else "Rename failed."
+            self._log(message)
+            return {"success": success, "message": message}
+
+        self._run_task("Rename file", runner)
+
+    def _copy_file(self) -> None:
+        device_id = self._get_selected_device()
+        if not device_id:
+            return
+        src = self.files_copy_src_var.get().strip()
+        dst = self.files_copy_dst_var.get().strip()
+        if not src or not dst:
+            messagebox.showwarning("Void", "Enter both source and destination paths.")
+            return
+
+        def runner() -> Dict[str, Any]:
+            success = FileManager.copy_file(device_id, src, dst)
+            message = f"Copied {src} to {dst}" if success else "Copy failed."
+            self._log(message)
+            return {"success": success, "message": message}
+
+        self._run_task("Copy file", runner)
 
     def _recover_contacts(self) -> None:
         device_id = self._get_selected_device()
