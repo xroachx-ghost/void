@@ -1,8 +1,4 @@
 """
-Browser automation wrapper built on Playwright.
-"""
-
-"""
 Browser automation for Void.
 
 Copyright (c) 2024 Roach Labs. All rights reserved.

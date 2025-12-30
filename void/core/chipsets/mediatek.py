@@ -1,5 +1,3 @@
-"""MediaTek chipset workflows."""
-
 """
 MediaTek chipset support.
 

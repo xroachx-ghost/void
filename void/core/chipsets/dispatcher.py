@@ -1,5 +1,3 @@
-"""Dispatcher for chipset detection and workflows."""
-
 """
 Chipset dispatcher and detection.
 

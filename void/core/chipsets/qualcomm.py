@@ -1,5 +1,3 @@
-"""Qualcomm chipset workflows."""
-
 """
 Qualcomm chipset support.
 

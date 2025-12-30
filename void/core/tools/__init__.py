@@ -1,5 +1,3 @@
-"""External tool wrappers."""
-
 """
 Tools module initialization.
 

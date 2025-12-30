@@ -1,5 +1,3 @@
-"""Samsung Exynos chipset workflows."""
-
 """
 Samsung chipset support.
 

@@ -1,5 +1,3 @@
-"""MediaTek tool wrappers."""
-
 """
 MediaTek tool wrappers.
 

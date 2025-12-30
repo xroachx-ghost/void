@@ -1,5 +1,3 @@
-"""Generic chipset placeholder."""
-
 """
 Generic chipset support.
 

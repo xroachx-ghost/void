@@ -1,5 +1,3 @@
-"""Asset checklist and download helpers."""
-
 """
 Asset management and acquisition.
 

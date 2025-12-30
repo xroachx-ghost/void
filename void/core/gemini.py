@@ -1,10 +1,4 @@
 """
-Gemini AI assistant helper.
-
-Provides a lightweight wrapper for Gemini API calls and agent-style task updates.
-"""
-
-"""
 Gemini AI agent integration.
 
 Copyright (c) 2024 Roach Labs. All rights reserved.

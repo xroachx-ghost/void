@@ -1,5 +1,3 @@
-"""Qualcomm tool wrappers."""
-
 """
 Qualcomm tool wrappers.
 

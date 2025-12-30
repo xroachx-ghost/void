@@ -1,5 +1,3 @@
-"""Core functionality for Void."""
-
 """
 Core module initialization.
 

@@ -1,5 +1,3 @@
-"""Base chipset protocol definitions."""
-
 """
 Base chipset interface.
 

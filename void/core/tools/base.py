@@ -1,5 +1,3 @@
-"""Shared helpers for external tool wrappers."""
-
 """
 Base tool interface.
 

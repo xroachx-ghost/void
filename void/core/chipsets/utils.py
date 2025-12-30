@@ -1,5 +1,3 @@
-"""Utilities for chipset detection."""
-
 """
 Chipset utilities.
 

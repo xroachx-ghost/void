@@ -1,5 +1,3 @@
-"""ADB/Fastboot tool wrappers."""
-
 """
 Android tool wrappers.
 
