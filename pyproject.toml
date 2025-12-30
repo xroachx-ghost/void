@@ -1,20 +1,72 @@
 [project]
 name = "void-suite"
 version = "6.0.1"
-description = "Void Suite: Android maintenance/recovery toolkit with adb/fastboot, EDL, diagnostics, optional GUI, and Gemini-powered AI agent mode"
+description = "Void Suite: Professional Android device management & recovery toolkit with 250+ features, EDL operations, and AI-powered assistance"
+readme = "README.md"
 requires-python = ">=3.9"
+license = {text = "Proprietary"}
+authors = [
+    {name = "James Michael Roach Jr."}
+]
+maintainers = [
+    {name = "Roach Labs"}
+]
+keywords = [
+    "android",
+    "adb",
+    "fastboot",
+    "edl",
+    "device-management",
+    "recovery",
+    "backup",
+    "diagnostics",
+    "toolkit"
+]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Developers",
+    "Intended Audience :: System Administrators",
+    "Topic :: System :: Hardware",
+    "Topic :: Utilities",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Operating System :: OS Independent",
+    "License :: Other/Proprietary License",
+]
 dependencies = [
-    "psutil",
-    "pycryptodome",
-    "rich",
+    "psutil>=5.9.0",
+    "pycryptodome>=3.19.0",
+    "rich>=13.0.0",
 ]
 
+[project.urls]
+Homepage = "https://github.com/xroachx-ghost/void"
+Documentation = "https://github.com/xroachx-ghost/void/blob/main/DOCUMENTATION_INDEX.md"
+Repository = "https://github.com/xroachx-ghost/void"
+Issues = "https://github.com/xroachx-ghost/void/issues"
+Changelog = "https://github.com/xroachx-ghost/void/blob/main/CHANGELOG.md"
+
 [project.optional-dependencies]
-advanced = []
-gui = ["playwright"]
+gui = [
+    "playwright>=1.40.0",
+]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-cov>=4.0.0",
+    "black>=23.0.0",
+    "flake8>=6.0.0",
+    "mypy>=1.0.0",
+]
 
 [project.scripts]
 void = "void.main:main"
+
+[build-system]
+requires = ["setuptools>=65.0", "wheel"]
+build-backend = "setuptools.build_meta"
 
 [tool.setuptools]
 packages = [
@@ -25,6 +77,23 @@ packages = [
     "void.data",
     "void.plugins",
 ]
+package-dir = {"" = "."}
 
 [tool.setuptools.package-data]
-"void.data" = ["firehose_sources.json"]
+"void.data" = ["*.json"]
+
+[tool.black]
+line-length = 100
+target-version = ['py39']
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+
+[tool.mypy]
+python_version = "3.9"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = false
