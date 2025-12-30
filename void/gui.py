@@ -290,6 +290,10 @@ class VoidGUI:
         
         self._show_splash()
 
+    def _format_timestamp(self) -> str:
+        """Format current timestamp for logging."""
+        return datetime.now().strftime('%H:%M:%S')
+
     def _show_splash(self) -> None:
         """Display the animated splash screen before loading the main UI."""
         self._splash_window = tk.Toplevel(self.root)
@@ -1422,6 +1426,18 @@ class VoidGUI:
             self._screenshot,
             side="left",
             padx=(12, 0)
+        )
+        
+        # Row 2.5 - FRP Wizard (New Feature)
+        row2_5 = ttk.Frame(actions_grid, style="Void.TFrame")
+        row2_5.pack(fill="x", pady=(0, 12))
+        
+        self._create_action_card(
+            row2_5,
+            "🔓 FRP Wizard",
+            "Automated FRP bypass with guided steps",
+            self._open_frp_wizard,
+            side="left"
         )
         
         # Row 3 - File & App Management
@@ -2921,6 +2937,582 @@ class VoidGUI:
         device_id = self._get_selected_device()
         if device_id:
             self._run_task("Screenshot", ScreenCapture.take_screenshot, device_id)
+
+    def _open_frp_wizard(self) -> None:
+        """Open the FRP wizard window."""
+        device_id = self._get_selected_device()
+        if not device_id:
+            messagebox.showwarning(
+                "FRP Wizard",
+                "Please select a device first.\n\nConnect your device and click 'Refresh Devices'."
+            )
+            return
+        
+        # Create FRP wizard window
+        wizard_window = tk.Toplevel(self.root)
+        wizard_window.title("FRP Wizard - Automated Bypass")
+        wizard_window.geometry("900x700")
+        wizard_window.configure(bg=self.theme["bg"])
+        wizard_window.resizable(True, True)
+        
+        # Center the window
+        wizard_window.update_idletasks()
+        x = (wizard_window.winfo_screenwidth() // 2) - (900 // 2)
+        y = (wizard_window.winfo_screenheight() // 2) - (700 // 2)
+        wizard_window.geometry(f"+{x}+{y}")
+        
+        # Main container with scrollbar
+        main_container = ttk.Frame(wizard_window, style="Void.TFrame")
+        main_container.pack(fill="both", expand=True, padx=20, pady=20)
+        
+        # Title section
+        title_frame = ttk.Frame(main_container, style="Void.TFrame")
+        title_frame.pack(fill="x", pady=(0, 20))
+        
+        ttk.Label(
+            title_frame,
+            text="🔓 FRP Bypass Wizard",
+            font=("Consolas", 18, "bold"),
+            foreground=self.theme["accent"],
+            background=self.theme["bg"]
+        ).pack(anchor="w")
+        
+        ttk.Label(
+            title_frame,
+            text="Automated Factory Reset Protection bypass with guided steps",
+            style="Void.TLabel",
+            font=("Consolas", 10)
+        ).pack(anchor="w", pady=(4, 0))
+        
+        # Warning section
+        warning_frame = ttk.Frame(main_container, style="Void.Card.TFrame")
+        warning_frame.pack(fill="x", pady=(0, 20))
+        warning_frame.configure(padding=16)
+        
+        ttk.Label(
+            warning_frame,
+            text="⚠️ Legal Warning",
+            font=("Consolas", 12, "bold"),
+            foreground=self.theme.get("error", "#ff6b6b"),
+            background=self.theme["panel"]
+        ).pack(anchor="w")
+        
+        ttk.Label(
+            warning_frame,
+            text="Only proceed if you are the legitimate owner of this device.\nUnauthorized FRP bypass is illegal and may violate laws in your jurisdiction.",
+            style="Void.TLabel",
+            font=("Consolas", 9),
+            justify="left"
+        ).pack(anchor="w", pady=(4, 0))
+        
+        # Device info section
+        device_frame = ttk.Frame(main_container, style="Void.Card.TFrame")
+        device_frame.pack(fill="x", pady=(0, 20))
+        device_frame.configure(padding=16)
+        
+        ttk.Label(
+            device_frame,
+            text="📱 Device Information",
+            font=("Consolas", 12, "bold"),
+            foreground=self.theme["accent"],
+            background=self.theme["panel"]
+        ).pack(anchor="w")
+        
+        # Get device info
+        device_info_text = self._get_device_info_for_frp(device_id)
+        
+        device_info_label = ttk.Label(
+            device_frame,
+            text=device_info_text,
+            style="Void.TLabel",
+            font=("Consolas", 9),
+            justify="left"
+        )
+        device_info_label.pack(anchor="w", pady=(8, 0))
+        
+        # Method selection section
+        method_frame = ttk.Frame(main_container, style="Void.TFrame")
+        method_frame.pack(fill="both", expand=True, pady=(0, 20))
+        
+        # Left side - method list
+        left_panel = ttk.Frame(method_frame, style="Void.Card.TFrame")
+        left_panel.pack(side="left", fill="both", expand=True, padx=(0, 10))
+        left_panel.configure(padding=16)
+        
+        ttk.Label(
+            left_panel,
+            text="🎯 Available Methods",
+            font=("Consolas", 12, "bold"),
+            foreground=self.theme["accent"],
+            background=self.theme["panel"]
+        ).pack(anchor="w")
+        
+        # Category selection
+        category_frame = ttk.Frame(left_panel, style="Void.TFrame")
+        category_frame.pack(fill="x", pady=(12, 8))
+        
+        ttk.Label(
+            category_frame,
+            text="Category:",
+            style="Void.TLabel"
+        ).pack(side="left", padx=(0, 8))
+        
+        category_var = tk.StringVar(value="automated")
+        category_combo = ttk.Combobox(
+            category_frame,
+            textvariable=category_var,
+            values=["automated", "adb", "fastboot", "edl", "recovery", "manual", "hardware", "commercial"],
+            state="readonly",
+            width=15
+        )
+        category_combo.pack(side="left")
+        
+        # Method listbox with scrollbar
+        method_list_frame = ttk.Frame(left_panel, style="Void.TFrame")
+        method_list_frame.pack(fill="both", expand=True, pady=(0, 8))
+        
+        method_scrollbar = ttk.Scrollbar(method_list_frame)
+        method_scrollbar.pack(side="right", fill="y")
+        
+        method_listbox = tk.Listbox(
+            method_list_frame,
+            yscrollcommand=method_scrollbar.set,
+            background=self.theme["bg"],
+            foreground=self.theme["text"],
+            selectbackground=self.theme["accent"],
+            selectforeground=self.theme["bg"],
+            font=("Consolas", 9),
+            relief="solid",
+            borderwidth=1,
+            activestyle="none"
+        )
+        method_listbox.pack(side="left", fill="both", expand=True)
+        method_scrollbar.config(command=method_listbox.yview)
+        
+        # Right side - method details
+        right_panel = ttk.Frame(method_frame, style="Void.Card.TFrame")
+        right_panel.pack(side="right", fill="both", expand=True)
+        right_panel.configure(padding=16)
+        
+        ttk.Label(
+            right_panel,
+            text="📋 Method Details",
+            font=("Consolas", 12, "bold"),
+            foreground=self.theme["accent"],
+            background=self.theme["panel"]
+        ).pack(anchor="w")
+        
+        method_detail_text = scrolledtext.ScrolledText(
+            right_panel,
+            height=15,
+            wrap="word",
+            font=("Consolas", 9),
+            background=self.theme["bg"],
+            foreground=self.theme["text"],
+            insertbackground=self.theme["text"],
+            relief="solid",
+            borderwidth=1
+        )
+        method_detail_text.pack(fill="both", expand=True, pady=(12, 0))
+        method_detail_text.configure(state="disabled")
+        
+        # Bottom action buttons
+        action_frame = ttk.Frame(main_container, style="Void.TFrame")
+        action_frame.pack(fill="x")
+        
+        ttk.Button(
+            action_frame,
+            text="▶ Execute Selected Method",
+            style="Void.TButton",
+            command=lambda: self._execute_frp_method(
+                wizard_window, device_id, method_listbox, method_detail_text
+            )
+        ).pack(side="left", padx=(0, 8))
+        
+        ttk.Button(
+            action_frame,
+            text="🔄 Refresh Methods",
+            style="Void.TButton",
+            command=lambda: self._populate_frp_methods(
+                device_id, category_var.get(), method_listbox, method_detail_text
+            )
+        ).pack(side="left", padx=(0, 8))
+        
+        ttk.Button(
+            action_frame,
+            text="❌ Close",
+            style="Void.TButton",
+            command=wizard_window.destroy
+        ).pack(side="right")
+        
+        # Populate initial methods
+        self._populate_frp_methods(device_id, category_var.get(), method_listbox, method_detail_text)
+        
+        # Bind category change
+        category_combo.bind(
+            "<<ComboboxSelected>>",
+            lambda e: self._populate_frp_methods(
+                device_id, category_var.get(), method_listbox, method_detail_text
+            )
+        )
+        
+        # Bind method selection
+        method_listbox.bind(
+            "<<ListboxSelect>>",
+            lambda e: self._show_frp_method_details(
+                device_id, method_listbox, method_detail_text
+            )
+        )
+
+    def _get_device_info_for_frp(self, device_id: str) -> str:
+        """Get device information formatted for FRP wizard."""
+        device_info_dict = None
+        for dev in self.all_device_info:
+            if dev.get('id') == device_id:
+                device_info_dict = dev
+                break
+        
+        if not device_info_dict:
+            return f"Device ID: {device_id}\n(Device info unavailable - run device detection)"
+        
+        manufacturer = device_info_dict.get('manufacturer', 'Unknown')
+        model = device_info_dict.get('model', 'Unknown')
+        android_ver = device_info_dict.get('android_version', 'Unknown')
+        security_patch = device_info_dict.get('security_patch', 'Unknown')
+        mode = device_info_dict.get('mode', 'Unknown')
+        
+        info_text = f"""Device ID: {device_id}
+Manufacturer: {manufacturer}
+Model: {model}
+Android Version: {android_ver}
+Security Patch: {security_patch}
+Current Mode: {mode}"""
+        
+        return info_text
+
+    def _populate_frp_methods(
+        self,
+        device_id: str,
+        category: str,
+        method_listbox: tk.Listbox,
+        detail_text: scrolledtext.ScrolledText
+    ) -> None:
+        """Populate the FRP methods list based on category."""
+        method_listbox.delete(0, tk.END)
+        
+        # Get device info for detection
+        device_info_dict = {'id': device_id, 'mode': 'unknown'}
+        for dev in self.all_device_info:
+            if dev.get('id') == device_id:
+                device_info_dict = dev
+                break
+        
+        # Get recommendations from FRP engine
+        recommendations = self.frp_engine.detect_best_methods(device_info_dict)
+        
+        # Filter methods by category
+        if category == "automated":
+            # Show primary recommended methods
+            methods = recommendations.get('primary_methods', [])[:10]
+        elif category == "adb":
+            methods = [m for m in self.frp_engine.methods.keys() if m.startswith('adb_')][:15]
+        elif category == "fastboot":
+            methods = [m for m in self.frp_engine.methods.keys() if m.startswith('fastboot_')][:15]
+        elif category == "edl":
+            methods = [m for m in self.frp_engine.methods.keys() 
+                      if m.startswith('edl_') or m.startswith('qualcomm_') or m.startswith('mtk_')][:15]
+        elif category == "recovery":
+            methods = [m for m in self.frp_engine.methods.keys() if m.startswith('recovery_')][:15]
+        elif category == "manual":
+            methods = recommendations.get('manual_methods', []) + \
+                     [m for m in self.frp_engine.methods.keys() 
+                      if m.startswith('settings_') or m.startswith('browser_') or m.startswith('sim_')][:15]
+        elif category == "hardware":
+            methods = recommendations.get('hardware_methods', [])[:15]
+        elif category == "commercial":
+            methods = [m for m in self.frp_engine.methods.keys() if m.startswith('tool_')][:15]
+        else:
+            methods = recommendations.get('primary_methods', [])[:10]
+        
+        # Add methods to listbox with success rate
+        success_rates = recommendations.get('success_probability', {})
+        for method in methods:
+            success_rate = success_rates.get(method, 'Unknown')
+            display_name = f"{method.replace('_', ' ').title()} [{success_rate}]"
+            method_listbox.insert(tk.END, display_name)
+        
+        # Store method names directly on the widget for retrieval
+        method_listbox._frp_methods = methods  # Store as widget attribute
+        
+        # Update detail text
+        detail_text.configure(state="normal")
+        detail_text.delete("1.0", tk.END)
+        detail_text.insert(
+            "1.0",
+            f"Category: {category.upper()}\n\n"
+            f"Found {len(methods)} methods in this category.\n\n"
+            f"Select a method to view details and success rate.\n\n"
+            f"Tips:\n"
+            f"• Automated methods show the best recommended options\n"
+            f"• ADB methods require USB debugging enabled\n"
+            f"• EDL methods work at hardware level (advanced)\n"
+            f"• Manual methods require physical device interaction"
+        )
+        detail_text.configure(state="disabled")
+
+    def _show_frp_method_details(
+        self,
+        device_id: str,
+        method_listbox: tk.Listbox,
+        detail_text: scrolledtext.ScrolledText
+    ) -> None:
+        """Show details for the selected FRP method."""
+        selection = method_listbox.curselection()
+        if not selection:
+            return
+        
+        index = selection[0]
+        methods = getattr(method_listbox, '_frp_methods', [])
+        
+        if index >= len(methods):
+            return
+        
+        method_id = methods[index]
+        
+        # Get device info
+        device_info_dict = {'id': device_id, 'mode': 'unknown'}
+        for dev in self.all_device_info:
+            if dev.get('id') == device_id:
+                device_info_dict = dev
+                break
+        
+        # Get recommendations to get requirements and success rate
+        recommendations = self.frp_engine.detect_best_methods(device_info_dict)
+        requirements = recommendations.get('requirements', {}).get(method_id, {})
+        success_rate = recommendations.get('success_probability', {}).get(method_id, 'Unknown')
+        
+        # Build detail text
+        detail_text.configure(state="normal")
+        detail_text.delete("1.0", tk.END)
+        
+        detail = f"""METHOD: {method_id}
+
+SUCCESS RATE: {success_rate}
+
+SKILL LEVEL: {requirements.get('skill_level', 'Unknown')}
+
+TOOLS NEEDED:
+"""
+        for tool in requirements.get('tools_needed', ['None specified']):
+            detail += f"  • {tool}\n"
+        
+        detail += "\nPREREQUISITES:\n"
+        for prereq in requirements.get('prerequisites', ['None specified']):
+            detail += f"  • {prereq}\n"
+        
+        detail += "\nRISKS:\n"
+        for risk in requirements.get('risks', ['No specific risks listed']):
+            detail += f"  ⚠ {risk}\n"
+        
+        detail += f"\nDESCRIPTION:\n{self._get_method_description(method_id)}"
+        
+        detail_text.insert("1.0", detail)
+        detail_text.configure(state="disabled")
+
+    def _get_method_description(self, method_id: str) -> str:
+        """Get a human-readable description for a method."""
+        descriptions = {
+            'adb_setup_complete': 'Bypasses FRP by marking device setup as complete via ADB commands.',
+            'adb_accounts_remove': 'Removes Google account database files using ADB shell.',
+            'adb_shell_reset': 'Resets lock settings and user data via ADB shell commands.',
+            'fastboot_erase_frp': 'Erases the FRP partition using fastboot (requires unlocked bootloader).',
+            'fastboot_erase_misc': 'Erases the misc partition which may contain FRP lock data.',
+            'edl_erase_frp_partition': 'Erases FRP partition at hardware level using EDL mode.',
+            'recovery_twrp_filemanager_delete': 'Uses TWRP file manager to delete FRP-related files.',
+            'settings_talkback_bypass': 'Manual bypass using TalkBack accessibility settings.',
+            'browser_chrome_download_apk': 'Exploits Chrome browser to download and install bypass APK.',
+            'tool_samfw_frp_tool': 'Commercial Samsung FRP tool with high success rate.',
+        }
+        
+        return descriptions.get(
+            method_id,
+            'This method attempts to bypass FRP lock. See requirements and risks above.'
+        )
+
+    def _execute_frp_method(
+        self,
+        wizard_window: tk.Toplevel,
+        device_id: str,
+        method_listbox: tk.Listbox,
+        detail_text: scrolledtext.ScrolledText
+    ) -> None:
+        """Execute the selected FRP method with progress tracking."""
+        selection = method_listbox.curselection()
+        if not selection:
+            messagebox.showwarning("FRP Wizard", "Please select a method first.")
+            return
+        
+        index = selection[0]
+        methods = getattr(method_listbox, '_frp_methods', [])
+        
+        if index >= len(methods):
+            return
+        
+        method_id = methods[index]
+        
+        # Confirm execution
+        confirm = messagebox.askyesno(
+            "Confirm FRP Bypass",
+            f"Execute method: {method_id}\n\n"
+            f"This will attempt to bypass FRP on device {device_id}.\n\n"
+            f"⚠️ Ensure you have legal right to unlock this device.\n\n"
+            f"Continue?"
+        )
+        
+        if not confirm:
+            return
+        
+        # Create progress window
+        progress_window = tk.Toplevel(wizard_window)
+        progress_window.title("FRP Method Execution")
+        progress_window.geometry("700x500")
+        progress_window.configure(bg=self.theme["bg"])
+        progress_window.transient(wizard_window)
+        progress_window.grab_set()
+        
+        # Center progress window
+        progress_window.update_idletasks()
+        x = (progress_window.winfo_screenwidth() // 2) - (700 // 2)
+        y = (progress_window.winfo_screenheight() // 2) - (500 // 2)
+        progress_window.geometry(f"+{x}+{y}")
+        
+        # Progress window content
+        content_frame = ttk.Frame(progress_window, style="Void.TFrame")
+        content_frame.pack(fill="both", expand=True, padx=20, pady=20)
+        
+        ttk.Label(
+            content_frame,
+            text=f"🔄 Executing: {method_id}",
+            font=("Consolas", 14, "bold"),
+            foreground=self.theme["accent"],
+            background=self.theme["bg"]
+        ).pack(anchor="w", pady=(0, 20))
+        
+        # Status label
+        status_var = tk.StringVar(value="Initializing...")
+        status_label = ttk.Label(
+            content_frame,
+            textvariable=status_var,
+            style="Void.TLabel",
+            font=("Consolas", 10)
+        )
+        status_label.pack(anchor="w", pady=(0, 10))
+        
+        # Progress bar
+        progress_bar = ttk.Progressbar(
+            content_frame,
+            mode='indeterminate',
+            length=400
+        )
+        progress_bar.pack(fill="x", pady=(0, 20))
+        progress_bar.start(10)
+        
+        # Log area
+        ttk.Label(
+            content_frame,
+            text="Execution Log:",
+            style="Void.TLabel",
+            font=("Consolas", 10, "bold")
+        ).pack(anchor="w", pady=(0, 8))
+        
+        log_text = scrolledtext.ScrolledText(
+            content_frame,
+            height=15,
+            wrap="word",
+            font=("Consolas", 9),
+            background=self.theme["bg"],
+            foreground=self.theme["text"],
+            insertbackground=self.theme["text"],
+            relief="solid",
+            borderwidth=1
+        )
+        log_text.pack(fill="both", expand=True, pady=(0, 20))
+        
+        # Close button (disabled initially)
+        close_button = ttk.Button(
+            content_frame,
+            text="Close",
+            style="Void.TButton",
+            command=progress_window.destroy,
+            state="disabled"
+        )
+        close_button.pack(anchor="e")
+        
+        def log_message(msg: str) -> None:
+            """Add message to log."""
+            log_text.insert(tk.END, f"{msg}\n")
+            log_text.see(tk.END)
+            progress_window.update()
+        
+        def execute_in_thread() -> None:
+            """Execute the FRP method in a separate thread."""
+            try:
+                log_message(f"[{self._format_timestamp()}] Starting FRP bypass method...")
+                log_message(f"[{self._format_timestamp()}] Method: {method_id}")
+                log_message(f"[{self._format_timestamp()}] Device: {device_id}")
+                log_message("")
+                
+                status_var.set("Executing method...")
+                
+                # Execute the method
+                result = self.frp_engine.execute_method(method_id, device_id)
+                
+                log_message(f"[{self._format_timestamp()}] Execution completed")
+                log_message("")
+                
+                if result.get('success'):
+                    log_message("✅ SUCCESS!")
+                    log_message(f"Message: {result.get('message', 'FRP bypass successful')}")
+                    status_var.set("✅ Method executed successfully!")
+                    progress_bar.stop()
+                    progress_bar.configure(mode='determinate', value=100)
+                else:
+                    log_message("❌ FAILED")
+                    log_message(f"Message: {result.get('message', 'FRP bypass failed')}")
+                    status_var.set("❌ Method execution failed")
+                    progress_bar.stop()
+                    progress_bar.configure(mode='determinate', value=0)
+                
+                log_message("")
+                log_message("=" * 60)
+                log_message("NEXT STEPS:")
+                
+                if result.get('success'):
+                    log_message("1. Reboot your device")
+                    log_message("2. Verify that FRP lock is bypassed")
+                    log_message("3. Set up device with new Google account")
+                else:
+                    log_message("1. Check the error message above")
+                    log_message("2. Verify device prerequisites are met")
+                    log_message("3. Try an alternative method from the list")
+                    log_message("4. Check device connection and mode")
+                
+            except Exception as e:
+                log_message(f"[{self._format_timestamp()}] ❌ EXCEPTION OCCURRED")
+                log_message(f"Error: {str(e)}")
+                log_message("")
+                log_message("The method encountered an unexpected error.")
+                log_message("Please check device connection and try again.")
+                status_var.set("❌ Exception occurred")
+                progress_bar.stop()
+                progress_bar.configure(mode='determinate', value=0)
+            
+            finally:
+                close_button.configure(state="normal")
+        
+        # Start execution in thread
+        thread = threading.Thread(target=execute_in_thread, daemon=True)
+        thread.start()
 
     def _run_display_diagnostics(self) -> None:
         device_id = self._get_selected_device()
