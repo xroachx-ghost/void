@@ -432,7 +432,7 @@ class AndroidProblemSolver:
             'permissions': 'Consider setting SELinux permissive temporarily or fixing permissions.'
         }
         
-        suggestions: List[str] = []
+        suggestions = []
         for problem in diagnosis.get('problems', []):
             suggestion = suggestion_map.get(problem.get('type'))
             if suggestion:
