@@ -18,6 +18,8 @@ from .utils import SafeSubprocess
 class AndroidProblemSolver:
     """Comprehensive Android problem diagnosis and fixing"""
     
+    DEFAULT_HEALTHY_SUGGESTION = 'Device appears healthy. Keep firmware updated and maintain backups.'
+    
     @staticmethod
     def diagnose_problem(device_id: str) -> Dict:
         """Comprehensively diagnose device problems"""
@@ -431,7 +433,6 @@ class AndroidProblemSolver:
             'crashes': 'Clear tombstones and fix app permissions to improve stability.',
             'permissions': 'Consider setting SELinux permissive temporarily or fixing permissions.'
         }
-        default_suggestion = 'Device appears healthy. Keep firmware updated and maintain backups.'
         
         suggestions = []
         for problem in diagnosis.get('problems', []):
@@ -440,7 +441,7 @@ class AndroidProblemSolver:
                 suggestions.append(suggestion)
         
         if not suggestions:
-            suggestions.append(default_suggestion)
+            suggestions.append(AndroidProblemSolver.DEFAULT_HEALTHY_SUGGESTION)
         
         return {
             'device_id': device_id,
