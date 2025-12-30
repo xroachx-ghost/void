@@ -1,4 +1,10 @@
-"""Chipset abstraction layer for device workflows."""
+"""
+Chipset abstraction layer for device workflows.
+
+Copyright (c) 2024 Roach Labs. All rights reserved.
+Made by James Michael Roach Jr.
+Proprietary and confidential. Unauthorized use or distribution is prohibited.
+"""
 
 from .base import BaseChipsetProtocol, ChipsetActionResult, ChipsetDetection
 from .dispatcher import (

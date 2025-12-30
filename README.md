@@ -1,5 +1,9 @@
 # Void Suite
 
+**Copyright (c) 2024 Roach Labs. All rights reserved.**  
+**Made by James Michael Roach Jr.**  
+**Proprietary and confidential. Unauthorized use or distribution is prohibited.**
+
 ```
 __     ___     _     _      _       _ _
 \ \   / (_) __| | __| |_   _(_)___  (_) |_ ___
@@ -30,6 +34,20 @@ __     ___     _     _      _       _ _
               "We are Anonymous. We are Legion.
                 We do not forgive. We do not forget."
 ```
+
+## Ownership & Legal Notice
+
+This software is the proprietary property of **Roach Labs**.
+
+- **Owner**: Roach Labs
+- **Author**: James Michael Roach Jr.
+- **License**: Proprietary (see LICENSE file)
+
+All rights reserved. This is proprietary and confidential software. Unauthorized copying, modification, distribution, or disclosure is strictly prohibited without express written agreement from Roach Labs.
+
+---
+
+## About Void Suite
 
 Void Suite is a Python-based Android maintenance and recovery toolkit. It wraps `adb` and
 `fastboot` with a guided CLI and optional GUI, and adds diagnostics, reporting, and recovery

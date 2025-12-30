@@ -964,6 +964,10 @@ class CLI:
             f"║ {pad(f'VOID v{Config.VERSION} - {Config.CODENAME}')} ║\n"
             f"║ {pad(Config.THEME_TAGLINE)} ║\n"
             f"║ {pad(f'{features_count}+ automated features • {Config.THEME_NAME}')} ║\n"
+            f"║ {pad('')} ║\n"
+            f"║ {pad('Copyright (c) 2024 Roach Labs. All rights reserved.')} ║\n"
+            f"║ {pad('Made by James Michael Roach Jr.')} ║\n"
+            f"║ {pad('Proprietary and confidential.')} ║\n"
             f"╚{'═' * box_width}╝\n\n"
             f"✨ {slogan_lines[0]}\n"
             f"✨ {slogan_lines[1]}\n\n"
@@ -3101,6 +3105,10 @@ class CLI:
         help_text = """
 ╔══════════════════════════════════════════════════════════════╗
 ║                   VOID - HELP                                ║
+║                                                              ║
+║  Copyright (c) 2024 Roach Labs. All rights reserved.        ║
+║  Made by James Michael Roach Jr.                            ║
+║  Proprietary and confidential.                              ║
 ╚══════════════════════════════════════════════════════════════╝
 
 📋 AVAILABLE COMMANDS:
