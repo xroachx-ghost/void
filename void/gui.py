@@ -4489,12 +4489,35 @@ TOOLS NEEDED:
         usb_card = ttk.Frame(scrollable, style="Void.Card.TFrame")
         usb_card.pack(fill="x", pady=(0, 12))
         usb_card.configure(padding=12)
-        ttk.Label(usb_card, text="USB Debugging", style="Void.TLabel").pack(anchor="w")
+        ttk.Label(usb_card, text="USB Debugging (Comprehensive Methods)", style="Void.TLabel").pack(anchor="w")
+        
+        # Method selection
+        method_frame = ttk.Frame(usb_card, style="Void.TFrame")
+        method_frame.pack(fill="x", pady=(6, 6))
+        ttk.Label(method_frame, text="Method:", style="Void.TLabel").pack(side="left", padx=(0, 6))
+        self.usb_debug_method_var = tk.StringVar(value="standard")
+        method_combo = ttk.Combobox(
+            method_frame,
+            textvariable=self.usb_debug_method_var,
+            values=["standard", "all", "properties", "settings_db", "build_prop", "adb_keys", "root"],
+            state="readonly",
+            width=15
+        )
+        method_combo.pack(side="left", padx=(0, 12))
+        
+        # Show methods info button
+        ttk.Button(
+            method_frame,
+            text="ℹ️ Methods Info",
+            style="Void.TButton",
+            command=self._show_usb_methods_info,
+        ).pack(side="left")
+        
         usb_row = ttk.Frame(usb_card, style="Void.TFrame")
         usb_row.pack(fill="x", pady=(6, 0))
         ttk.Checkbutton(
             usb_row,
-            text="Force mode (engineering builds)",
+            text="Force mode (confirm all methods)",
             variable=self.usb_force_var,
             style="Void.TCheckbutton",
         ).pack(side="left", padx=(0, 12))
@@ -6744,40 +6767,149 @@ TOOLS NEEDED:
         if not device_id:
             return
         force = bool(self.usb_force_var.get())
+        
+        # Get selected method if available
+        method = getattr(self, 'usb_debug_method_var', None)
+        if method:
+            method_value = method.get()
+        else:
+            method_value = 'all' if force else 'standard'
 
         def runner() -> Dict[str, Any]:
-            if force:
-                result = SystemTweaker.force_usb_debugging(device_id)
+            if force or method_value != 'standard':
+                result = SystemTweaker.force_usb_debugging(device_id, method_value)
             else:
                 result = {
                     "steps": [
                         {
                             "step": "enable_developer_options",
+                            "category": "standard",
                             "success": SystemTweaker.enable_developer_options(device_id),
                             "detail": None,
                         },
                         {
                             "step": "enable_usb_debugging_setting",
+                            "category": "standard",
                             "success": SystemTweaker.enable_usb_debugging(device_id),
                             "detail": None,
                         },
                     ]
                 }
                 result["success"] = all(step["success"] for step in result["steps"])
-            status = "forced" if force else "enabled"
-            self._log(f"USB debugging {status}: {'success' if result['success'] else 'failed'}.")
+                result["adb_enabled"] = result["success"]
+                result["methods_attempted"] = 'standard'
+            
+            status = f"using method '{method_value}'" if method_value != 'standard' else "standard enable"
+            self._log(f"USB debugging attempt ({status}): {'✅ SUCCESS' if result.get('success') else '❌ FAILED'}")
+            
+            # Show result details
+            if result.get('adb_enabled'):
+                self._log(f"✅ ADB Enabled: Yes", level="DATA")
+            if result.get('usb_config'):
+                self._log(f"   USB Config: {result['usb_config']}", level="DATA")
+            if result.get('has_root') is not None:
+                self._log(f"   Root Access: {'✅ Yes' if result['has_root'] else '❌ No'}", level="DATA")
+            
+            # Show steps
+            self._log("Steps executed:", level="DATA")
             for step in result.get("steps", []):
                 icon = "✅" if step.get("success") else "❌"
-                detail = f" ({step['detail']})" if step.get("detail") else ""
-                self._log(f"{icon} {step.get('step')}{detail}", level="DATA")
-            if result.get("usb_config"):
-                self._log(f"USB config: {result['usb_config']}", level="DATA")
+                category = step.get('category', 'unknown')
+                detail = f" - {step.get('detail')}" if step.get("detail") else ""
+                self._log(f"  {icon} [{category}] {step.get('step')}{detail}", level="DATA")
+            
+            # Summary
+            if 'total_steps' in result and 'successful_steps' in result:
+                self._log(f"Summary: {result['successful_steps']}/{result['total_steps']} steps successful", level="DATA")
+            
+            if not result.get("success"):
+                self._log("💡 Try different methods or check device requirements", level="WARN")
+            
             return {
                 "success": bool(result.get("success")),
-                "message": f"USB debugging {status}.",
+                "message": f"USB debugging attempt completed ({method_value}).",
             }
 
         self._run_task("USB debugging", runner)
+    
+    def _show_usb_methods_info(self) -> None:
+        """Show information about USB debugging methods"""
+        methods_info = SystemTweaker.get_usb_debugging_methods()
+        
+        # Create info window
+        info_win = tk.Toplevel(self.root)
+        info_win.title("USB Debugging Methods - Comprehensive Guide")
+        info_win.geometry("800x600")
+        info_win.configure(bg="#070b12")
+        
+        # Make it modal
+        info_win.transient(self.root)
+        info_win.grab_set()
+        
+        # Create scrollable text
+        frame = ttk.Frame(info_win, style="Void.TFrame")
+        frame.pack(fill="both", expand=True, padx=10, pady=10)
+        
+        text_widget = tk.Text(frame, wrap="word", bg="#0a0f1a", fg="#ffffff", 
+                              font=("Consolas", 10), padx=10, pady=10)
+        scrollbar = ttk.Scrollbar(frame, command=text_widget.yview)
+        text_widget.configure(yscrollcommand=scrollbar.set)
+        
+        scrollbar.pack(side="right", fill="y")
+        text_widget.pack(side="left", fill="both", expand=True)
+        
+        # Populate with method information
+        text_widget.insert("end", "=" * 80 + "\n")
+        text_widget.insert("end", "USB DEBUGGING FORCE-ENABLE METHODS - COMPREHENSIVE GUIDE\n")
+        text_widget.insert("end", "=" * 80 + "\n\n")
+        
+        for method in methods_info['methods']:
+            text_widget.insert("end", f"🔹 {method['name']} ({method['id']})\n", "method_name")
+            text_widget.insert("end", f"   {method['description']}\n\n")
+            text_widget.insert("end", f"   Requirements: {', '.join(method['requirements'])}\n")
+            text_widget.insert("end", f"   Risk Level: {method['risk_level']}\n")
+            text_widget.insert("end", f"   Success Rate: {method['success_rate']}\n")
+            
+            if 'steps' in method:
+                text_widget.insert("end", f"   Steps:\n")
+                for step in method['steps']:
+                    text_widget.insert("end", f"     • {step}\n")
+            
+            if 'notes' in method:
+                text_widget.insert("end", f"   ⚠️  {method['notes']}\n")
+            
+            text_widget.insert("end", "\n" + "-" * 80 + "\n\n")
+        
+        # Add recommendations
+        text_widget.insert("end", "RECOMMENDATIONS BY SCENARIO:\n", "header")
+        text_widget.insert("end", "-" * 80 + "\n")
+        for scenario, recommendation in methods_info['recommendations'].items():
+            text_widget.insert("end", f"• {scenario.replace('_', ' ').title()}: {recommendation}\n")
+        
+        text_widget.insert("end", "\n")
+        
+        # Add warnings
+        text_widget.insert("end", "⚠️  IMPORTANT WARNINGS:\n", "warning")
+        text_widget.insert("end", "-" * 80 + "\n")
+        for warning in methods_info['warnings']:
+            text_widget.insert("end", f"• {warning}\n")
+        
+        # Configure tags for styling
+        text_widget.tag_config("method_name", foreground="#00f5d4", font=("Consolas", 11, "bold"))
+        text_widget.tag_config("header", foreground="#7c3aed", font=("Consolas", 11, "bold"))
+        text_widget.tag_config("warning", foreground="#ff6b6b", font=("Consolas", 11, "bold"))
+        
+        text_widget.configure(state="disabled")
+        
+        # Close button
+        btn_frame = ttk.Frame(info_win, style="Void.TFrame")
+        btn_frame.pack(fill="x", padx=10, pady=(0, 10))
+        ttk.Button(
+            btn_frame,
+            text="Close",
+            style="Void.TButton",
+            command=info_win.destroy
+        ).pack(side="right")
 
     def _reboot_device(self, mode: str) -> None:
         device_id = self._get_selected_device()

@@ -32,7 +32,7 @@ def main() -> None:
     )
 
     parser.add_argument('--version', action='store_true', help='Show version')
-    parser.add_argument('--gui', action='store_true', help='Launch GUI')
+    parser.add_argument('--cli', action='store_true', help='Launch CLI mode (default is GUI)')
     parser.add_argument('--devices', action='store_true', help='List devices')
     parser.add_argument('--backup', type=str, help='Backup device')
     parser.add_argument('--analyze', type=str, help='Analyze device')
@@ -74,49 +74,62 @@ def main() -> None:
     if not ensure_terms_acceptance_cli():
         return
 
-    if args.gui:
-        run_gui()
-        return
-
-    if args.devices:
-        devices, _ = DeviceDetector.detect_all()
-        logger.info(
-            "Connected Devices:",
-            extra={"category": "devices", "device_id": "-", "method": "-"},
-        )
-        for device in devices:
+    # Check if any CLI-specific flags are provided
+    if args.cli or args.devices or args.backup or args.analyze or args.report:
+        # CLI mode - handle CLI-specific operations
+        if args.devices:
+            devices, _ = DeviceDetector.detect_all()
             logger.info(
-                f"  • {device.get('id')} - {device.get('manufacturer')} {device.get('model')}",
-                extra={"category": "devices", "device_id": device.get("id", "-"), "method": "-"},
+                "Connected Devices:",
+                extra={"category": "devices", "device_id": "-", "method": "-"},
             )
-        return
+            for device in devices:
+                logger.info(
+                    f"  • {device.get('id')} - {device.get('manufacturer')} {device.get('model')}",
+                    extra={"category": "devices", "device_id": device.get("id", "-"), "method": "-"},
+                )
+            return
 
-    if args.backup:
-        result = AutoBackup.create_backup(args.backup)
-        logger.info(
-            f"Backup: {'Success' if result['success'] else 'Failed'}",
-            extra={"category": "backup", "device_id": args.backup, "method": "-"},
-        )
-        return
+        if args.backup:
+            result = AutoBackup.create_backup(args.backup)
+            logger.info(
+                f"Backup: {'Success' if result['success'] else 'Failed'}",
+                extra={"category": "backup", "device_id": args.backup, "method": "-"},
+            )
+            return
 
-    if args.analyze:
-        result = PerformanceAnalyzer.analyze(args.analyze)
-        logger.info(
-            f"Analysis: {json.dumps(result, indent=2)}",
-            extra={"category": "analysis", "device_id": args.analyze, "method": "-"},
-        )
-        return
+        if args.analyze:
+            result = PerformanceAnalyzer.analyze(args.analyze)
+            logger.info(
+                f"Analysis: {json.dumps(result, indent=2)}",
+                extra={"category": "analysis", "device_id": args.analyze, "method": "-"},
+            )
+            return
 
-    if args.report:
-        result = ReportGenerator.generate_device_report(args.report)
-        logger.info(
-            f"Report: {result.get('html_path', 'Failed')}",
-            extra={"category": "report", "device_id": args.report, "method": "-"},
-        )
-        return
+        if args.report:
+            result = ReportGenerator.generate_device_report(args.report)
+            logger.info(
+                f"Report: {result.get('html_path', 'Failed')}",
+                extra={"category": "report", "device_id": args.report, "method": "-"},
+            )
+            return
 
-    cli = CLI()
-    cli.run()
+        # If --cli flag is provided without other arguments, start CLI
+        if args.cli:
+            cli = CLI()
+            cli.run()
+            return
+
+    # Default: Launch GUI mode
+    run_gui()
+
+
+def main_cli() -> None:
+    """Entry point specifically for CLI mode."""
+    # Force CLI mode by adding --cli to sys.argv
+    if '--cli' not in sys.argv:
+        sys.argv.append('--cli')
+    main()
 
 
 if __name__ == "__main__":

@@ -1,3 +1,54 @@
+Metadata-Version: 2.4
+Name: void-suite
+Version: 6.0.1
+Summary: Void Suite: Professional Android device management & recovery toolkit with 250+ features, EDL operations, and AI-powered assistance
+Author: James Michael Roach Jr.
+Maintainer: Roach Labs
+License: Proprietary
+Project-URL: Homepage, https://github.com/xroachx-ghost/void
+Project-URL: Documentation, https://github.com/xroachx-ghost/void/blob/main/DOCUMENTATION_INDEX.md
+Project-URL: Repository, https://github.com/xroachx-ghost/void
+Project-URL: Issues, https://github.com/xroachx-ghost/void/issues
+Project-URL: Changelog, https://github.com/xroachx-ghost/void/blob/main/CHANGELOG.md
+Keywords: android,adb,fastboot,edl,device-management,recovery,backup,diagnostics,toolkit
+Classifier: Development Status :: 5 - Production/Stable
+Classifier: Intended Audience :: Developers
+Classifier: Intended Audience :: System Administrators
+Classifier: Topic :: System :: Hardware
+Classifier: Topic :: Utilities
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Operating System :: OS Independent
+Classifier: License :: Other/Proprietary License
+Requires-Python: >=3.9
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: psutil>=5.9.0
+Requires-Dist: pycryptodome>=3.19.0
+Requires-Dist: rich>=13.0.0
+Provides-Extra: gui
+Requires-Dist: playwright>=1.40.0; extra == "gui"
+Provides-Extra: dev
+Requires-Dist: pytest>=7.0.0; extra == "dev"
+Requires-Dist: pytest-cov>=4.0.0; extra == "dev"
+Requires-Dist: pytest-mock>=3.12.0; extra == "dev"
+Requires-Dist: black>=23.0.0; extra == "dev"
+Requires-Dist: flake8>=6.0.0; extra == "dev"
+Requires-Dist: mypy>=1.0.0; extra == "dev"
+Requires-Dist: bandit>=1.7.0; extra == "dev"
+Requires-Dist: safety>=2.3.0; extra == "dev"
+Provides-Extra: windows
+Requires-Dist: pywin32>=305; platform_system == "Windows" and extra == "windows"
+Requires-Dist: winshell>=0.6; platform_system == "Windows" and extra == "windows"
+Provides-Extra: api
+Requires-Dist: fastapi>=0.104.0; extra == "api"
+Requires-Dist: uvicorn[standard]>=0.24.0; extra == "api"
+Requires-Dist: pydantic>=2.0.0; extra == "api"
+Dynamic: license-file
+
 # Void Suite
 
 <div align="center">
