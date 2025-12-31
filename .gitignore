@@ -1,3 +1,7 @@
 __pycache__/
 .pytest_cache/
 *.pyc
+.coverage
+coverage.xml
+htmlcov/
+void_suite.egg-info/

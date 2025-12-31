@@ -134,6 +134,37 @@ def test_classify_usb_device_fallback(tmp_path, monkeypatch):
     assert core.DeviceDetector._classify_usb_device("ffff", "0001") is None
 
 
+def test_detect_usb_modes_handles_multiple_identical_vid_pid(tmp_path, monkeypatch):
+    core = load_core(tmp_path, monkeypatch)
+    import void.core.device as device_module
+
+    lsusb_output = "\n".join(
+        [
+            "Bus 001 Device 002: ID 05c6:9008 Qualcomm HS-USB QDLoader 9008",
+            "Bus 002 Device 003: ID 05c6:9008 Qualcomm HS-USB QDLoader 9008",
+        ]
+    )
+
+    monkeypatch.setattr(device_module.platform, "system", lambda: "Linux")
+    monkeypatch.setattr(
+        core.SafeSubprocess,
+        "run",
+        lambda *_args, **_kwargs: (0, lsusb_output, ""),
+    )
+
+    devices, errors = core.DeviceDetector._detect_usb_modes()
+
+    assert errors == []
+    assert len(devices) == 2
+    ids = {device["id"] for device in devices}
+    assert "usb-001-002-05c6:9008" in ids
+    assert "usb-002-003-05c6:9008" in ids
+    for device in devices:
+        assert device["usb_id"] == "05c6:9008"
+        assert device["usb_bus"] in {"001", "002"}
+        assert device["usb_device_number"] in {"002", "003"}
+
+
 def test_check_adb_ready(tmp_path, monkeypatch):
     core = load_core(tmp_path, monkeypatch)
 

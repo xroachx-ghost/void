@@ -441,6 +441,11 @@ class DeviceDetector:
                 if "ID" not in line:
                     continue
                 parts = line.split()
+                bus = None
+                device_num = None
+                if len(parts) > 3 and parts[0].lower() == "bus" and parts[2].lower() == "device":
+                    bus = parts[1]
+                    device_num = parts[3].rstrip(":")
                 try:
                     id_index = parts.index("ID")
                 except ValueError:
@@ -455,14 +460,17 @@ class DeviceDetector:
                 classification = DeviceDetector._classify_usb_device(vid.lower(), pid.lower())
                 if not classification:
                     continue
+                unique_id_parts = [p for p in (bus, device_num, usb_id.lower()) if p]
                 devices.append(
                     {
-                        "id": f"usb-{usb_id.lower()}",
+                        "id": f"usb-{'-'.join(unique_id_parts)}" if unique_id_parts else f"usb-{usb_id.lower()}",
                         "mode": classification["mode"],
                         "status": "detected",
                         "usb_vid": vid.lower(),
                         "usb_pid": pid.lower(),
                         "usb_id": usb_id.lower(),
+                        "usb_bus": bus,
+                        "usb_device_number": device_num,
                         "usb_product": usb_product if usb_product else None,
                         "usb_vendor": classification.get("usb_vendor"),
                         "chipset_vendor_hint": classification.get("chipset_vendor_hint"),
