@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import platform
 import re
+import urllib.request
 from typing import Any, Dict, List, Tuple
 
 from .chipsets.dispatcher import detect_chipset_for_device
@@ -441,6 +442,11 @@ class DeviceDetector:
                 if "ID" not in line:
                     continue
                 parts = line.split()
+                bus = None
+                device_number = None
+                bus_match = re.search(r"bus\s+(\d+)\s+device\s+(\d+):", line, re.IGNORECASE)
+                if bus_match:
+                    bus, device_number = bus_match.groups()
                 try:
                     id_index = parts.index("ID")
                 except ValueError:
@@ -453,16 +459,25 @@ class DeviceDetector:
                 vid, pid = usb_id.split(":", 1)
                 usb_product = " ".join(parts[id_index + 2 :]).strip()
                 classification = DeviceDetector._classify_usb_device(vid.lower(), pid.lower())
-                if not classification:
-                    continue
+                identifier_parts = [usb_id.lower()]
+                if device_number:
+                    identifier_parts.insert(0, device_number)
+                if bus:
+                    identifier_parts.insert(0, bus)
+                device_identifier = f"usb-{'-'.join(identifier_parts)}"
+                product_hint = classification.get("usb_product_hint")
+                if not usb_product or usb_product.lower().startswith("unknown"):
+                    usb_product = product_hint
                 devices.append(
                     {
-                        "id": f"usb-{usb_id.lower()}",
+                        "id": device_identifier,
                         "mode": classification["mode"],
                         "status": "detected",
                         "usb_vid": vid.lower(),
                         "usb_pid": pid.lower(),
                         "usb_id": usb_id.lower(),
+                        "usb_bus": bus,
+                        "usb_device_number": device_number,
                         "usb_product": usb_product if usb_product else None,
                         "usb_vendor": classification.get("usb_vendor"),
                         "chipset_vendor_hint": classification.get("chipset_vendor_hint"),
@@ -536,7 +551,44 @@ class DeviceDetector:
                 "usb_vendor": vendor,
                 "chipset_vendor_hint": vendor,
             }
-        return None
+        online_vendor, online_product = DeviceDetector._lookup_usb_online(vid, pid)
+        if online_vendor or online_product:
+            return {
+                "mode": "usb-unknown",
+                "usb_vendor": online_vendor or "Unknown",
+                "usb_product_hint": online_product,
+                "chipset_vendor_hint": online_vendor,
+            }
+        return {
+            "mode": "usb-unknown",
+            "usb_vendor": "Unknown",
+            "chipset_vendor_hint": None,
+        }
+
+    @staticmethod
+    def _lookup_usb_online(vid: str, pid: str) -> tuple[str | None, str | None]:
+        """Best-effort online lookup for USB vendor/product names."""
+        try:
+            url = f"https://usb-ids.gowdy.us/read/UD/{vid}/{pid}"
+            with urllib.request.urlopen(url, timeout=1) as resp:
+                text = resp.read().decode("utf-8", errors="ignore")
+        except Exception:
+            return None, None
+
+        vendor: str | None = None
+        product: str | None = None
+        for line in text.splitlines():
+            line = line.strip("\n\r")
+            if not vendor:
+                match_vendor = re.match(r"^([0-9a-fA-F]{4})\s+(.+)", line)
+                if match_vendor and match_vendor.group(1).lower() == vid.lower():
+                    vendor = match_vendor.group(2).strip()
+            match_product = re.match(r"^\s{0,3}([0-9a-fA-F]{4})\s+(.+)", line)
+            if match_product and match_product.group(1).lower() == pid.lower():
+                product = match_product.group(2).strip()
+            if vendor and product:
+                break
+        return vendor, product
 
     @staticmethod
     def _attach_chipset_metadata(device: Dict[str, Any]) -> None:

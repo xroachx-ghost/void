@@ -131,7 +131,104 @@ def test_classify_usb_device_fallback(tmp_path, monkeypatch):
     assert mapping["mode"] == "usb-unknown"
     assert mapping["usb_vendor"] == "Qualcomm"
 
-    assert core.DeviceDetector._classify_usb_device("ffff", "0001") is None
+    mapping_unknown = core.DeviceDetector._classify_usb_device("ffff", "0001")
+    assert mapping_unknown["mode"] == "usb-unknown"
+    assert mapping_unknown["usb_vendor"] == "Unknown"
+
+
+def test_classify_usb_device_online_lookup(tmp_path, monkeypatch):
+    core = load_core(tmp_path, monkeypatch)
+
+    class DummyResponse:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        def read(self, *_args, **_kwargs):
+            return b"ffff OnlineVendor\n\t0001 OnlineDevice\n"
+
+    monkeypatch.setattr(
+        core.urllib.request,
+        "urlopen",
+        lambda *_args, **_kwargs: DummyResponse(),
+    )
+
+    mapping = core.DeviceDetector._classify_usb_device("ffff", "0001")
+
+    assert mapping["usb_vendor"] == "OnlineVendor"
+    assert mapping["usb_product_hint"] == "OnlineDevice"
+    assert mapping["mode"] == "usb-unknown"
+
+
+def test_detect_usb_modes_handles_unknown_vid_pid(tmp_path, monkeypatch):
+    core = load_core(tmp_path, monkeypatch)
+    import void.core.device as device_module
+
+    lsusb_output = "Bus 001 Device 004: ID ffff:0001 Unknown Device"
+
+    monkeypatch.setattr(device_module.platform, "system", lambda: "Linux")
+    monkeypatch.setattr(
+        core.urllib.request,
+        "urlopen",
+        lambda *_args, **_kwargs: type(
+            "Resp",
+            (),
+            {
+                "__enter__": lambda self: self,
+                "__exit__": lambda self, exc_type, exc, tb: False,
+                "read": lambda self, *_a, **_k: b"ffff OnlineVendor\n\t0001 OnlineDevice\n",
+            },
+        )(),
+    )
+    monkeypatch.setattr(
+        core.SafeSubprocess,
+        "run",
+        lambda *_args, **_kwargs: (0, lsusb_output, ""),
+    )
+
+    devices, errors = core.DeviceDetector._detect_usb_modes()
+
+    assert errors == []
+    assert len(devices) == 1
+    device = devices[0]
+    assert device["id"] == "usb-001-004-ffff:0001"
+    assert device["mode"] == "usb-unknown"
+    assert device["usb_vendor"] == "OnlineVendor"
+    assert device["usb_product"] == "OnlineDevice"
+    assert device["usb_id"] == "ffff:0001"
+
+
+def test_detect_usb_modes_handles_multiple_identical_vid_pid(tmp_path, monkeypatch):
+    core = load_core(tmp_path, monkeypatch)
+    import void.core.device as device_module
+
+    lsusb_output = "\n".join(
+        [
+            "Bus 001 Device 002: ID 05c6:9008 Qualcomm HS-USB QDLoader 9008",
+            "Bus 002 Device 003: ID 05c6:9008 Qualcomm HS-USB QDLoader 9008",
+        ]
+    )
+
+    monkeypatch.setattr(device_module.platform, "system", lambda: "Linux")
+    monkeypatch.setattr(
+        core.SafeSubprocess,
+        "run",
+        lambda *_args, **_kwargs: (0, lsusb_output, ""),
+    )
+
+    devices, errors = core.DeviceDetector._detect_usb_modes()
+
+    assert errors == []
+    assert len(devices) == 2
+    ids = {device["id"] for device in devices}
+    assert "usb-001-002-05c6:9008" in ids
+    assert "usb-002-003-05c6:9008" in ids
+    for device in devices:
+        assert device["usb_id"] == "05c6:9008"
+        assert device["usb_bus"] in {"001", "002"}
+        assert device["usb_device_number"] in {"002", "003"}
 
 
 def test_check_adb_ready(tmp_path, monkeypatch):
