@@ -445,9 +445,7 @@ class DeviceDetector:
                 device_num = None
                 bus_match = re.search(r"bus\s+(\d+)\s+device\s+(\d+):", line, re.IGNORECASE)
                 if bus_match:
-                    bus_candidate, device_candidate = bus_match.groups()
-                    bus = bus_candidate if bus_candidate.isdigit() else None
-                    device_num = device_candidate if device_candidate.isdigit() else None
+                    bus, device_num = bus_match.groups()
                 try:
                     id_index = parts.index("ID")
                 except ValueError:
@@ -551,7 +549,11 @@ class DeviceDetector:
                 "usb_vendor": vendor,
                 "chipset_vendor_hint": vendor,
             }
-        return None
+        return {
+            "mode": "usb-unknown",
+            "usb_vendor": "Unknown",
+            "chipset_vendor_hint": None,
+        }
 
     @staticmethod
     def _attach_chipset_metadata(device: Dict[str, Any]) -> None:

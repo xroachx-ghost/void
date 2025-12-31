@@ -131,7 +131,33 @@ def test_classify_usb_device_fallback(tmp_path, monkeypatch):
     assert mapping["mode"] == "usb-unknown"
     assert mapping["usb_vendor"] == "Qualcomm"
 
-    assert core.DeviceDetector._classify_usb_device("ffff", "0001") is None
+    mapping_unknown = core.DeviceDetector._classify_usb_device("ffff", "0001")
+    assert mapping_unknown["mode"] == "usb-unknown"
+    assert mapping_unknown["usb_vendor"] == "Unknown"
+
+
+def test_detect_usb_modes_handles_unknown_vid_pid(tmp_path, monkeypatch):
+    core = load_core(tmp_path, monkeypatch)
+    import void.core.device as device_module
+
+    lsusb_output = "Bus 001 Device 004: ID ffff:0001 Unknown Device"
+
+    monkeypatch.setattr(device_module.platform, "system", lambda: "Linux")
+    monkeypatch.setattr(
+        core.SafeSubprocess,
+        "run",
+        lambda *_args, **_kwargs: (0, lsusb_output, ""),
+    )
+
+    devices, errors = core.DeviceDetector._detect_usb_modes()
+
+    assert errors == []
+    assert len(devices) == 1
+    device = devices[0]
+    assert device["id"] == "usb-001-004-ffff:0001"
+    assert device["mode"] == "usb-unknown"
+    assert device["usb_vendor"] == "Unknown"
+    assert device["usb_id"] == "ffff:0001"
 
 
 def test_detect_usb_modes_handles_multiple_identical_vid_pid(tmp_path, monkeypatch):
