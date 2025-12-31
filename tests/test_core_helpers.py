@@ -136,6 +136,32 @@ def test_classify_usb_device_fallback(tmp_path, monkeypatch):
     assert mapping_unknown["usb_vendor"] == "Unknown"
 
 
+def test_classify_usb_device_online_lookup(tmp_path, monkeypatch):
+    core = load_core(tmp_path, monkeypatch)
+
+    class DummyResponse:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        def read(self, *_args, **_kwargs):
+            return b"ffff OnlineVendor\n\t0001 OnlineDevice\n"
+
+    monkeypatch.setattr(
+        core.urllib.request,
+        "urlopen",
+        lambda *_args, **_kwargs: DummyResponse(),
+    )
+
+    mapping = core.DeviceDetector._classify_usb_device("ffff", "0001")
+
+    assert mapping["usb_vendor"] == "OnlineVendor"
+    assert mapping["usb_product_hint"] == "OnlineDevice"
+    assert mapping["mode"] == "usb-unknown"
+
+
 def test_detect_usb_modes_handles_unknown_vid_pid(tmp_path, monkeypatch):
     core = load_core(tmp_path, monkeypatch)
     import void.core.device as device_module
@@ -143,6 +169,19 @@ def test_detect_usb_modes_handles_unknown_vid_pid(tmp_path, monkeypatch):
     lsusb_output = "Bus 001 Device 004: ID ffff:0001 Unknown Device"
 
     monkeypatch.setattr(device_module.platform, "system", lambda: "Linux")
+    monkeypatch.setattr(
+        core.urllib.request,
+        "urlopen",
+        lambda *_args, **_kwargs: type(
+            "Resp",
+            (),
+            {
+                "__enter__": lambda self: self,
+                "__exit__": lambda self, exc_type, exc, tb: False,
+                "read": lambda self, *_a, **_k: b"ffff OnlineVendor\n\t0001 OnlineDevice\n",
+            },
+        )(),
+    )
     monkeypatch.setattr(
         core.SafeSubprocess,
         "run",
@@ -156,7 +195,8 @@ def test_detect_usb_modes_handles_unknown_vid_pid(tmp_path, monkeypatch):
     device = devices[0]
     assert device["id"] == "usb-001-004-ffff:0001"
     assert device["mode"] == "usb-unknown"
-    assert device["usb_vendor"] == "Unknown"
+    assert device["usb_vendor"] == "OnlineVendor"
+    assert device["usb_product"] == "OnlineDevice"
     assert device["usb_id"] == "ffff:0001"
 
 

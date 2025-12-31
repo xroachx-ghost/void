@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import platform
 import re
+import urllib.request
 from typing import Any, Dict, List, Tuple
 
 from .chipsets.dispatcher import detect_chipset_for_device
@@ -464,6 +465,9 @@ class DeviceDetector:
                 if bus:
                     identifier_parts.insert(0, bus)
                 device_identifier = f"usb-{'-'.join(identifier_parts)}"
+                product_hint = classification.get("usb_product_hint")
+                if not usb_product or usb_product.lower().startswith("unknown"):
+                    usb_product = product_hint
                 devices.append(
                     {
                         "id": device_identifier,
@@ -547,11 +551,44 @@ class DeviceDetector:
                 "usb_vendor": vendor,
                 "chipset_vendor_hint": vendor,
             }
+        online_vendor, online_product = DeviceDetector._lookup_usb_online(vid, pid)
+        if online_vendor or online_product:
+            return {
+                "mode": "usb-unknown",
+                "usb_vendor": online_vendor or "Unknown",
+                "usb_product_hint": online_product,
+                "chipset_vendor_hint": online_vendor,
+            }
         return {
             "mode": "usb-unknown",
             "usb_vendor": "Unknown",
             "chipset_vendor_hint": None,
         }
+
+    @staticmethod
+    def _lookup_usb_online(vid: str, pid: str) -> tuple[str | None, str | None]:
+        """Best-effort online lookup for USB vendor/product names."""
+        try:
+            url = f"https://usb-ids.gowdy.us/read/UD/{vid}/{pid}"
+            with urllib.request.urlopen(url, timeout=1) as resp:
+                text = resp.read().decode("utf-8", errors="ignore")
+        except Exception:
+            return None, None
+
+        vendor: str | None = None
+        product: str | None = None
+        for line in text.splitlines():
+            line = line.strip("\n\r")
+            if not vendor:
+                match_vendor = re.match(r"^([0-9a-fA-F]{4})\s+(.+)", line)
+                if match_vendor and match_vendor.group(1).lower() == vid.lower():
+                    vendor = match_vendor.group(2).strip()
+            match_product = re.match(r"^\s{0,3}([0-9a-fA-F]{4})\s+(.+)", line)
+            if match_product and match_product.group(1).lower() == pid.lower():
+                product = match_product.group(2).strip()
+            if vendor and product:
+                break
+        return vendor, product
 
     @staticmethod
     def _attach_chipset_metadata(device: Dict[str, Any]) -> None:
