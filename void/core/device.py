@@ -443,9 +443,9 @@ class DeviceDetector:
                 parts = line.split()
                 bus = None
                 device_num = None
-                if len(parts) > 3 and parts[0].lower() == "bus" and parts[2].lower() == "device":
-                    bus_candidate = parts[1]
-                    device_candidate = parts[3].rstrip(":")
+                bus_match = re.search(r"bus\s+(\d+)\s+device\s+(\d+):", line, re.IGNORECASE)
+                if bus_match:
+                    bus_candidate, device_candidate = bus_match.groups()
                     bus = bus_candidate if bus_candidate.isdigit() else None
                     device_num = device_candidate if device_candidate.isdigit() else None
                 try:
@@ -462,12 +462,12 @@ class DeviceDetector:
                 classification = DeviceDetector._classify_usb_device(vid.lower(), pid.lower())
                 if not classification:
                     continue
-                identifier_parts = [part for part in (bus, device_num, usb_id.lower()) if part]
-                device_identifier = (
-                    f"usb-{'-'.join(identifier_parts)}"
-                    if identifier_parts
-                    else f"usb-{usb_id.lower()}"
-                )
+                identifier_parts = [usb_id.lower()]
+                if device_num:
+                    identifier_parts.insert(0, device_num)
+                if bus:
+                    identifier_parts.insert(0, bus)
+                device_identifier = f"usb-{'-'.join(identifier_parts)}"
                 devices.append(
                     {
                         "id": device_identifier,
