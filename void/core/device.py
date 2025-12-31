@@ -444,8 +444,10 @@ class DeviceDetector:
                 bus = None
                 device_num = None
                 if len(parts) > 3 and parts[0].lower() == "bus" and parts[2].lower() == "device":
-                    bus = parts[1]
-                    device_num = parts[3].rstrip(":")
+                    bus_candidate = parts[1]
+                    device_candidate = parts[3].rstrip(":")
+                    bus = bus_candidate if bus_candidate.isdigit() else None
+                    device_num = device_candidate if device_candidate.isdigit() else None
                 try:
                     id_index = parts.index("ID")
                 except ValueError:
@@ -460,10 +462,15 @@ class DeviceDetector:
                 classification = DeviceDetector._classify_usb_device(vid.lower(), pid.lower())
                 if not classification:
                     continue
-                unique_id_parts = [p for p in (bus, device_num, usb_id.lower()) if p]
+                identifier_parts = [part for part in (bus, device_num, usb_id.lower()) if part]
+                device_identifier = (
+                    f"usb-{'-'.join(identifier_parts)}"
+                    if identifier_parts
+                    else f"usb-{usb_id.lower()}"
+                )
                 devices.append(
                     {
-                        "id": f"usb-{'-'.join(unique_id_parts)}" if unique_id_parts else f"usb-{usb_id.lower()}",
+                        "id": device_identifier,
                         "mode": classification["mode"],
                         "status": "detected",
                         "usb_vid": vid.lower(),
