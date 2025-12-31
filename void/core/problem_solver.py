@@ -18,6 +18,18 @@ from .utils import SafeSubprocess
 class AndroidProblemSolver:
     """Comprehensive Android problem diagnosis and fixing"""
     
+    DEFAULT_HEALTHY_SUGGESTION = 'Device appears healthy. Keep firmware updated and maintain backups.'
+    SUGGESTION_MAP = {
+        'connectivity': 'Check USB cable, drivers, and enable USB debugging.',
+        'bootloop': 'Try clearing cache/dalvik and rebooting into recovery.',
+        'storage': 'Free space by clearing cache or removing unused apps.',
+        'frp_lock': 'Use authorized FRP bypass or sign in with original account.',
+        'battery': 'Calibrate or replace the battery for better health.',
+        'battery_low': 'Charge the device before performing intensive tasks.',
+        'crashes': 'Clear tombstones and fix app permissions to improve stability.',
+        'permissions': 'Consider setting SELinux permissive temporarily or fixing permissions.'
+    }
+    
     @staticmethod
     def diagnose_problem(device_id: str) -> Dict:
         """Comprehensively diagnose device problems"""
@@ -414,6 +426,31 @@ class AndroidProblemSolver:
             'diagnosis': diagnosis,
             'fixes_applied': fixes_applied,
             'overall_success': any(fix['fix_result'].get('success', False) for fix in fixes_applied)
+        }
+    
+    @staticmethod
+    def identify_and_suggest_improvements(device_id: str) -> Dict:
+        """Identify problems and suggest targeted improvements."""
+        diagnosis = AndroidProblemSolver.diagnose_problem(device_id)
+        
+        suggestions = []
+        seen_types = set()
+        for problem in diagnosis.get('problems', []):
+            problem_type = problem.get('type')
+            if problem_type in seen_types:
+                continue
+            suggestion = AndroidProblemSolver.SUGGESTION_MAP.get(problem_type)
+            if suggestion:
+                suggestions.append(suggestion)
+                seen_types.add(problem_type)
+        
+        if not suggestions:
+            suggestions.append(AndroidProblemSolver.DEFAULT_HEALTHY_SUGGESTION)
+        
+        return {
+            'device_id': device_id,
+            'problems_found': diagnosis.get('problems_found', 0),
+            'suggestions': suggestions
         }
 
 
