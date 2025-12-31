@@ -442,10 +442,10 @@ class DeviceDetector:
                     continue
                 parts = line.split()
                 bus = None
-                device_num = None
+                device_number = None
                 bus_match = re.search(r"bus\s+(\d+)\s+device\s+(\d+):", line, re.IGNORECASE)
                 if bus_match:
-                    bus, device_num = bus_match.groups()
+                    bus, device_number = bus_match.groups()
                 try:
                     id_index = parts.index("ID")
                 except ValueError:
@@ -458,11 +458,9 @@ class DeviceDetector:
                 vid, pid = usb_id.split(":", 1)
                 usb_product = " ".join(parts[id_index + 2 :]).strip()
                 classification = DeviceDetector._classify_usb_device(vid.lower(), pid.lower())
-                if not classification:
-                    continue
                 identifier_parts = [usb_id.lower()]
-                if device_num:
-                    identifier_parts.insert(0, device_num)
+                if device_number:
+                    identifier_parts.insert(0, device_number)
                 if bus:
                     identifier_parts.insert(0, bus)
                 device_identifier = f"usb-{'-'.join(identifier_parts)}"
@@ -475,7 +473,7 @@ class DeviceDetector:
                         "usb_pid": pid.lower(),
                         "usb_id": usb_id.lower(),
                         "usb_bus": bus,
-                        "usb_device_number": device_num,
+                        "usb_device_number": device_number,
                         "usb_product": usb_product if usb_product else None,
                         "usb_vendor": classification.get("usb_vendor"),
                         "chipset_vendor_hint": classification.get("chipset_vendor_hint"),
