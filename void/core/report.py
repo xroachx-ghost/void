@@ -8,7 +8,6 @@ Proprietary and confidential. Unauthorized use or distribution is prohibited.
 
 from __future__ import annotations
 
-import html
 import json
 import re
 from datetime import datetime
@@ -31,7 +30,7 @@ class ReportGenerator:
 
     @staticmethod
     def _sanitize_device_id(device_id: str) -> str:
-        safe_id = re.sub(r'[^A-Za-z0-9]+', '_', device_id).strip('_')
+        safe_id = re.sub(r"[^A-Za-z0-9]+", "_", device_id).strip("_")
         return safe_id or "unknown"
 
     @staticmethod
@@ -40,54 +39,54 @@ class ReportGenerator:
         progress_callback: Optional[Callable[[str], None]] = None,
     ) -> Dict[str, Any]:
         """Generate comprehensive device report"""
-        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         safe_device_id = ReportGenerator._sanitize_device_id(device_id)
         report_name = f"device_report_{safe_device_id}_{timestamp}"
         report_dir = Config.REPORTS_DIR / report_name
         report_dir.mkdir(parents=True, exist_ok=True)
 
         report = {
-            'generated': datetime.now().isoformat(),
-            'device_id': device_id,
-            'sections': {},
+            "generated": datetime.now().isoformat(),
+            "device_id": device_id,
+            "sections": {},
         }
 
         # Device info
         if progress_callback:
             progress_callback("Collecting device info...")
         devices, _ = DeviceDetector.detect_all()
-        device_info = next((d for d in devices if d.get('id') == device_id), {})
+        device_info = next((d for d in devices if d.get("id") == device_id), {})
         if not device_info:
             logger.log(
-                'warning',
-                'report',
-                f'Device metadata could not be resolved for {device_id}.',
+                "warning",
+                "report",
+                f"Device metadata could not be resolved for {device_id}.",
                 device_id=device_id,
             )
-        report['sections']['device_info'] = device_info
+        report["sections"]["device_info"] = device_info
 
         # Performance analysis
         if progress_callback:
             progress_callback("Analyzing performance...")
-        report['sections']['performance'] = PerformanceAnalyzer.analyze(device_id)
+        report["sections"]["performance"] = PerformanceAnalyzer.analyze(device_id)
 
         # Network analysis
         if progress_callback:
             progress_callback("Analyzing network...")
-        report['sections']['network'] = NetworkAnalyzer.analyze(device_id)
+        report["sections"]["network"] = NetworkAnalyzer.analyze(device_id)
 
         # Display diagnostics
         if progress_callback:
             progress_callback("Analyzing display...")
-        report['sections']['display'] = DisplayAnalyzer.analyze(device_id)
+        report["sections"]["display"] = DisplayAnalyzer.analyze(device_id)
 
         # App list
         if progress_callback:
             progress_callback("Gathering app inventory...")
-        report['sections']['apps'] = {
-            'total': len(AppManager.list_apps(device_id)),
-            'system': len(AppManager.list_apps(device_id, 'system')),
-            'user': len(AppManager.list_apps(device_id, 'user')),
+        report["sections"]["apps"] = {
+            "total": len(AppManager.list_apps(device_id)),
+            "system": len(AppManager.list_apps(device_id, "system")),
+            "user": len(AppManager.list_apps(device_id, "user")),
         }
 
         report = redact_event_data(report)
@@ -96,7 +95,7 @@ class ReportGenerator:
         if progress_callback:
             progress_callback("Saving report data...")
         json_path = report_dir / "report.json"
-        with open(json_path, 'w') as f:
+        with open(json_path, "w") as f:
             json.dump(report, f, indent=2, default=str)
 
         # Generate HTML report
@@ -105,13 +104,13 @@ class ReportGenerator:
         html_path = report_dir / "report.html"
         ReportGenerator._generate_html(report, html_path)
 
-        logger.log('success', 'report', f'Report generated: {report_name}')
+        logger.log("success", "report", f"Report generated: {report_name}")
         db.track_event(
-            'report',
+            "report",
             {
-                'report_name': report_name,
-                'json_path': str(json_path),
-                'html_path': str(html_path),
+                "report_name": report_name,
+                "json_path": str(json_path),
+                "html_path": str(html_path),
             },
             device_id,
         )
@@ -119,20 +118,21 @@ class ReportGenerator:
             progress_callback("Report complete.")
 
         return {
-            'success': True,
-            'report_name': report_name,
-            'json_path': str(json_path),
-            'html_path': str(html_path),
+            "success": True,
+            "report_name": report_name,
+            "json_path": str(json_path),
+            "html_path": str(html_path),
         }
 
     @staticmethod
     def _generate_html(report: Dict, output_path: Path):
         """Generate HTML report"""
+
         def _escape(value: Any) -> str:
             return html.escape(str(value), quote=True)
 
-        device_id = _escape(report.get('device_id', 'Unknown'))
-        generated = _escape(report.get('generated', ''))
+        device_id = _escape(report.get("device_id", "Unknown"))
+        generated = _escape(report.get("generated", ""))
         html = f"""<!DOCTYPE html>
 <html>
 <head>
@@ -162,15 +162,15 @@ class ReportGenerator:
 """
 
         # Device Info
-        if 'device_info' in report['sections']:
-            info = report['sections']['device_info']
+        if "device_info" in report["sections"]:
+            info = report["sections"]["device_info"]
             html += """        <div class=\"section\">
             <h2>Device Information</h2>
             <table>
 """
             for key, value in info.items():
                 if not isinstance(value, dict):
-                    label = _escape(key.replace('_', ' ').title())
+                    label = _escape(key.replace("_", " ").title())
                     escaped_value = _escape(value)
                     html += f"<tr><td><strong>{label}</strong></td><td>{escaped_value}</td></tr>"
 
@@ -181,29 +181,31 @@ class ReportGenerator:
             for nested_key in ["battery", "storage", "screen"]:
                 nested = info.get(nested_key)
                 if isinstance(nested, dict) and nested:
-                    nested_title = _escape(nested_key.replace('_', ' ').title())
+                    nested_title = _escape(nested_key.replace("_", " ").title())
                     html += f"""        <div class=\"section\">
             <h2>{nested_title} Details</h2>
             <table>
 """
                     for key, value in nested.items():
-                        label = _escape(key.replace('_', ' ').title())
+                        label = _escape(key.replace("_", " ").title())
                         escaped_value = _escape(value)
-                        html += f"<tr><td><strong>{label}</strong></td><td>{escaped_value}</td></tr>"
+                        html += (
+                            f"<tr><td><strong>{label}</strong></td><td>{escaped_value}</td></tr>"
+                        )
                     html += """            </table>
         </div>
 """
 
         # Performance
-        if 'performance' in report['sections']:
-            perf = report['sections']['performance']
+        if "performance" in report["sections"]:
+            perf = report["sections"]["performance"]
             html += """        <div class=\"section\">
             <h2>Performance Analysis</h2>
             <table>
 """
             for key, value in perf.items():
                 if not isinstance(value, (dict, list)):
-                    label = _escape(key.replace('_', ' ').title())
+                    label = _escape(key.replace("_", " ").title())
                     escaped_value = _escape(value)
                     html += f"<tr><td><strong>{label}</strong></td><td>{escaped_value}</td></tr>"
 
@@ -212,15 +214,15 @@ class ReportGenerator:
 """
 
         # Display diagnostics
-        if 'display' in report['sections']:
-            display = report['sections']['display']
+        if "display" in report["sections"]:
+            display = report["sections"]["display"]
             html += """        <div class=\"section\">
             <h2>Display Diagnostics</h2>
             <table>
 """
             for key, value in display.items():
                 if not isinstance(value, (dict, list)):
-                    label = _escape(key.replace('_', ' ').title())
+                    label = _escape(key.replace("_", " ").title())
                     escaped_value = _escape(value)
                     html += f"<tr><td><strong>{label}</strong></td><td>{escaped_value}</td></tr>"
             html += """            </table>
@@ -232,5 +234,5 @@ class ReportGenerator:
 </html>
 """
 
-        with open(output_path, 'w') as f:
+        with open(output_path, "w") as f:
             f.write(html)

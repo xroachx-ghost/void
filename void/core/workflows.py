@@ -70,10 +70,14 @@ class RepairWorkflow:
         self._emit("Running scans...", level="info", progress_callback=progress_callback)
         scan_result = self._scan(init_result)
 
-        self._emit("Evaluating remediation actions...", level="info", progress_callback=progress_callback)
+        self._emit(
+            "Evaluating remediation actions...", level="info", progress_callback=progress_callback
+        )
         clear_result = self._clear(init_result, scan_result)
 
-        self._emit("Re-running targeted checks...", level="info", progress_callback=progress_callback)
+        self._emit(
+            "Re-running targeted checks...", level="info", progress_callback=progress_callback
+        )
         restore_result = self._restore(init_result, scan_result, clear_result)
 
         result = {
@@ -91,7 +95,9 @@ class RepairWorkflow:
         tools = check_android_tools()
         prerequisites = self._serialize_tools(tools)
         devices, errors = DeviceDetector.detect_all()
-        device_info = next((device for device in devices if device.get("id") == self.device_id), None)
+        device_info = next(
+            (device for device in devices if device.get("id") == self.device_id), None
+        )
         if not device_info:
             message = f"Device {self.device_id} not found during initialization."
             self._emit(message, level="error")
@@ -239,8 +245,24 @@ class RepairWorkflow:
                 name="clear_setup_wizard",
                 label="Clear setup wizard data",
                 commands=[
-                    ["adb", "-s", self.device_id, "shell", "pm", "clear", "com.google.android.setupwizard"],
-                    ["adb", "-s", self.device_id, "shell", "pm", "clear", "com.android.setupwizard"],
+                    [
+                        "adb",
+                        "-s",
+                        self.device_id,
+                        "shell",
+                        "pm",
+                        "clear",
+                        "com.google.android.setupwizard",
+                    ],
+                    [
+                        "adb",
+                        "-s",
+                        self.device_id,
+                        "shell",
+                        "pm",
+                        "clear",
+                        "com.android.setupwizard",
+                    ],
                     ["adb", "-s", self.device_id, "shell", "pm", "clear", "com.android.provision"],
                 ],
             ),
@@ -260,7 +282,16 @@ class RepairWorkflow:
                 label="Factory reset (wipe user data)",
                 commands=[
                     ["adb", "-s", self.device_id, "shell", "recovery", "--wipe_data"],
-                    ["adb", "-s", self.device_id, "shell", "am", "broadcast", "-a", "android.intent.action.MASTER_CLEAR"],
+                    [
+                        "adb",
+                        "-s",
+                        self.device_id,
+                        "shell",
+                        "am",
+                        "broadcast",
+                        "-a",
+                        "android.intent.action.MASTER_CLEAR",
+                    ],
                 ],
             ),
         ]

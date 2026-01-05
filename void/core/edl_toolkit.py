@@ -459,7 +459,9 @@ def verify_twrp_image(device_id: str, image_path: Path) -> ToolkitResult:
             message="TWRP image not found.",
             data={"path": str(image_path)},
         )
-    code, stdout, _ = SafeSubprocess.run(["adb", "-s", device_id, "shell", "getprop", "ro.product.device"])
+    code, stdout, _ = SafeSubprocess.run(
+        ["adb", "-s", device_id, "shell", "getprop", "ro.product.device"]
+    )
     codename = stdout.strip()
     matches = codename and codename.lower() in image_path.name.lower()
     return ToolkitResult(
@@ -496,9 +498,7 @@ def flash_recovery(device_id: str, image_path: Path, boot_only: bool = False) ->
 
 
 def verify_root(device_id: str) -> ToolkitResult:
-    code, stdout, stderr = SafeSubprocess.run(
-        ["adb", "-s", device_id, "shell", "su", "-c", "id"]
-    )
+    code, stdout, stderr = SafeSubprocess.run(["adb", "-s", device_id, "shell", "su", "-c", "id"])
     if code != 0:
         return ToolkitResult(
             success=False,

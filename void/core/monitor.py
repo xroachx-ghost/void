@@ -29,9 +29,9 @@ class SystemMonitor:
         self.monitoring = False
         self.monitor_thread = None
         self.stats = {
-            'cpu': [],
-            'memory': [],
-            'network': [],
+            "cpu": [],
+            "memory": [],
+            "network": [],
         }
 
     def start(self):
@@ -40,22 +40,22 @@ class SystemMonitor:
             self.monitoring = True
             self.monitor_thread = threading.Thread(target=self._monitor_loop, daemon=True)
             self.monitor_thread.start()
-            logger.log('info', 'monitor', 'System monitoring started')
+            logger.log("info", "monitor", "System monitoring started")
 
     def stop(self):
         """Stop monitoring"""
         self.monitoring = False
         if self.monitor_thread:
             self.monitor_thread.join(timeout=5)
-        logger.log('info', 'monitor', 'System monitoring stopped')
+        logger.log("info", "monitor", "System monitoring stopped")
 
     def _monitor_loop(self):
         """Monitoring loop"""
         while self.monitoring:
             try:
                 if PSUTIL_AVAILABLE:
-                    self.stats['cpu'].append(psutil.cpu_percent())
-                    self.stats['memory'].append(psutil.virtual_memory().percent)
+                    self.stats["cpu"].append(psutil.cpu_percent())
+                    self.stats["memory"].append(psutil.virtual_memory().percent)
 
                     # Keep only last 100 readings
                     for key in self.stats:
@@ -70,11 +70,11 @@ class SystemMonitor:
         """Get current statistics"""
         if PSUTIL_AVAILABLE:
             return {
-                'cpu_percent': psutil.cpu_percent(),
-                'memory_percent': psutil.virtual_memory().percent,
-                'disk_usage': psutil.disk_usage('/').percent,
-                'cpu_history': self.stats['cpu'][-20:],
-                'memory_history': self.stats['memory'][-20:],
+                "cpu_percent": psutil.cpu_percent(),
+                "memory_percent": psutil.virtual_memory().percent,
+                "disk_usage": psutil.disk_usage("/").percent,
+                "cpu_history": self.stats["cpu"][-20:],
+                "memory_history": self.stats["memory"][-20:],
             }
         return {}
 

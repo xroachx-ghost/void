@@ -9,164 +9,157 @@ Unauthorized copying, modification, distribution, or disclosure is prohibited.
 
 from __future__ import annotations
 
-import os
 import platform
-import shutil
 import stat
 import subprocess
-import sys
 import zipfile
 from pathlib import Path
-from typing import Dict, Optional, Tuple
+from typing import Dict, Optional
 import urllib.request
-import json
 
 
 class EmbeddedToolsManager:
     """Manages embedded Android tools and utilities"""
-    
+
     # Tool download URLs (official sources)
     PLATFORM_TOOLS_URLS = {
-        'Windows': 'https://dl.google.com/android/repository/platform-tools-latest-windows.zip',
-        'Darwin': 'https://dl.google.com/android/repository/platform-tools-latest-darwin.zip',
-        'Linux': 'https://dl.google.com/android/repository/platform-tools-latest-linux.zip',
+        "Windows": "https://dl.google.com/android/repository/platform-tools-latest-windows.zip",
+        "Darwin": "https://dl.google.com/android/repository/platform-tools-latest-darwin.zip",
+        "Linux": "https://dl.google.com/android/repository/platform-tools-latest-linux.zip",
     }
-    
+
     def __init__(self):
         self.system = platform.system()
         self.arch = platform.machine().lower()
-        self.tools_dir = Path(__file__).parent / 'binaries'
+        self.tools_dir = Path(__file__).parent / "binaries"
         self.tools_dir.mkdir(parents=True, exist_ok=True)
-        
+
         # Platform-specific executable extensions
-        self.exe_ext = '.exe' if self.system == 'Windows' else ''
-        
+        self.exe_ext = ".exe" if self.system == "Windows" else ""
+
     def ensure_all_tools(self) -> bool:
         """Ensure all required tools are available"""
         print("🔧 Checking embedded tools...")
-        
-        tools_needed = ['adb', 'fastboot']
+
+        tools_needed = ["adb", "fastboot"]
         missing = []
-        
+
         for tool in tools_needed:
             if not self.get_tool_path(tool):
                 missing.append(tool)
-        
+
         if missing:
             print(f"📥 Missing tools: {', '.join(missing)}")
             return self.download_platform_tools()
-        
+
         print("✅ All tools available")
         return True
-    
+
     def get_tool_path(self, tool_name: str) -> Optional[Path]:
         """Get the path to an embedded tool"""
         tool_file = tool_name + self.exe_ext
-        
+
         # Check in tools directory
-        tool_path = self.tools_dir / 'platform-tools' / tool_file
+        tool_path = self.tools_dir / "platform-tools" / tool_file
         if tool_path.exists():
             return tool_path
-        
+
         # Alternative locations
         alt_path = self.tools_dir / tool_file
         if alt_path.exists():
             return alt_path
-        
+
         return None
-    
+
     def download_platform_tools(self) -> bool:
         """Download and extract Android platform tools"""
         print(f"📥 Downloading platform tools for {self.system}...")
-        
+
         url = self.PLATFORM_TOOLS_URLS.get(self.system)
         if not url:
             print(f"❌ Unsupported platform: {self.system}")
             return False
-        
+
         try:
             # Download
-            zip_path = self.tools_dir / 'platform-tools.zip'
-            print(f"   Downloading from Google...")
+            zip_path = self.tools_dir / "platform-tools.zip"
+            print("   Downloading from Google...")
             urllib.request.urlretrieve(url, zip_path)
-            
+
             # Extract
-            print(f"   Extracting...")
-            with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+            print("   Extracting...")
+            with zipfile.ZipFile(zip_path, "r") as zip_ref:
                 zip_ref.extractall(self.tools_dir)
-            
+
             # Make executable (Unix-like systems)
-            if self.system in ['Linux', 'Darwin']:
-                for tool in ['adb', 'fastboot']:
-                    tool_path = self.tools_dir / 'platform-tools' / tool
+            if self.system in ["Linux", "Darwin"]:
+                for tool in ["adb", "fastboot"]:
+                    tool_path = self.tools_dir / "platform-tools" / tool
                     if tool_path.exists():
                         tool_path.chmod(tool_path.stat().st_mode | stat.S_IEXEC)
-            
+
             # Cleanup
             zip_path.unlink()
-            
+
             print("✅ Platform tools installed successfully")
             return True
-            
+
         except Exception as e:
             print(f"❌ Failed to download platform tools: {e}")
             return False
-    
+
     def get_adb_command(self) -> str:
         """Get the full path to ADB command"""
-        adb_path = self.get_tool_path('adb')
+        adb_path = self.get_tool_path("adb")
         if adb_path:
             return str(adb_path)
-        
+
         # Fallback to system PATH
-        return 'adb'
-    
+        return "adb"
+
     def get_fastboot_command(self) -> str:
         """Get the full path to fastboot command"""
-        fastboot_path = self.get_tool_path('fastboot')
+        fastboot_path = self.get_tool_path("fastboot")
         if fastboot_path:
             return str(fastboot_path)
-        
+
         # Fallback to system PATH
-        return 'fastboot'
-    
+        return "fastboot"
+
     def test_tools(self) -> Dict[str, bool]:
         """Test if tools are working"""
         results = {}
-        
+
         # Test ADB
         try:
             result = subprocess.run(
-                [self.get_adb_command(), 'version'],
-                capture_output=True,
-                timeout=5
+                [self.get_adb_command(), "version"], capture_output=True, timeout=5
             )
-            results['adb'] = result.returncode == 0
+            results["adb"] = result.returncode == 0
         except Exception:
-            results['adb'] = False
-        
+            results["adb"] = False
+
         # Test Fastboot
         try:
             result = subprocess.run(
-                [self.get_fastboot_command(), '--version'],
-                capture_output=True,
-                timeout=5
+                [self.get_fastboot_command(), "--version"], capture_output=True, timeout=5
             )
-            results['fastboot'] = result.returncode == 0
+            results["fastboot"] = result.returncode == 0
         except Exception:
-            results['fastboot'] = False
-        
+            results["fastboot"] = False
+
         return results
-    
+
     def create_edl_tools(self):
         """Create embedded EDL tools and utilities"""
         # EDL Python library (embedded)
-        edl_dir = self.tools_dir / 'edl'
+        edl_dir = self.tools_dir / "edl"
         edl_dir.mkdir(exist_ok=True)
-        
+
         # Create a basic EDL interface script
-        edl_script = edl_dir / 'edl_interface.py'
-        edl_script.write_text('''#!/usr/bin/env python3
+        edl_script = edl_dir / "edl_interface.py"
+        edl_script.write_text(
+            '''#!/usr/bin/env python3
 """
 Embedded EDL Interface
 Minimal EDL mode interface for Qualcomm devices
@@ -212,18 +205,20 @@ if __name__ == '__main__':
         print(edl.read_info())
     else:
         print("No EDL device found")
-''')
-        
+'''
+        )
+
         print(f"✅ Created EDL tools in {edl_dir}")
-    
+
     def create_recovery_tools(self):
         """Create embedded recovery and repair tools"""
-        recovery_dir = self.tools_dir / 'recovery'
+        recovery_dir = self.tools_dir / "recovery"
         recovery_dir.mkdir(exist_ok=True)
-        
+
         # Create bootloop fixer
-        bootloop_fixer = recovery_dir / 'bootloop_fixer.py'
-        bootloop_fixer.write_text('''#!/usr/bin/env python3
+        bootloop_fixer = recovery_dir / "bootloop_fixer.py"
+        bootloop_fixer.write_text(
+            '''#!/usr/bin/env python3
 """
 Bootloop Fixer - Automated bootloop repair
 """
@@ -263,18 +258,20 @@ if __name__ == '__main__':
         print("Usage: bootloop_fixer.py <device_id>")
     else:
         fix_bootloop(sys.argv[1])
-''')
-        
+'''
+        )
+
         print(f"✅ Created recovery tools in {recovery_dir}")
-    
+
     def create_frp_tools(self):
         """Create embedded FRP bypass tools"""
-        frp_dir = self.tools_dir / 'frp'
+        frp_dir = self.tools_dir / "frp"
         frp_dir.mkdir(exist_ok=True)
-        
+
         # Create FRP bypass automation
-        frp_tool = frp_dir / 'frp_bypass.py'
-        frp_tool.write_text('''#!/usr/bin/env python3
+        frp_tool = frp_dir / "frp_bypass.py"
+        frp_tool.write_text(
+            '''#!/usr/bin/env python3
 """
 FRP Bypass Automation
 Automated FRP removal methods
@@ -314,18 +311,20 @@ if __name__ == '__main__':
         print("Usage: frp_bypass.py <device_id>")
     else:
         bypass_frp_adb(sys.argv[1])
-''')
-        
+'''
+        )
+
         print(f"✅ Created FRP tools in {frp_dir}")
-    
+
     def create_root_tools(self):
         """Create embedded rooting and Magisk tools"""
-        root_dir = self.tools_dir / 'root'
+        root_dir = self.tools_dir / "root"
         root_dir.mkdir(exist_ok=True)
-        
+
         # Create root checker
-        root_checker = root_dir / 'root_checker.py'
-        root_checker.write_text('''#!/usr/bin/env python3
+        root_checker = root_dir / "root_checker.py"
+        root_checker.write_text(
+            '''#!/usr/bin/env python3
 """
 Root Checker - Comprehensive root detection
 """
@@ -363,10 +362,11 @@ if __name__ == '__main__':
         print("Usage: root_checker.py <device_id>")
     else:
         check_root(sys.argv[1])
-''')
-        
+'''
+        )
+
         print(f"✅ Created root tools in {root_dir}")
-    
+
     def create_all_embedded_tools(self):
         """Create all embedded tools"""
         print("\n🛠️  Creating all embedded tools...")
@@ -379,6 +379,7 @@ if __name__ == '__main__':
 
 # Global instance
 _embedded_tools = None
+
 
 def get_embedded_tools() -> EmbeddedToolsManager:
     """Get the global embedded tools manager instance"""
@@ -396,7 +397,7 @@ def setup_embedded_tools():
     return manager
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     # Test the embedded tools
     manager = setup_embedded_tools()
     print("\n🧪 Testing tools...")

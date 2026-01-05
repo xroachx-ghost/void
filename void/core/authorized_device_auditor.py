@@ -1,17 +1,14 @@
 """
 Authorized device auditing.
 
+For use only on organization-owned devices or with explicit, written legal authorization.
+
 Copyright (c) 2024 Roach Labs. All rights reserved.
 Made by James Michael Roach Jr.
 Proprietary and confidential. Unauthorized use or distribution is prohibited.
 """
 
 from __future__ import annotations
-
-"""Authorized device auditing utilities.
-
-For use only on organization-owned devices or with explicit, written legal authorization.
-"""
 
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -43,7 +40,11 @@ class AuthorizationError(PermissionError):
 
 
 def _authorization_valid(token: str, ownership: str) -> bool:
-    return bool(token and ownership) and token != LEGAL_AUTHORIZATION_TOKEN and ownership != DEVICE_OWNERSHIP_VERIFICATION
+    return (
+        bool(token and ownership)
+        and token != LEGAL_AUTHORIZATION_TOKEN
+        and ownership != DEVICE_OWNERSHIP_VERIFICATION
+    )
 
 
 def _ensure_authorized(token: str, ownership: str, action: str) -> None:
@@ -148,7 +149,9 @@ class AuthorizedDeviceAuditor:
                 continue
             device_id = parts[0]
             if not self._device_allowed(device_id):
-                logger.log("warning", "compliance", f"Device {device_id} not in authorized allowlist.")
+                logger.log(
+                    "warning", "compliance", f"Device {device_id} not in authorized allowlist."
+                )
                 continue
             state = parts[1]
             metadata = {"device_id": device_id, "state": state, "mode": "adb"}
@@ -167,7 +170,9 @@ class AuthorizedDeviceAuditor:
 
     def detect_fastboot_devices(self) -> List[Dict[str, str]]:
         """Detect Fastboot-connected devices for authorized recovery workflows."""
-        _ensure_authorized(self.authorization_token, self.ownership_verification, "fastboot_inventory")
+        _ensure_authorized(
+            self.authorization_token, self.ownership_verification, "fastboot_inventory"
+        )
         code, stdout, stderr = SafeSubprocess.run(["fastboot", "devices"])
         if code != 0:
             logger.log("error", "audit", f"fastboot devices failed: {stderr.strip()}")
@@ -180,7 +185,9 @@ class AuthorizedDeviceAuditor:
                 continue
             device_id, mode = parts[0], parts[1]
             if not self._device_allowed(device_id):
-                logger.log("warning", "compliance", f"Device {device_id} not in authorized allowlist.")
+                logger.log(
+                    "warning", "compliance", f"Device {device_id} not in authorized allowlist."
+                )
                 continue
             devices.append({"device_id": device_id, "state": mode, "mode": "fastboot"})
 
@@ -209,7 +216,9 @@ class AuthorizedDeviceAuditor:
 
     def log_inventory(self, inventory: Dict[str, object]) -> None:
         """Log inventory details for compliance and chain-of-custody."""
-        _ensure_authorized(self.authorization_token, self.ownership_verification, "inventory_logging")
+        _ensure_authorized(
+            self.authorization_token, self.ownership_verification, "inventory_logging"
+        )
         adb_count = len(inventory.get("adb_devices", []))
         fastboot_count = len(inventory.get("fastboot_devices", []))
         usb_count = len(inventory.get("usb_assets", []))

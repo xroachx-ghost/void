@@ -25,17 +25,21 @@ class DataRecovery:
     @staticmethod
     def recover_contacts(device_id: str) -> Dict[str, Any]:
         """Recover contacts"""
-        output_dir = Config.EXPORTS_DIR / f"contacts_{device_id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+        output_dir = (
+            Config.EXPORTS_DIR / f"contacts_{device_id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+        )
         output_dir.mkdir(parents=True, exist_ok=True)
 
         contacts_paths = [
-            '/data/data/com.android.providers.contacts/databases/contacts2.db',
+            "/data/data/com.android.providers.contacts/databases/contacts2.db",
         ]
 
         recovered = []
         for db_path in contacts_paths:
             local_path = output_dir / Path(db_path).name
-            code, _, _ = SafeSubprocess.run(['adb', '-s', device_id, 'pull', db_path, str(local_path)])
+            code, _, _ = SafeSubprocess.run(
+                ["adb", "-s", device_id, "pull", db_path, str(local_path)]
+            )
 
             if code == 0 and local_path.exists():
                 contacts = DataRecovery._parse_contacts_db(local_path)
@@ -43,25 +47,25 @@ class DataRecovery:
 
         if recovered:
             output_file = output_dir / "contacts.json"
-            with open(output_file, 'w') as f:
+            with open(output_file, "w") as f:
                 json.dump(recovered, f, indent=2)
 
             # Also save as CSV
             csv_file = output_dir / "contacts.csv"
-            with open(csv_file, 'w', newline='') as f:
+            with open(csv_file, "w", newline="") as f:
                 if recovered:
                     writer = csv.DictWriter(f, fieldnames=recovered[0].keys())
                     writer.writeheader()
                     writer.writerows(recovered)
 
             return {
-                'success': True,
-                'count': len(recovered),
-                'json_path': str(output_file),
-                'csv_path': str(csv_file),
+                "success": True,
+                "count": len(recovered),
+                "json_path": str(output_file),
+                "csv_path": str(csv_file),
             }
 
-        return {'success': False, 'count': 0}
+        return {"success": False, "count": 0}
 
     @staticmethod
     def _parse_contacts_db(db_path: Path) -> List[Dict]:
@@ -76,7 +80,7 @@ class DataRecovery:
                     cursor.execute("SELECT display_name FROM raw_contacts LIMIT 1000")
                     for row in cursor.fetchall():
                         if row[0]:
-                            contacts.append({'name': row[0]})
+                            contacts.append({"name": row[0]})
                 except Exception:
                     pass
         except Exception:
@@ -86,17 +90,21 @@ class DataRecovery:
     @staticmethod
     def recover_sms(device_id: str) -> Dict[str, Any]:
         """Recover SMS messages"""
-        output_dir = Config.EXPORTS_DIR / f"sms_{device_id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+        output_dir = (
+            Config.EXPORTS_DIR / f"sms_{device_id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+        )
         output_dir.mkdir(parents=True, exist_ok=True)
 
         sms_paths = [
-            '/data/data/com.android.providers.telephony/databases/mmssms.db',
+            "/data/data/com.android.providers.telephony/databases/mmssms.db",
         ]
 
         recovered = []
         for db_path in sms_paths:
             local_path = output_dir / Path(db_path).name
-            code, _, _ = SafeSubprocess.run(['adb', '-s', device_id, 'pull', db_path, str(local_path)])
+            code, _, _ = SafeSubprocess.run(
+                ["adb", "-s", device_id, "pull", db_path, str(local_path)]
+            )
 
             if code == 0 and local_path.exists():
                 messages = DataRecovery._parse_sms_db(local_path)
@@ -104,16 +112,16 @@ class DataRecovery:
 
         if recovered:
             output_file = output_dir / "messages.json"
-            with open(output_file, 'w') as f:
+            with open(output_file, "w") as f:
                 json.dump(recovered, f, indent=2, default=str)
 
             return {
-                'success': True,
-                'count': len(recovered),
-                'path': str(output_file),
+                "success": True,
+                "count": len(recovered),
+                "path": str(output_file),
             }
 
-        return {'success': False, 'count': 0}
+        return {"success": False, "count": 0}
 
     @staticmethod
     def _parse_sms_db(db_path: Path) -> List[Dict]:
@@ -128,9 +136,13 @@ class DataRecovery:
                     for row in cursor.fetchall():
                         messages.append(
                             {
-                                'address': row[0],
-                                'body': row[1],
-                                'date': datetime.fromtimestamp(int(row[2]) / 1000).isoformat() if row[2] else '',
+                                "address": row[0],
+                                "body": row[1],
+                                "date": (
+                                    datetime.fromtimestamp(int(row[2]) / 1000).isoformat()
+                                    if row[2]
+                                    else ""
+                                ),
                             }
                         )
                 except Exception:

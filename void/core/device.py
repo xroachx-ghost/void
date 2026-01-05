@@ -140,25 +140,25 @@ class DeviceDetector:
         """Detect ADB devices."""
         devices: List[Dict[str, Any]] = []
         errors: List[Dict[str, Any]] = []
-        code, stdout, stderr = SafeSubprocess.run(['adb', 'devices', '-l'])
+        code, stdout, stderr = SafeSubprocess.run(["adb", "devices", "-l"])
         if code == 0:
-            for line in stdout.strip().split('\n')[1:]:
+            for line in stdout.strip().split("\n")[1:]:
                 if line.strip():
                     parts = line.split()
                     if len(parts) >= 2:
                         device_id = parts[0]
                         status = parts[1]
 
-                        if status == 'device':
+                        if status == "device":
                             info = DeviceDetector._get_adb_info(device_id)
                         else:
-                            info = {'reachable': False}
+                            info = {"reachable": False}
                         info.update(DeviceDetector._parse_adb_listing(parts[2:]))
                         devices.append(
                             {
-                                'id': device_id,
-                                'mode': 'adb',
-                                'status': status,
+                                "id": device_id,
+                                "mode": "adb",
+                                "status": status,
                                 **info,
                             }
                         )
@@ -178,38 +178,38 @@ class DeviceDetector:
     def _get_adb_info(device_id: str) -> Dict[str, str]:
         """Get comprehensive device info"""
         info = {}
-        info['reachable'] = DeviceDetector._check_adb_ready(device_id)
+        info["reachable"] = DeviceDetector._check_adb_ready(device_id)
 
         props = {
-            'manufacturer': 'ro.product.manufacturer',
-            'model': 'ro.product.model',
-            'brand': 'ro.product.brand',
-            'device': 'ro.product.device',
-            'product': 'ro.product.name',
-            'android_version': 'ro.build.version.release',
-            'sdk_version': 'ro.build.version.sdk',
-            'release_codename': 'ro.build.version.codename',
-            'incremental': 'ro.build.version.incremental',
-            'build_id': 'ro.build.id',
-            'build_type': 'ro.build.type',
-            'build_tags': 'ro.build.tags',
-            'build_date': 'ro.build.date',
-            'security_patch': 'ro.build.version.security_patch',
-            'chipset': 'ro.board.platform',
-            'hardware': 'ro.hardware',
-            'cpu_abi': 'ro.product.cpu.abi',
-            'cpu_abi2': 'ro.product.cpu.abi2',
-            'bootloader': 'ro.bootloader',
+            "manufacturer": "ro.product.manufacturer",
+            "model": "ro.product.model",
+            "brand": "ro.product.brand",
+            "device": "ro.product.device",
+            "product": "ro.product.name",
+            "android_version": "ro.build.version.release",
+            "sdk_version": "ro.build.version.sdk",
+            "release_codename": "ro.build.version.codename",
+            "incremental": "ro.build.version.incremental",
+            "build_id": "ro.build.id",
+            "build_type": "ro.build.type",
+            "build_tags": "ro.build.tags",
+            "build_date": "ro.build.date",
+            "security_patch": "ro.build.version.security_patch",
+            "chipset": "ro.board.platform",
+            "hardware": "ro.hardware",
+            "cpu_abi": "ro.product.cpu.abi",
+            "cpu_abi2": "ro.product.cpu.abi2",
+            "bootloader": "ro.bootloader",
         }
         if should_collect("serial"):
-            props['serial'] = 'ro.serialno'
+            props["serial"] = "ro.serialno"
         if should_collect("fingerprint"):
-            props['fingerprint'] = 'ro.build.fingerprint'
+            props["fingerprint"] = "ro.build.fingerprint"
 
         for key, prop in props.items():
             try:
                 code, stdout, _ = SafeSubprocess.run(
-                    ['adb', '-s', device_id, 'shell', 'getprop', prop]
+                    ["adb", "-s", device_id, "shell", "getprop", prop]
                 )
                 if code == 0 and stdout.strip():
                     info[key] = stdout.strip()
@@ -220,23 +220,23 @@ class DeviceDetector:
         if should_collect("imei"):
             try:
                 code, stdout, _ = SafeSubprocess.run(
-                    ['adb', '-s', device_id, 'shell', 'service', 'call', 'iphonesubinfo', '1']
+                    ["adb", "-s", device_id, "shell", "service", "call", "iphonesubinfo", "1"]
                 )
                 if code == 0:
-                    imei = ''.join(c for c in stdout if c.isdigit())[:15]
+                    imei = "".join(c for c in stdout if c.isdigit())[:15]
                     if len(imei) == 15:
-                        info['imei'] = imei
+                        info["imei"] = imei
             except Exception:
                 pass
 
         # Battery info
-        info['battery'] = DeviceDetector._get_battery_info(device_id)
+        info["battery"] = DeviceDetector._get_battery_info(device_id)
 
         # Storage info
-        info['storage'] = DeviceDetector._get_storage_info(device_id)
+        info["storage"] = DeviceDetector._get_storage_info(device_id)
 
         # Screen info
-        info['screen'] = DeviceDetector._get_screen_info(device_id)
+        info["screen"] = DeviceDetector._get_screen_info(device_id)
 
         if should_collect("serial") and "serial" not in info and device_id:
             info["serial"] = device_id
@@ -248,7 +248,7 @@ class DeviceDetector:
         """Check whether the device responds to ADB shell commands."""
         try:
             code, stdout, _ = SafeSubprocess.run(
-                ['adb', '-s', device_id, 'shell', 'getprop', 'ro.serialno']
+                ["adb", "-s", device_id, "shell", "getprop", "ro.serialno"]
             )
             return code == 0 and bool(stdout.strip())
         except Exception:
@@ -259,9 +259,9 @@ class DeviceDetector:
         """Parse metadata from adb devices -l output."""
         info = {}
         for part in parts:
-            if ':' not in part:
+            if ":" not in part:
                 continue
-            key, value = part.split(':', 1)
+            key, value = part.split(":", 1)
             key = key.strip().lower()
             value = value.strip()
             if key == "usb":
@@ -275,14 +275,14 @@ class DeviceDetector:
         """Get battery information"""
         try:
             code, stdout, _ = SafeSubprocess.run(
-                ['adb', '-s', device_id, 'shell', 'dumpsys', 'battery']
+                ["adb", "-s", device_id, "shell", "dumpsys", "battery"]
             )
             if code == 0:
                 battery = {}
-                for line in stdout.split('\n'):
-                    if ':' in line:
-                        key, value = line.split(':', 1)
-                        key = key.strip().lower().replace(' ', '_')
+                for line in stdout.split("\n"):
+                    if ":" in line:
+                        key, value = line.split(":", 1)
+                        key = key.strip().lower().replace(" ", "_")
                         battery[key] = value.strip()
                 return battery
         except Exception:
@@ -293,13 +293,13 @@ class DeviceDetector:
     def _get_storage_info(device_id: str) -> Dict:
         """Get storage information"""
         try:
-            code, stdout, _ = SafeSubprocess.run(['adb', '-s', device_id, 'shell', 'df', '/data'])
+            code, stdout, _ = SafeSubprocess.run(["adb", "-s", device_id, "shell", "df", "/data"])
             if code == 0:
-                lines = stdout.strip().split('\n')
+                lines = stdout.strip().split("\n")
                 if len(lines) > 1:
                     parts = lines[1].split()
                     if len(parts) >= 4:
-                        return {'total': parts[1], 'used': parts[2], 'available': parts[3]}
+                        return {"total": parts[1], "used": parts[2], "available": parts[3]}
         except Exception:
             pass
         return {}
@@ -308,11 +308,11 @@ class DeviceDetector:
     def _get_screen_info(device_id: str) -> Dict:
         """Get screen information"""
         try:
-            code, stdout, _ = SafeSubprocess.run(['adb', '-s', device_id, 'shell', 'wm', 'size'])
+            code, stdout, _ = SafeSubprocess.run(["adb", "-s", device_id, "shell", "wm", "size"])
             if code == 0:
-                match = re.search(r'(\d+)x(\d+)', stdout)
+                match = re.search(r"(\d+)x(\d+)", stdout)
                 if match:
-                    return {'width': match.group(1), 'height': match.group(2)}
+                    return {"width": match.group(1), "height": match.group(2)}
         except Exception:
             pass
         return {}
@@ -322,28 +322,28 @@ class DeviceDetector:
         """Detect fastboot devices."""
         devices: List[Dict[str, Any]] = []
         errors: List[Dict[str, Any]] = []
-        code, stdout, stderr = SafeSubprocess.run(['fastboot', 'devices'])
+        code, stdout, stderr = SafeSubprocess.run(["fastboot", "devices"])
         if code == 0:
-            for line in stdout.strip().split('\n'):
+            for line in stdout.strip().split("\n"):
                 if line.strip():
                     parts = line.split()
                     if len(parts) >= 2:
                         device_id = parts[0]
                         device = {
-                            'id': device_id,
-                            'mode': 'fastboot',
-                            'status': parts[1],
+                            "id": device_id,
+                            "mode": "fastboot",
+                            "status": parts[1],
                         }
                         if should_collect("serial"):
-                            device['serial'] = device_id
+                            device["serial"] = device_id
                         metadata, error = DeviceDetector._get_fastboot_metadata(device_id)
                         if metadata:
-                            device['fastboot_vars'] = metadata
+                            device["fastboot_vars"] = metadata
                             DeviceDetector._normalize_fastboot_metadata(device, metadata)
                             if metadata.get("serialno") and should_collect("serial"):
                                 device["serial"] = metadata["serialno"]
                         if error:
-                            device['fastboot_metadata_error'] = error
+                            device["fastboot_metadata_error"] = error
                         devices.append(device)
         else:
             errors.append(
@@ -362,7 +362,7 @@ class DeviceDetector:
         """Fetch and parse fastboot getvar metadata."""
         try:
             code, stdout, stderr = SafeSubprocess.run(
-                ['fastboot', '-s', device_id, 'getvar', 'all'],
+                ["fastboot", "-s", device_id, "getvar", "all"],
                 timeout=Config.TIMEOUT_SHORT,
             )
         except Exception as exc:

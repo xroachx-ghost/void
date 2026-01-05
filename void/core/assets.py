@@ -16,7 +16,11 @@ from urllib.parse import urlparse
 
 from ..config import Config
 from .network import NetworkTools
-from .tools.android import ANDROID_PLATFORM_TOOLS_URL, check_android_tools, install_android_platform_tools
+from .tools.android import (
+    ANDROID_PLATFORM_TOOLS_URL,
+    check_android_tools,
+    install_android_platform_tools,
+)
 from .tools.qualcomm import check_qualcomm_tools
 
 
@@ -169,7 +173,7 @@ def ensure_firehose_workspace() -> dict[str, object]:
 
 def _download_firehose_sources() -> dict[str, object]:
     """Download firehose programmers from configured sources."""
-    result = ensure_firehose_workspace()
+    ensure_firehose_workspace()
     firehose_sources = _read_firehose_sources()
     if not firehose_sources:
         return {
@@ -420,8 +424,10 @@ def _update_config_value(key: str, value: object) -> None:
 
 def _load_builtin_firehose_sources() -> dict[str, list[str]]:
     try:
-        payload = resources.files("void.data").joinpath("firehose_sources.json").read_text(
-            encoding="utf-8"
+        payload = (
+            resources.files("void.data")
+            .joinpath("firehose_sources.json")
+            .read_text(encoding="utf-8")
         )
     except (FileNotFoundError, ModuleNotFoundError):
         return {"firehose_sources": [], "firehose_source_indexes": []}
@@ -448,7 +454,9 @@ def add_firehose_source(url: str) -> dict[str, object]:
     if not isinstance(sources, list):
         sources = []
     sources.append(url.strip())
-    config["firehose_sources"] = _unique_sources([str(item) for item in sources if str(item).strip()])
+    config["firehose_sources"] = _unique_sources(
+        [str(item) for item in sources if str(item).strip()]
+    )
     Config.write_config(config)
     return {
         "success": True,

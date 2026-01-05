@@ -31,12 +31,12 @@ def main() -> None:
         description=f"Void v{Config.VERSION} - Ultimate Android Toolkit\nCopyright (c) 2024 Roach Labs. Made by James Michael Roach Jr."
     )
 
-    parser.add_argument('--version', action='store_true', help='Show version')
-    parser.add_argument('--cli', action='store_true', help='Launch CLI mode (default is GUI)')
-    parser.add_argument('--devices', action='store_true', help='List devices')
-    parser.add_argument('--backup', type=str, help='Backup device')
-    parser.add_argument('--analyze', type=str, help='Analyze device')
-    parser.add_argument('--report', type=str, help='Generate report')
+    parser.add_argument("--version", action="store_true", help="Show version")
+    parser.add_argument("--cli", action="store_true", help="Launch CLI mode (default is GUI)")
+    parser.add_argument("--devices", action="store_true", help="List devices")
+    parser.add_argument("--backup", type=str, help="Backup device")
+    parser.add_argument("--analyze", type=str, help="Analyze device")
+    parser.add_argument("--report", type=str, help="Generate report")
 
     args = parser.parse_args()
 
@@ -86,7 +86,11 @@ def main() -> None:
             for device in devices:
                 logger.info(
                     f"  • {device.get('id')} - {device.get('manufacturer')} {device.get('model')}",
-                    extra={"category": "devices", "device_id": device.get("id", "-"), "method": "-"},
+                    extra={
+                        "category": "devices",
+                        "device_id": device.get("id", "-"),
+                        "method": "-",
+                    },
                 )
             return
 
@@ -127,8 +131,8 @@ def main() -> None:
 def main_cli() -> None:
     """Entry point specifically for CLI mode."""
     # Force CLI mode by adding --cli to sys.argv
-    if '--cli' not in sys.argv:
-        sys.argv.append('--cli')
+    if "--cli" not in sys.argv:
+        sys.argv.append("--cli")
     main()
 
 
@@ -147,5 +151,6 @@ if __name__ == "__main__":
             extra={"category": "crash", "device_id": "-", "method": "-"},
         )
         import traceback
+
         traceback.print_exc()
         sys.exit(1)

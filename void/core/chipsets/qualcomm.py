@@ -39,7 +39,9 @@ class QualcommChipset:
                 )
 
         if match_any(
-            context.get("usb_vendor") or context.get("chipset_vendor") or context.get("chipset_vendor_hint"),
+            context.get("usb_vendor")
+            or context.get("chipset_vendor")
+            or context.get("chipset_vendor_hint"),
             ("qualcomm", "qcom"),
         ):
             return ChipsetDetection(

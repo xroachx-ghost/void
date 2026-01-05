@@ -12,7 +12,6 @@ from __future__ import annotations
 import hashlib
 import logging
 import secrets
-from typing import Optional
 
 from .config import Config
 
@@ -22,6 +21,7 @@ try:
     from Crypto.Random import get_random_bytes
     from Crypto.Util.Padding import pad, unpad
     from Crypto.Protocol.KDF import PBKDF2
+
     CRYPTO_AVAILABLE = True
 except ImportError:
     CRYPTO_AVAILABLE = False

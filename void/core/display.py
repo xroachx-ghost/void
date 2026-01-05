@@ -52,7 +52,10 @@ def _parse_display_info(display_output: str) -> tuple[Optional[str], Optional[st
             brightness_match = re.search(r"brightness=([0-9.]+)", stripped)
             if brightness_match:
                 brightness = brightness_match.group(1)
-            elif any(key in stripped for key in ("mScreenBrightnessSetting", "mScreenBrightness", "mBrightness")):
+            elif any(
+                key in stripped
+                for key in ("mScreenBrightnessSetting", "mScreenBrightness", "mBrightness")
+            ):
                 if "=" in stripped:
                     brightness = stripped.split("=", 1)[-1].strip()
                 elif ":" in stripped:

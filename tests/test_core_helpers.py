@@ -14,6 +14,7 @@ import subprocess
 def load_core(tmp_path, monkeypatch):
     monkeypatch.setenv("HOME", str(tmp_path))
     import void.config as config
+
     importlib.reload(config)
     config.Config.setup()
     import void.core as core

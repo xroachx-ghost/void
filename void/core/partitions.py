@@ -19,7 +19,9 @@ from .utils import SafeSubprocess
 
 
 def _sanitize_device_id(device_id: str) -> str:
-    return "".join(char if char.isalnum() or char in {"-", "_"} else "_" for char in device_id).strip("_")
+    return "".join(
+        char if char.isalnum() or char in {"-", "_"} else "_" for char in device_id
+    ).strip("_")
 
 
 def list_partitions(device_id: str) -> Dict[str, Any]:
@@ -45,7 +47,9 @@ def list_partitions(device_id: str) -> Dict[str, Any]:
     }
 
 
-def backup_partition(device_id: str, partition: str, output_dir: Optional[Path] = None) -> Dict[str, Any]:
+def backup_partition(
+    device_id: str, partition: str, output_dir: Optional[Path] = None
+) -> Dict[str, Any]:
     devices, _ = DeviceDetector.detect_all()
     device_info = next((device for device in devices if device.get("id") == device_id), None)
     mode = (device_info or {}).get("mode")
@@ -72,20 +76,35 @@ def backup_partition(device_id: str, partition: str, output_dir: Optional[Path] 
     def run_step(command: list[str], label: str, timeout: int = Config.TIMEOUT_LONG) -> bool:
         code, stdout, stderr = SafeSubprocess.run(command, timeout=timeout)
         detail = (stderr or stdout or "").strip() or None
-        steps.append({"step": label, "command": " ".join(command), "success": code == 0, "detail": detail})
+        steps.append(
+            {"step": label, "command": " ".join(command), "success": code == 0, "detail": detail}
+        )
         return code == 0
 
-    if not run_step(["adb", "-s", device_id, "shell", "mkdir", "-p", remote_dir], "prepare_remote_dir"):
+    if not run_step(
+        ["adb", "-s", device_id, "shell", "mkdir", "-p", remote_dir], "prepare_remote_dir"
+    ):
         return {"success": False, "message": "Failed to prepare remote directory.", "steps": steps}
 
     if not run_step(
-        ["adb", "-s", device_id, "shell", "dd", f"if=/dev/block/by-name/{partition}", f"of={remote_path}", "bs=4M"],
+        [
+            "adb",
+            "-s",
+            device_id,
+            "shell",
+            "dd",
+            f"if=/dev/block/by-name/{partition}",
+            f"of={remote_path}",
+            "bs=4M",
+        ],
         "dd_partition",
         timeout=Config.TIMEOUT_LONG,
     ):
         return {"success": False, "message": "Partition dump failed.", "steps": steps}
 
-    if not run_step(["adb", "-s", device_id, "pull", remote_path, str(local_path)], "pull_partition"):
+    if not run_step(
+        ["adb", "-s", device_id, "pull", remote_path, str(local_path)], "pull_partition"
+    ):
         return {"success": False, "message": "Failed to pull partition image.", "steps": steps}
 
     run_step(["adb", "-s", device_id, "shell", "rm", "-f", remote_path], "cleanup_remote")
@@ -125,7 +144,15 @@ def wipe_partition(device_id: str, partition: str) -> Dict[str, Any]:
         }
 
     if mode == "adb":
-        command = ["adb", "-s", device_id, "shell", "dd", f"if=/dev/zero", f"of=/dev/block/by-name/{partition}"]
+        command = [
+            "adb",
+            "-s",
+            device_id,
+            "shell",
+            "dd",
+            "if=/dev/zero",
+            f"of=/dev/block/by-name/{partition}",
+        ]
         code, stdout, stderr = SafeSubprocess.run(command, timeout=Config.TIMEOUT_LONG)
         detail = (stderr or stdout or "").strip()
         return {

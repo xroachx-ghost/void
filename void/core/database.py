@@ -124,7 +124,9 @@ class Database:
         finally:
             conn.close()
 
-    def log(self, level: str, category: str, message: str, device_id: str = None, method: str = None):
+    def log(
+        self, level: str, category: str, message: str, device_id: str = None, method: str = None
+    ):
         """Add log entry"""
         sanitized_message = redact_message(message)
         with self._get_connection() as conn:
@@ -163,13 +165,13 @@ class Database:
                     imei = excluded.imei
             """,
                 (
-                    device_info.get('id'),
-                    device_info.get('manufacturer'),
-                    device_info.get('model'),
-                    device_info.get('android_version'),
+                    device_info.get("id"),
+                    device_info.get("manufacturer"),
+                    device_info.get("model"),
+                    device_info.get("android_version"),
                     serial_value,
                     imei_value,
-                    device_info.get('chipset'),
+                    device_info.get("chipset"),
                 ),
             )
             conn.commit()
@@ -178,11 +180,11 @@ class Database:
         """Get database statistics"""
         with self._get_connection() as conn:
             stats = {}
-            stats['total_devices'] = conn.execute("SELECT COUNT(*) FROM devices").fetchone()[0]
-            stats['total_logs'] = conn.execute("SELECT COUNT(*) FROM logs").fetchone()[0]
-            stats['total_backups'] = conn.execute("SELECT COUNT(*) FROM backups").fetchone()[0]
-            stats['total_methods'] = conn.execute("SELECT COUNT(*) FROM methods").fetchone()[0]
-            stats['total_reports'] = conn.execute(
+            stats["total_devices"] = conn.execute("SELECT COUNT(*) FROM devices").fetchone()[0]
+            stats["total_logs"] = conn.execute("SELECT COUNT(*) FROM logs").fetchone()[0]
+            stats["total_backups"] = conn.execute("SELECT COUNT(*) FROM backups").fetchone()[0]
+            stats["total_methods"] = conn.execute("SELECT COUNT(*) FROM methods").fetchone()[0]
+            stats["total_reports"] = conn.execute(
                 "SELECT COUNT(*) FROM analytics WHERE event_type = 'report'"
             ).fetchone()[0]
 
@@ -196,7 +198,7 @@ class Database:
                 LIMIT 5
             """
             ).fetchall()
-            stats['top_methods'] = [dict(m) for m in methods]
+            stats["top_methods"] = [dict(m) for m in methods]
 
             return stats
 
@@ -225,12 +227,10 @@ class Database:
         limit: int = 500,
     ) -> List[Dict[str, Any]]:
         """Get filtered log entries."""
-        query = (
-            """
+        query = """
             SELECT timestamp, level, category, message, device_id, method
             FROM logs
             """
-        )
         clauses = []
         params: List[Any] = []
 

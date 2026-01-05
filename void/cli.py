@@ -32,7 +32,6 @@ from .core.display import DisplayAnalyzer
 from .core.edl import edl_dump, edl_flash
 from .core.edl_toolkit import (
     ToolkitResult,
-    backup_partition,
     capture_edl_log,
     compatibility_matrix,
     convert_sparse_image,
@@ -78,13 +77,18 @@ from .core.tools import (
 from .core.utils import SafeSubprocess
 from .core.workflows import RepairWorkflow
 from .logging import get_logger, log_edl_event
-from .core.chipsets.dispatcher import detect_chipset_for_device, enter_chipset_mode, enter_device_mode
+from .core.chipsets.dispatcher import (
+    detect_chipset_for_device,
+    enter_chipset_mode,
+    enter_device_mode,
+)
 from .plugins import PluginContext, discover_plugins, get_registry
 
 try:
     from rich.console import Console
     from rich.panel import Panel
     from rich.table import Table
+
     RICH_AVAILABLE = True
 except ImportError:
     RICH_AVAILABLE = False
@@ -176,7 +180,9 @@ class CLI:
         if prefix_matches:
             return self._format_suggestions(sorted(prefix_matches)[:5])
 
-        return self._format_suggestions(difflib.get_close_matches(command, options, n=5, cutoff=0.5))
+        return self._format_suggestions(
+            difflib.get_close_matches(command, options, n=5, cutoff=0.5)
+        )
 
     def _format_suggestions(self, suggestions: List[str]) -> List[str]:
         """Prefer primary command names in suggestions."""
@@ -193,104 +199,104 @@ class CLI:
 
     def _get_commands(self, args: List[str]) -> Dict[str, Any]:
         return {
-            'devices': self._cmd_devices,
-            'info': lambda: self._cmd_info(args),
-            'summary': self._cmd_summary,
-            'backup': lambda: self._cmd_backup(args),
-            'screenshot': lambda: self._cmd_screenshot(args),
-            'apps': lambda: self._cmd_apps(args),
-            'files': lambda: self._cmd_files(args),
-            'analyze': lambda: self._cmd_analyze(args),
-            'display-diagnostics': lambda: self._cmd_display_diagnostics(args),
-            'recover': lambda: self._cmd_recover(args),
-            'tweak': lambda: self._cmd_tweak(args),
-            'usb-debug': lambda: self._cmd_usb_debug(args),
-            'report': lambda: self._cmd_report(args),
-            'stats': self._cmd_stats,
-            'monitor': self._cmd_monitor,
-            'logcat': lambda: self._cmd_logcat(args),
-            'execute': lambda: self._cmd_execute(args),
-            'menu': self._cmd_menu,
-            'version': self._cmd_version,
-            'paths': self._cmd_paths,
-            'netcheck': self._cmd_netcheck,
-            'adb': self._cmd_adb,
-            'partitions': lambda: self._cmd_partitions(args),
-            'partition-backup': lambda: self._cmd_partition_backup(args),
-            'partition-wipe': lambda: self._cmd_partition_wipe(args),
-            'repair-flow': lambda: self._cmd_repair_flow(args),
-            'edl-status': lambda: self._cmd_edl_status(args),
-            'edl-enter': lambda: self._cmd_edl_enter(args),
-            'mode-enter': lambda: self._cmd_mode_enter(args),
-            'edl-flash': lambda: self._cmd_edl_flash(args),
-            'edl-dump': lambda: self._cmd_edl_dump(args),
-            'edl-detect': self._cmd_edl_detect,
-            'edl-programmers': self._cmd_edl_programmers,
-            'edl-partitions': lambda: self._cmd_edl_partitions(args),
-            'edl-backup': lambda: self._cmd_edl_backup(args),
-            'edl-restore': lambda: self._cmd_edl_restore(args),
-            'edl-sparse': lambda: self._cmd_edl_sparse(args),
-            'edl-profile': lambda: self._cmd_edl_profile(args),
-            'edl-verify': lambda: self._cmd_edl_verify(args),
-            'edl-unbrick': lambda: self._cmd_edl_unbrick(args),
-            'edl-notes': lambda: self._cmd_edl_notes(args),
-            'edl-reboot': lambda: self._cmd_edl_reboot(args),
-            'edl-log': self._cmd_edl_log,
-            'boot-extract': lambda: self._cmd_boot_extract(args),
-            'magisk-patch': lambda: self._cmd_magisk_patch(args),
-            'magisk-pull': lambda: self._cmd_magisk_pull(args),
-            'twrp-verify': lambda: self._cmd_twrp_verify(args),
-            'twrp-flash': lambda: self._cmd_twrp_flash(args),
-            'root-verify': lambda: self._cmd_root_verify(args),
-            'safety-check': lambda: self._cmd_safety_check(args),
-            'rollback': lambda: self._cmd_rollback(args),
-            'compat-matrix': self._cmd_compat_matrix,
-            'testpoint-guide': lambda: self._cmd_testpoint_guide(args),
-            'clear-cache': self._cmd_clear_cache,
-            'doctor': self._cmd_doctor,
-            'logs': self._cmd_logs,
-            'backups': self._cmd_backups,
-            'reports': self._cmd_reports,
-            'exports': self._cmd_exports,
-            'devices-json': self._cmd_devices_json,
-            'stats-json': self._cmd_stats_json,
-            'logtail': lambda: self._cmd_logtail(args),
-            'cleanup-exports': self._cmd_cleanup_exports,
-            'cleanup-backups': self._cmd_cleanup_backups,
-            'cleanup-reports': self._cmd_cleanup_reports,
-            'env': self._cmd_env,
-            'recent-logs': lambda: self._cmd_recent_logs(args),
-            'recent-backups': lambda: self._cmd_recent_backups(args),
-            'recent-reports': lambda: self._cmd_recent_reports(args),
-            'logs-json': self._cmd_logs_json,
-            'logs-export': lambda: self._cmd_logs_export(args),
-            'backups-json': self._cmd_backups_json,
-            'latest-report': self._cmd_latest_report,
-            'recent-devices': lambda: self._cmd_recent_devices(args),
-            'methods': lambda: self._cmd_methods(args),
-            'methods-json': self._cmd_methods_json,
-            'db-health': self._cmd_db_health,
-            'stats-plus': self._cmd_stats_plus,
-            'reports-json': self._cmd_reports_json,
-            'reports-open': self._cmd_reports_open,
-            'recent-reports-json': self._cmd_recent_reports_json,
-            'config': self._cmd_config,
-            'config-json': self._cmd_config_json,
-            'exports-open': self._cmd_exports_open,
-            'db-backup': self._cmd_db_backup,
-            'plugins': self._cmd_plugins,
-            'plugin': lambda: self._cmd_plugin(args),
-            'smart': lambda: self._cmd_smart(args),
-            'launcher': lambda: self._cmd_launcher(args),
-            'start-menu': lambda: self._cmd_launcher(args),
-            'advanced': self._cmd_advanced,
-            'bootstrap': lambda: self._cmd_bootstrap(args),
-            'search': lambda: self._cmd_search(args),
-            'help': lambda: self._cmd_help(args),
-            'exit': lambda: exit(0),
-            'quit': lambda: exit(0),
-            'q': lambda: exit(0),
-            '?': lambda: self._cmd_help([]),
+            "devices": self._cmd_devices,
+            "info": lambda: self._cmd_info(args),
+            "summary": self._cmd_summary,
+            "backup": lambda: self._cmd_backup(args),
+            "screenshot": lambda: self._cmd_screenshot(args),
+            "apps": lambda: self._cmd_apps(args),
+            "files": lambda: self._cmd_files(args),
+            "analyze": lambda: self._cmd_analyze(args),
+            "display-diagnostics": lambda: self._cmd_display_diagnostics(args),
+            "recover": lambda: self._cmd_recover(args),
+            "tweak": lambda: self._cmd_tweak(args),
+            "usb-debug": lambda: self._cmd_usb_debug(args),
+            "report": lambda: self._cmd_report(args),
+            "stats": self._cmd_stats,
+            "monitor": self._cmd_monitor,
+            "logcat": lambda: self._cmd_logcat(args),
+            "execute": lambda: self._cmd_execute(args),
+            "menu": self._cmd_menu,
+            "version": self._cmd_version,
+            "paths": self._cmd_paths,
+            "netcheck": self._cmd_netcheck,
+            "adb": self._cmd_adb,
+            "partitions": lambda: self._cmd_partitions(args),
+            "partition-backup": lambda: self._cmd_partition_backup(args),
+            "partition-wipe": lambda: self._cmd_partition_wipe(args),
+            "repair-flow": lambda: self._cmd_repair_flow(args),
+            "edl-status": lambda: self._cmd_edl_status(args),
+            "edl-enter": lambda: self._cmd_edl_enter(args),
+            "mode-enter": lambda: self._cmd_mode_enter(args),
+            "edl-flash": lambda: self._cmd_edl_flash(args),
+            "edl-dump": lambda: self._cmd_edl_dump(args),
+            "edl-detect": self._cmd_edl_detect,
+            "edl-programmers": self._cmd_edl_programmers,
+            "edl-partitions": lambda: self._cmd_edl_partitions(args),
+            "edl-backup": lambda: self._cmd_edl_backup(args),
+            "edl-restore": lambda: self._cmd_edl_restore(args),
+            "edl-sparse": lambda: self._cmd_edl_sparse(args),
+            "edl-profile": lambda: self._cmd_edl_profile(args),
+            "edl-verify": lambda: self._cmd_edl_verify(args),
+            "edl-unbrick": lambda: self._cmd_edl_unbrick(args),
+            "edl-notes": lambda: self._cmd_edl_notes(args),
+            "edl-reboot": lambda: self._cmd_edl_reboot(args),
+            "edl-log": self._cmd_edl_log,
+            "boot-extract": lambda: self._cmd_boot_extract(args),
+            "magisk-patch": lambda: self._cmd_magisk_patch(args),
+            "magisk-pull": lambda: self._cmd_magisk_pull(args),
+            "twrp-verify": lambda: self._cmd_twrp_verify(args),
+            "twrp-flash": lambda: self._cmd_twrp_flash(args),
+            "root-verify": lambda: self._cmd_root_verify(args),
+            "safety-check": lambda: self._cmd_safety_check(args),
+            "rollback": lambda: self._cmd_rollback(args),
+            "compat-matrix": self._cmd_compat_matrix,
+            "testpoint-guide": lambda: self._cmd_testpoint_guide(args),
+            "clear-cache": self._cmd_clear_cache,
+            "doctor": self._cmd_doctor,
+            "logs": self._cmd_logs,
+            "backups": self._cmd_backups,
+            "reports": self._cmd_reports,
+            "exports": self._cmd_exports,
+            "devices-json": self._cmd_devices_json,
+            "stats-json": self._cmd_stats_json,
+            "logtail": lambda: self._cmd_logtail(args),
+            "cleanup-exports": self._cmd_cleanup_exports,
+            "cleanup-backups": self._cmd_cleanup_backups,
+            "cleanup-reports": self._cmd_cleanup_reports,
+            "env": self._cmd_env,
+            "recent-logs": lambda: self._cmd_recent_logs(args),
+            "recent-backups": lambda: self._cmd_recent_backups(args),
+            "recent-reports": lambda: self._cmd_recent_reports(args),
+            "logs-json": self._cmd_logs_json,
+            "logs-export": lambda: self._cmd_logs_export(args),
+            "backups-json": self._cmd_backups_json,
+            "latest-report": self._cmd_latest_report,
+            "recent-devices": lambda: self._cmd_recent_devices(args),
+            "methods": lambda: self._cmd_methods(args),
+            "methods-json": self._cmd_methods_json,
+            "db-health": self._cmd_db_health,
+            "stats-plus": self._cmd_stats_plus,
+            "reports-json": self._cmd_reports_json,
+            "reports-open": self._cmd_reports_open,
+            "recent-reports-json": self._cmd_recent_reports_json,
+            "config": self._cmd_config,
+            "config-json": self._cmd_config_json,
+            "exports-open": self._cmd_exports_open,
+            "db-backup": self._cmd_db_backup,
+            "plugins": self._cmd_plugins,
+            "plugin": lambda: self._cmd_plugin(args),
+            "smart": lambda: self._cmd_smart(args),
+            "launcher": lambda: self._cmd_launcher(args),
+            "start-menu": lambda: self._cmd_launcher(args),
+            "advanced": self._cmd_advanced,
+            "bootstrap": lambda: self._cmd_bootstrap(args),
+            "search": lambda: self._cmd_search(args),
+            "help": lambda: self._cmd_help(args),
+            "exit": lambda: exit(0),
+            "quit": lambda: exit(0),
+            "q": lambda: exit(0),
+            "?": lambda: self._cmd_help([]),
         }
 
     def execute_command_line(self, command_line: str) -> Dict[str, Any]:
@@ -448,7 +454,10 @@ class CLI:
                 summary="Backup a partition image via ADB.",
                 usage="partition-backup <device_id|smart> <partition> [output_dir]",
                 category="Advanced Toolbox",
-                examples=["partition-backup smart boot", "partition-backup emulator-5554 userdata /tmp"],
+                examples=[
+                    "partition-backup smart boot",
+                    "partition-backup emulator-5554 userdata /tmp",
+                ],
             ),
             CommandInfo(
                 name="partition-wipe",
@@ -514,7 +523,10 @@ class CLI:
                     "[--override=<chipset>] [--auth-token=<token>] [--ownership=<proof>]"
                 ),
                 category="EDL & Test-point",
-                examples=["mode-enter smart edl", "mode-enter usb-05c6:9008 edl --override=Qualcomm"],
+                examples=[
+                    "mode-enter smart edl",
+                    "mode-enter usb-05c6:9008 edl --override=Qualcomm",
+                ],
             ),
             CommandInfo(
                 name="edl-flash",
@@ -999,19 +1011,19 @@ class CLI:
                 modes = device.get("modes") or [device.get("mode", "Unknown")]
                 mode_label = ", ".join(modes) if isinstance(modes, list) else str(modes)
                 table.add_row(
-                    device.get('id', 'Unknown'),
+                    device.get("id", "Unknown"),
                     mode_label,
-                    device.get('status', 'Unknown'),
-                    device.get('manufacturer', 'Unknown'),
-                    device.get('model', 'Unknown'),
-                    device.get('android_version', 'Unknown')
+                    device.get("status", "Unknown"),
+                    device.get("manufacturer", "Unknown"),
+                    device.get("model", "Unknown"),
+                    device.get("android_version", "Unknown"),
                 )
 
             self.console.print(table)
         else:
             print("\n📱 Connected Devices:")
             for device in devices:
-                status = device.get('status', 'Unknown')
+                status = device.get("status", "Unknown")
                 modes = device.get("modes") or [device.get("mode", "Unknown")]
                 mode_label = ", ".join(modes) if isinstance(modes, list) else str(modes)
                 print(
@@ -1026,7 +1038,7 @@ class CLI:
             return
 
         result = AutoBackup.create_backup(device_id)
-        if result['success']:
+        if result["success"]:
             print(f"✅ Backup created: {result['backup_name']}")
             print(f"   Items: {', '.join(result['items'])}")
             print(f"   Size: {result['size']:,} bytes")
@@ -1040,7 +1052,7 @@ class CLI:
             return
 
         result = ScreenCapture.take_screenshot(device_id)
-        if result['success']:
+        if result["success"]:
             print(f"✅ Screenshot saved: {result['path']}")
         else:
             print("❌ Screenshot failed")
@@ -1051,7 +1063,7 @@ class CLI:
         if not device_id:
             return
 
-        filter_type = args[1] if len(args) > 1 else 'all'
+        filter_type = args[1] if len(args) > 1 else "all"
         apps = AppManager.list_apps(device_id, filter_type)
 
         print(f"\n📦 {filter_type.title()} Apps ({len(apps)}):")
@@ -1077,7 +1089,7 @@ class CLI:
             return
 
         devices, _ = DeviceDetector.detect_all()
-        device = next((d for d in devices if d['id'] == device_id), None)
+        device = next((d for d in devices if d["id"] == device_id), None)
 
         if device:
             print(f"\n📱 Device Information: {device_id}\n")
@@ -1096,13 +1108,13 @@ class CLI:
 
         print("\n📋 Device Summary\n")
         for device in devices:
-            device_id = device.get('id', 'Unknown')
-            model = device.get('model', 'Unknown')
-            brand = device.get('brand', 'Unknown')
-            android = device.get('android_version', 'Unknown')
-            security = device.get('security_patch', 'Unknown')
+            device_id = device.get("id", "Unknown")
+            model = device.get("model", "Unknown")
+            brand = device.get("brand", "Unknown")
+            android = device.get("android_version", "Unknown")
+            security = device.get("security_patch", "Unknown")
             reachable = "Yes" if device.get("reachable") else "No"
-            status = device.get('status', 'Unknown')
+            status = device.get("status", "Unknown")
             modes = device.get("modes") or [device.get("mode", "Unknown")]
             mode_label = ", ".join(modes) if isinstance(modes, list) else str(modes)
             print(
@@ -1166,14 +1178,13 @@ class CLI:
             table.add_column("Shortcut", style="magenta", width=8, justify="center")
             for index, item in enumerate(items, start=1):
                 table.add_row(
-                    str(index),
-                    item["label"],
-                    item.get("desc", ""),
-                    item.get("shortcut", "")
+                    str(index), item["label"], item.get("desc", ""), item.get("shortcut", "")
                 )
             self.console.print(Panel.fit(subtitle, style="dim"))
             self.console.print(table)
-            self.console.print("[dim]b[/dim]=Back  [dim]h[/dim]=Help  [dim]q[/dim]=Quit  [dim]0[/dim]=Back  [?]=Help")
+            self.console.print(
+                "[dim]b[/dim]=Back  [dim]h[/dim]=Help  [dim]q[/dim]=Quit  [dim]0[/dim]=Back  [?]=Help"
+            )
         else:
             print(f"\n📋 {title}")
             print(f"   {subtitle}\n")
@@ -1188,7 +1199,9 @@ class CLI:
         print("\nTip: Use numbers or shortcuts to navigate.")
         print("Type 'b' or '0' to go back, 'q' to quit.\n")
 
-    def _match_menu_choice(self, choice: str, items: List[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+    def _match_menu_choice(
+        self, choice: str, items: List[Dict[str, Any]]
+    ) -> Optional[Dict[str, Any]]:
         """Match menu choice to an item."""
         if choice.isdigit():
             index = int(choice) - 1
@@ -1203,74 +1216,284 @@ class CLI:
     def _menu_main(self) -> List[Dict[str, Any]]:
         """Main menu items."""
         return [
-            {"label": "Devices", "desc": "Detect and inspect connected devices", "shortcut": "d", "submenu": self._menu_devices()},
-            {"label": "Backup & Recovery", "desc": "Backups and data recovery tools", "shortcut": "b", "submenu": self._menu_backup()},
-            {"label": "Apps & Files", "desc": "App listing and file operations", "shortcut": "a", "submenu": self._menu_apps_files()},
-            {"label": "Analysis & Reports", "desc": "Performance analysis and reports", "shortcut": "r", "submenu": self._menu_analysis()},
-            {"label": "System & Diagnostics", "desc": "Health checks and system tools", "shortcut": "s", "submenu": self._menu_system()},
-            {"label": "Advanced Toolbox", "desc": "EDL, recovery, and expert workflows", "shortcut": "x", "action": self._cmd_advanced},
+            {
+                "label": "Devices",
+                "desc": "Detect and inspect connected devices",
+                "shortcut": "d",
+                "submenu": self._menu_devices(),
+            },
+            {
+                "label": "Backup & Recovery",
+                "desc": "Backups and data recovery tools",
+                "shortcut": "b",
+                "submenu": self._menu_backup(),
+            },
+            {
+                "label": "Apps & Files",
+                "desc": "App listing and file operations",
+                "shortcut": "a",
+                "submenu": self._menu_apps_files(),
+            },
+            {
+                "label": "Analysis & Reports",
+                "desc": "Performance analysis and reports",
+                "shortcut": "r",
+                "submenu": self._menu_analysis(),
+            },
+            {
+                "label": "System & Diagnostics",
+                "desc": "Health checks and system tools",
+                "shortcut": "s",
+                "submenu": self._menu_system(),
+            },
+            {
+                "label": "Advanced Toolbox",
+                "desc": "EDL, recovery, and expert workflows",
+                "shortcut": "x",
+                "action": self._cmd_advanced,
+            },
             {"label": "Exit Menu", "desc": "Return to CLI prompt", "shortcut": "q", "exit": True},
         ]
 
     def _menu_devices(self) -> List[Dict[str, Any]]:
         """Device menu items."""
         return [
-            {"label": "List devices", "desc": "Show all connected devices", "shortcut": "l", "action": self._cmd_devices},
-            {"label": "Device summary", "desc": "Quick overview of all devices", "shortcut": "s", "action": self._cmd_summary},
-            {"label": "Device info", "desc": "Inspect a single device", "shortcut": "i", "action": self._menu_device_info},
-            {"label": "Screenshot", "desc": "Capture device screen", "shortcut": "c", "action": self._menu_screenshot},
+            {
+                "label": "List devices",
+                "desc": "Show all connected devices",
+                "shortcut": "l",
+                "action": self._cmd_devices,
+            },
+            {
+                "label": "Device summary",
+                "desc": "Quick overview of all devices",
+                "shortcut": "s",
+                "action": self._cmd_summary,
+            },
+            {
+                "label": "Device info",
+                "desc": "Inspect a single device",
+                "shortcut": "i",
+                "action": self._menu_device_info,
+            },
+            {
+                "label": "Screenshot",
+                "desc": "Capture device screen",
+                "shortcut": "c",
+                "action": self._menu_screenshot,
+            },
         ]
 
     def _menu_backup(self) -> List[Dict[str, Any]]:
         """Backup menu items."""
         return [
-            {"label": "Create backup", "desc": "Automated device backup", "shortcut": "b", "action": self._menu_backup_create},
-            {"label": "Recover contacts", "desc": "Restore contacts data", "shortcut": "c", "action": lambda: self._menu_recover("contacts")},
-            {"label": "Recover SMS", "desc": "Restore SMS messages", "shortcut": "s", "action": lambda: self._menu_recover("sms")},
-            {"label": "Recent backups (DB)", "desc": "Show recent backup records", "shortcut": "r", "action": lambda: self._cmd_recent_backups([])},
+            {
+                "label": "Create backup",
+                "desc": "Automated device backup",
+                "shortcut": "b",
+                "action": self._menu_backup_create,
+            },
+            {
+                "label": "Recover contacts",
+                "desc": "Restore contacts data",
+                "shortcut": "c",
+                "action": lambda: self._menu_recover("contacts"),
+            },
+            {
+                "label": "Recover SMS",
+                "desc": "Restore SMS messages",
+                "shortcut": "s",
+                "action": lambda: self._menu_recover("sms"),
+            },
+            {
+                "label": "Recent backups (DB)",
+                "desc": "Show recent backup records",
+                "shortcut": "r",
+                "action": lambda: self._cmd_recent_backups([]),
+            },
         ]
 
     def _menu_apps_files(self) -> List[Dict[str, Any]]:
         """Apps and files menu items."""
         return [
-            {"label": "List apps", "desc": "List installed apps", "shortcut": "a", "action": self._menu_apps},
-            {"label": "List files", "desc": "Browse device storage", "shortcut": "l", "action": lambda: self._menu_files("list")},
-            {"label": "Pull file", "desc": "Copy file from device", "shortcut": "p", "action": lambda: self._menu_files("pull")},
-            {"label": "Push file", "desc": "Copy file to device", "shortcut": "u", "action": lambda: self._menu_files("push")},
-            {"label": "Delete file", "desc": "Remove file from device", "shortcut": "d", "action": lambda: self._menu_files("delete")},
+            {
+                "label": "List apps",
+                "desc": "List installed apps",
+                "shortcut": "a",
+                "action": self._menu_apps,
+            },
+            {
+                "label": "List files",
+                "desc": "Browse device storage",
+                "shortcut": "l",
+                "action": lambda: self._menu_files("list"),
+            },
+            {
+                "label": "Pull file",
+                "desc": "Copy file from device",
+                "shortcut": "p",
+                "action": lambda: self._menu_files("pull"),
+            },
+            {
+                "label": "Push file",
+                "desc": "Copy file to device",
+                "shortcut": "u",
+                "action": lambda: self._menu_files("push"),
+            },
+            {
+                "label": "Delete file",
+                "desc": "Remove file from device",
+                "shortcut": "d",
+                "action": lambda: self._menu_files("delete"),
+            },
         ]
 
     def _menu_analysis(self) -> List[Dict[str, Any]]:
         """Analysis menu items."""
         return [
-            {"label": "Analyze device", "desc": "Performance analysis", "shortcut": "a", "action": self._menu_analyze},
-            {"label": "Generate report", "desc": "Create full device report", "shortcut": "g", "action": self._menu_report},
-            {"label": "Latest report paths", "desc": "Show latest report files", "shortcut": "l", "action": self._cmd_latest_report},
-            {"label": "Recent reports (DB)", "desc": "Show recent report records", "shortcut": "r", "action": lambda: self._cmd_recent_reports([])},
+            {
+                "label": "Analyze device",
+                "desc": "Performance analysis",
+                "shortcut": "a",
+                "action": self._menu_analyze,
+            },
+            {
+                "label": "Generate report",
+                "desc": "Create full device report",
+                "shortcut": "g",
+                "action": self._menu_report,
+            },
+            {
+                "label": "Latest report paths",
+                "desc": "Show latest report files",
+                "shortcut": "l",
+                "action": self._cmd_latest_report,
+            },
+            {
+                "label": "Recent reports (DB)",
+                "desc": "Show recent report records",
+                "shortcut": "r",
+                "action": lambda: self._cmd_recent_reports([]),
+            },
         ]
 
     def _menu_system(self) -> List[Dict[str, Any]]:
         """System menu items."""
         return [
-            {"label": "Suite stats", "desc": "Usage statistics", "shortcut": "s", "action": self._cmd_stats},
-            {"label": "Version info", "desc": "Suite version details", "shortcut": "v", "action": self._cmd_version},
-            {"label": "System monitor", "desc": "CPU/Memory/Disk usage", "shortcut": "m", "action": self._cmd_monitor},
-            {"label": "Show paths", "desc": "Local data directories", "shortcut": "p", "action": self._cmd_paths},
-            {"label": "Install platform tools", "desc": "Bundle ADB/Fastboot locally", "shortcut": "z", "action": lambda: self._cmd_bootstrap([])},
-            {"label": "System checks", "desc": "Connectivity and health checks", "shortcut": "d", "action": self._cmd_doctor},
-            {"label": "Network check", "desc": "Internet reachability", "shortcut": "n", "action": self._cmd_netcheck},
-            {"label": "ADB availability", "desc": "ADB version check", "shortcut": "a", "action": self._cmd_adb},
-            {"label": "DB health", "desc": "Database size and totals", "shortcut": "h", "action": self._cmd_db_health},
-            {"label": "Recent logs (DB)", "desc": "Latest log entries", "shortcut": "l", "action": lambda: self._cmd_recent_logs([])},
-            {"label": "Tail log file", "desc": "Show last 50 lines", "shortcut": "t", "action": lambda: self._cmd_logtail(["50"])},
-            {"label": "Clear cache", "desc": "Clear cached files", "shortcut": "c", "action": self._cmd_clear_cache},
-            {"label": "Log files", "desc": "List recent log files", "shortcut": "g", "action": self._cmd_logs},
-            {"label": "Backups", "desc": "List recent backups", "shortcut": "b", "action": self._cmd_backups},
-            {"label": "Reports", "desc": "List recent reports", "shortcut": "r", "action": self._cmd_reports},
-            {"label": "Exports", "desc": "List recent exports", "shortcut": "e", "action": self._cmd_exports},
-            {"label": "Environment", "desc": "Runtime environment info", "shortcut": "i", "action": self._cmd_env},
-            {"label": "Smart mode", "desc": "Smart suggestions and toggles", "shortcut": "x", "action": lambda: self._cmd_smart([])},
-            {"label": "Start menu launcher", "desc": "Install or remove launchers", "shortcut": "y", "action": lambda: self._cmd_launcher([])},
+            {
+                "label": "Suite stats",
+                "desc": "Usage statistics",
+                "shortcut": "s",
+                "action": self._cmd_stats,
+            },
+            {
+                "label": "Version info",
+                "desc": "Suite version details",
+                "shortcut": "v",
+                "action": self._cmd_version,
+            },
+            {
+                "label": "System monitor",
+                "desc": "CPU/Memory/Disk usage",
+                "shortcut": "m",
+                "action": self._cmd_monitor,
+            },
+            {
+                "label": "Show paths",
+                "desc": "Local data directories",
+                "shortcut": "p",
+                "action": self._cmd_paths,
+            },
+            {
+                "label": "Install platform tools",
+                "desc": "Bundle ADB/Fastboot locally",
+                "shortcut": "z",
+                "action": lambda: self._cmd_bootstrap([]),
+            },
+            {
+                "label": "System checks",
+                "desc": "Connectivity and health checks",
+                "shortcut": "d",
+                "action": self._cmd_doctor,
+            },
+            {
+                "label": "Network check",
+                "desc": "Internet reachability",
+                "shortcut": "n",
+                "action": self._cmd_netcheck,
+            },
+            {
+                "label": "ADB availability",
+                "desc": "ADB version check",
+                "shortcut": "a",
+                "action": self._cmd_adb,
+            },
+            {
+                "label": "DB health",
+                "desc": "Database size and totals",
+                "shortcut": "h",
+                "action": self._cmd_db_health,
+            },
+            {
+                "label": "Recent logs (DB)",
+                "desc": "Latest log entries",
+                "shortcut": "l",
+                "action": lambda: self._cmd_recent_logs([]),
+            },
+            {
+                "label": "Tail log file",
+                "desc": "Show last 50 lines",
+                "shortcut": "t",
+                "action": lambda: self._cmd_logtail(["50"]),
+            },
+            {
+                "label": "Clear cache",
+                "desc": "Clear cached files",
+                "shortcut": "c",
+                "action": self._cmd_clear_cache,
+            },
+            {
+                "label": "Log files",
+                "desc": "List recent log files",
+                "shortcut": "g",
+                "action": self._cmd_logs,
+            },
+            {
+                "label": "Backups",
+                "desc": "List recent backups",
+                "shortcut": "b",
+                "action": self._cmd_backups,
+            },
+            {
+                "label": "Reports",
+                "desc": "List recent reports",
+                "shortcut": "r",
+                "action": self._cmd_reports,
+            },
+            {
+                "label": "Exports",
+                "desc": "List recent exports",
+                "shortcut": "e",
+                "action": self._cmd_exports,
+            },
+            {
+                "label": "Environment",
+                "desc": "Runtime environment info",
+                "shortcut": "i",
+                "action": self._cmd_env,
+            },
+            {
+                "label": "Smart mode",
+                "desc": "Smart suggestions and toggles",
+                "shortcut": "x",
+                "action": lambda: self._cmd_smart([]),
+            },
+            {
+                "label": "Start menu launcher",
+                "desc": "Install or remove launchers",
+                "shortcut": "y",
+                "action": lambda: self._cmd_launcher([]),
+            },
         ]
 
     def _prompt(self, label: str) -> str:
@@ -1466,7 +1689,7 @@ class CLI:
 
     def _cmd_adb(self) -> None:
         """Check ADB availability."""
-        code, stdout, stderr = SafeSubprocess.run(['adb', 'version'])
+        code, stdout, stderr = SafeSubprocess.run(["adb", "version"])
         if code == 0:
             first_line = stdout.strip().splitlines()[0] if stdout else "ADB available"
             print(f"✅ {first_line}")
@@ -1495,10 +1718,12 @@ class CLI:
                 version = f"{version} (version unknown)"
             print(f"  ADB: {version}")
         else:
-            message = (adb_result.error.get("message") if adb_result else "ADB not available")
+            message = adb_result.error.get("message") if adb_result else "ADB not available"
             print(f"  ADB: {message}")
 
-        print(f"  Monitoring: {'Available' if PSUTIL_AVAILABLE else 'Unavailable (install psutil)'}")
+        print(
+            f"  Monitoring: {'Available' if PSUTIL_AVAILABLE else 'Unavailable (install psutil)'}"
+        )
         print(f"  DB Path: {Config.DB_PATH}")
 
         print("\n🧰 Tooling\n")
@@ -1907,7 +2132,9 @@ class CLI:
 
     def _cmd_latest_report(self) -> None:
         """Show latest report paths."""
-        reports = sorted(Config.REPORTS_DIR.glob("*"), key=lambda p: p.stat().st_mtime, reverse=True)
+        reports = sorted(
+            Config.REPORTS_DIR.glob("*"), key=lambda p: p.stat().st_mtime, reverse=True
+        )
         if not reports:
             print("❌ No reports found")
             return
@@ -1941,7 +2168,9 @@ class CLI:
             android = row.get("android_version", "Unknown")
             last_seen = row.get("last_seen", "")
             count = row.get("connection_count", 0)
-            print(f"  {device_id} - {manufacturer} {model} (Android {android}) - last seen {last_seen} ({count}x)")
+            print(
+                f"  {device_id} - {manufacturer} {model} (Android {android}) - last seen {last_seen} ({count}x)"
+            )
 
     def _cmd_methods(self, args: List[str]) -> None:
         """Show top methods by success rate."""
@@ -2030,7 +2259,9 @@ class CLI:
         print(f"  Version: {Config.VERSION}")
         print(f"  Codename: {Config.CODENAME}")
         print(f"  App Name: {Config.APP_NAME}")
-        print(f"  Timeouts: short={Config.TIMEOUT_SHORT}s medium={Config.TIMEOUT_MEDIUM}s long={Config.TIMEOUT_LONG}s")
+        print(
+            f"  Timeouts: short={Config.TIMEOUT_SHORT}s medium={Config.TIMEOUT_MEDIUM}s long={Config.TIMEOUT_LONG}s"
+        )
         print(f"  Auto Backup: {Config.ENABLE_AUTO_BACKUP}")
         print(f"  Monitoring: {Config.ENABLE_MONITORING}")
         print(f"  Analytics: {Config.ENABLE_ANALYTICS}")
@@ -2118,11 +2349,15 @@ class CLI:
             option = args[0].lower()
             value = args[1].lower()
             if value not in {"on", "off"}:
-                print("Usage: smart <on|off|auto-device|prefer-last|auto-doctor|suggest|safety> <on|off>")
+                print(
+                    "Usage: smart <on|off|auto-device|prefer-last|auto-doctor|suggest|safety> <on|off>"
+                )
                 return
             enabled = value == "on"
         else:
-            print("Usage: smart <on|off|auto-device|prefer-last|auto-doctor|suggest|safety> <on|off>")
+            print(
+                "Usage: smart <on|off|auto-device|prefer-last|auto-doctor|suggest|safety> <on|off>"
+            )
             return
         mapping = {
             "smart_enabled": "smart_enabled",
@@ -2136,7 +2371,9 @@ class CLI:
             option = "smart_enabled"
         setting_key = mapping.get(option)
         if not setting_key:
-            print("Usage: smart <on|off|auto-device|prefer-last|auto-doctor|suggest|safety> <on|off>")
+            print(
+                "Usage: smart <on|off|auto-device|prefer-last|auto-doctor|suggest|safety> <on|off>"
+            )
             return
 
         current = Config.read_config().get("settings", {})
@@ -2223,22 +2460,24 @@ class CLI:
                 print("Usage: recover <device_id|smart> <contacts|sms>")
                 return
         else:
-            device_id = self._resolve_device_id([args[0]], "recover <device_id|smart> <contacts|sms>")
+            device_id = self._resolve_device_id(
+                [args[0]], "recover <device_id|smart> <contacts|sms>"
+            )
             if not device_id:
                 return
             data_type = args[1]
 
         print(f"💾 Recovering {data_type}...")
 
-        if data_type == 'contacts':
+        if data_type == "contacts":
             result = DataRecovery.recover_contacts(device_id)
-        elif data_type == 'sms':
+        elif data_type == "sms":
             result = DataRecovery.recover_sms(device_id)
         else:
             print("❌ Unknown data type")
             return
 
-        if result['success']:
+        if result["success"]:
             print(f"✅ Recovered {result['count']} items")
             print(f"   Saved to: {result.get('json_path') or result.get('path')}")
         else:
@@ -2249,7 +2488,9 @@ class CLI:
         if len(args) < 2:
             print("Usage: tweak <device_id|smart> <dpi|animation|timeout> <value>")
             return
-        device_id = self._resolve_device_id([args[0]], "tweak <device_id|smart> <dpi|animation|timeout> <value>")
+        device_id = self._resolve_device_id(
+            [args[0]], "tweak <device_id|smart> <dpi|animation|timeout> <value>"
+        )
         if not device_id:
             return
         if len(args) < 3:
@@ -2257,11 +2498,11 @@ class CLI:
             return
         tweak_type, value = args[1], args[2]
 
-        if tweak_type == 'dpi':
+        if tweak_type == "dpi":
             success = SystemTweaker.set_dpi(device_id, int(value))
-        elif tweak_type == 'animation':
+        elif tweak_type == "animation":
             success = SystemTweaker.set_animation_scale(device_id, float(value))
-        elif tweak_type == 'timeout':
+        elif tweak_type == "timeout":
             success = SystemTweaker.set_screen_timeout(device_id, int(value))
         else:
             print("❌ Unknown tweak type")
@@ -2275,22 +2516,22 @@ class CLI:
     def _cmd_usb_debug(self, args: List[str]) -> None:
         """Enable or force USB debugging."""
         # Check for help/info flag
-        if len(args) > 0 and args[0].lower() in {'--help', '-h', 'help', 'methods', 'info'}:
+        if len(args) > 0 and args[0].lower() in {"--help", "-h", "help", "methods", "info"}:
             methods_info = SystemTweaker.get_usb_debugging_methods()
             print("\n📱 USB Debugging Force-Enable Methods")
             print("=" * 70)
             print("\nAvailable Methods:")
-            for method in methods_info['methods']:
+            for method in methods_info["methods"]:
                 print(f"\n🔹 {method['name']} ({method['id']})")
                 print(f"   Description: {method['description']}")
                 print(f"   Requirements: {', '.join(method['requirements'])}")
                 print(f"   Risk Level: {method['risk_level']}")
                 print(f"   Success Rate: {method['success_rate']}")
-            
+
             print("\n\n⚠️  WARNINGS:")
-            for warning in methods_info['warnings']:
+            for warning in methods_info["warnings"]:
                 print(f"  • {warning}")
-            
+
             print("\n\n📋 Usage:")
             print("  usb-debug <device_id|smart> [method] [force]")
             print("  usb-debug <device_id|smart> --methods  (show methods)")
@@ -2301,28 +2542,36 @@ class CLI:
             print("  usb-debug smart properties         # Properties only")
             print("  usb-debug smart settings_db force  # Settings DB (needs confirmation)")
             return
-        
+
         device_id = self._resolve_device_id(args, "usb-debug <device_id|smart> [method] [force]")
         if not device_id:
             return
-        
+
         # Determine method and force flag
-        method = 'standard'  # default
+        method = "standard"  # default
         force_confirm = False
-        
+
         if len(args) > 1:
             potential_method = args[1].lower()
-            if potential_method in ['all', 'standard', 'properties', 'settings_db', 
-                                   'build_prop', 'adb_keys', 'recovery', 'root']:
+            if potential_method in [
+                "all",
+                "standard",
+                "properties",
+                "settings_db",
+                "build_prop",
+                "adb_keys",
+                "recovery",
+                "root",
+            ]:
                 method = potential_method
-                if len(args) > 2 and args[2].lower() in {'force', '--force', '-f'}:
+                if len(args) > 2 and args[2].lower() in {"force", "--force", "-f"}:
                     force_confirm = True
-            elif potential_method in {'force', '--force', '-f'}:
-                method = 'all'
+            elif potential_method in {"force", "--force", "-f"}:
+                method = "all"
                 force_confirm = True
 
         # Require confirmation for risky methods
-        risky_methods = ['all', 'settings_db', 'build_prop', 'adb_keys', 'root']
+        risky_methods = ["all", "settings_db", "build_prop", "adb_keys", "root"]
         if method in risky_methods:
             if not force_confirm or not self._smart_confirm(
                 f"Use method '{method}' on {device_id}? (May require root/modify system)"
@@ -2334,7 +2583,7 @@ class CLI:
         print(f"   Method: {method}")
         print()
 
-        if method != 'standard':
+        if method != "standard":
             result = SystemTweaker.force_usb_debugging(device_id, method)
         else:
             result = {
@@ -2363,22 +2612,24 @@ class CLI:
         status = "✅" if result.get("success") else "⚠️"
         print(f"{status} USB debugging attempt completed")
         print(f"   ADB Enabled: {'✅ Yes' if result.get('adb_enabled') else '❌ No'}")
-        if result.get('usb_config'):
+        if result.get("usb_config"):
             print(f"   USB Config: {result['usb_config']}")
-        if 'has_root' in result:
+        if "has_root" in result:
             print(f"   Root Access: {'✅ Yes' if result['has_root'] else '❌ No'}")
-        
+
         print("\n📊 Steps Executed:")
         for step in result.get("steps", []):
             icon = "✅" if step["success"] else "❌"
-            category = step.get('category', 'unknown')
+            category = step.get("category", "unknown")
             print(f"   {icon} [{category}] {step['step']}")
             if step.get("detail"):
                 print(f"      {step['detail']}")
-        
-        if 'total_steps' in result:
-            print(f"\n📈 Summary: {result.get('successful_steps', 0)}/{result.get('total_steps', 0)} steps successful")
-        
+
+        if "total_steps" in result:
+            print(
+                f"\n📈 Summary: {result.get('successful_steps', 0)}/{result.get('total_steps', 0)} steps successful"
+            )
+
         if not result.get("success"):
             print("\n💡 Tips:")
             print("   • Try: usb-debug <device> properties  (more methods)")
@@ -2399,7 +2650,7 @@ class CLI:
         print("📄 Generating report...")
         result = ReportGenerator.generate_device_report(device_id)
 
-        if result['success']:
+        if result["success"]:
             print(f"✅ Report generated: {result['report_name']}")
             print(f"   HTML: {result['html_path']}")
         else:
@@ -2425,7 +2676,9 @@ class CLI:
         if len(args) < 2:
             print("Usage: partition-backup <device_id|smart> <partition> [output_dir]")
             return
-        device_id = self._resolve_device_id([args[0]], "partition-backup <device_id|smart> <partition> [output_dir]")
+        device_id = self._resolve_device_id(
+            [args[0]], "partition-backup <device_id|smart> <partition> [output_dir]"
+        )
         if not device_id:
             return
         partition = args[1]
@@ -2448,7 +2701,9 @@ class CLI:
         if len(args) < 2:
             print("Usage: partition-wipe <device_id|smart> <partition>")
             return
-        device_id = self._resolve_device_id([args[0]], "partition-wipe <device_id|smart> <partition>")
+        device_id = self._resolve_device_id(
+            [args[0]], "partition-wipe <device_id|smart> <partition>"
+        )
         if not device_id:
             return
         partition = args[1]
@@ -2508,11 +2763,17 @@ class CLI:
         print(f"  Methods Tracked: {stats['total_methods']}")
         print(f"  Reports Tracked: {stats.get('total_reports', 0)}")
 
-        if stats.get('top_methods'):
+        if stats.get("top_methods"):
             print("\n  Top Methods:")
-            for method in stats['top_methods']:
-                rate = (method['success_count'] / method['total_count'] * 100) if method['total_count'] > 0 else 0
-                print(f"    • {method['name']}: {rate:.1f}% ({method['success_count']}/{method['total_count']})")
+            for method in stats["top_methods"]:
+                rate = (
+                    (method["success_count"] / method["total_count"] * 100)
+                    if method["total_count"] > 0
+                    else 0
+                )
+                print(
+                    f"    • {method['name']}: {rate:.1f}% ({method['success_count']}/{method['total_count']})"
+                )
 
     def _cmd_monitor(self) -> None:
         """Show system monitor."""
@@ -2567,7 +2828,7 @@ class CLI:
 
         result = self.engine.methods[method_name](device_id)
 
-        if result['success']:
+        if result["success"]:
             print(f"✅ Success: {result['message']}")
         else:
             print(f"❌ Failed: {result.get('error', result['message'])}")
@@ -2578,34 +2839,38 @@ class CLI:
             print("Usage: files <device_id|smart> <list|pull|push|delete> [path]")
             return
 
-        device_id = self._resolve_device_id([args[0]], "files <device_id|smart> <list|pull|push|delete> [path]")
+        device_id = self._resolve_device_id(
+            [args[0]], "files <device_id|smart> <list|pull|push|delete> [path]"
+        )
         if not device_id:
             return
         operation = args[1]
 
-        if operation == 'list':
-            path = args[2] if len(args) > 2 else '/sdcard'
+        if operation == "list":
+            path = args[2] if len(args) > 2 else "/sdcard"
             files = FileManager.list_files(device_id, path)
 
             print(f"\n📁 Files in {path}:\n")
             for file in files[:20]:
-                print(f"  {file['permissions']} {file['size']:>10} {file['date']:>20} {file['name']}")
+                print(
+                    f"  {file['permissions']} {file['size']:>10} {file['date']:>20} {file['name']}"
+                )
 
             if len(files) > 20:
                 print(f"\n  ... and {len(files) - 20} more")
 
-        elif operation == 'pull':
+        elif operation == "pull":
             if len(args) < 3:
                 print("Usage: files <device_id|smart> pull <remote_path> [local_path]")
                 return
 
             local_path = Path(args[3]) if len(args) > 3 else None
             result = FileManager.pull_file(device_id, args[2], local_path)
-            if result['success']:
+            if result["success"]:
                 print(f"✅ File pulled: {result['path']}")
             else:
                 print("❌ Pull failed")
-        elif operation == 'push':
+        elif operation == "push":
             if len(args) < 4:
                 print("Usage: files <device_id|smart> push <local_path> <remote_path>")
                 return
@@ -2615,7 +2880,7 @@ class CLI:
                 print("✅ File pushed")
             else:
                 print("❌ Push failed")
-        elif operation == 'delete':
+        elif operation == "delete":
             if len(args) < 3:
                 print("Usage: files <device_id|smart> delete <remote_path>")
                 return
@@ -2632,7 +2897,9 @@ class CLI:
         else:
             print("❌ Unknown operation")
 
-    def _resolve_device_context(self, device_id: str) -> tuple[dict[str, str], Dict[str, Any] | None]:
+    def _resolve_device_context(
+        self, device_id: str
+    ) -> tuple[dict[str, str], Dict[str, Any] | None]:
         devices, _ = DeviceDetector.detect_all()
         device = None
         for item in devices:
@@ -2769,7 +3036,9 @@ class CLI:
             print("Usage: edl-flash <device_id|smart> <loader> <image>")
             return
 
-        device_id = self._resolve_device_id([args[0]], "edl-flash <device_id|smart> <loader> <image>")
+        device_id = self._resolve_device_id(
+            [args[0]], "edl-flash <device_id|smart> <loader> <image>"
+        )
         if not device_id:
             return
         loader, image = args[1], args[2]
@@ -2894,7 +3163,9 @@ class CLI:
         if len(args) < 3:
             print("Usage: edl-restore <device_id|smart> <loader> <image>")
             return
-        device_id = self._resolve_device_id([args[0]], "edl-restore <device_id|smart> <loader> <image>")
+        device_id = self._resolve_device_id(
+            [args[0]], "edl-restore <device_id|smart> <loader> <image>"
+        )
         if not device_id:
             return
         loader = args[1]
@@ -3065,7 +3336,9 @@ class CLI:
         if len(args) < 3:
             print("Usage: rollback <device_id|smart> <partition> <image>")
             return
-        device_id = self._resolve_device_id([args[0]], "rollback <device_id|smart> <partition> <image>")
+        device_id = self._resolve_device_id(
+            [args[0]], "rollback <device_id|smart> <partition> <image>"
+        )
         if not device_id:
             return
         result = rollback_flash(device_id, args[1], Path(args[2]))
@@ -3142,7 +3415,13 @@ class CLI:
         matches = []
         for command in self.command_catalog.values():
             haystack = " ".join(
-                [command.name, command.summary, command.usage, " ".join(command.aliases), command.category]
+                [
+                    command.name,
+                    command.summary,
+                    command.usage,
+                    " ".join(command.aliases),
+                    command.category,
+                ]
             ).lower()
             if keyword in haystack:
                 matches.append(command)

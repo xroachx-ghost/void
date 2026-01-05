@@ -22,7 +22,9 @@ class Logger:
         configure_logging()
         self.logger = logging.getLogger("void")
 
-    def log(self, level: str, category: str, message: str, device_id: str = None, method: str = None):
+    def log(
+        self, level: str, category: str, message: str, device_id: str = None, method: str = None
+    ):
         """Log message"""
         sanitized_message = redact_message(message)
         log_method = getattr(self.logger, level if level != "success" else "info", self.logger.info)

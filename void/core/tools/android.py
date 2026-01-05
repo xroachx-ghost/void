@@ -217,8 +217,14 @@ def android_driver_hints() -> dict[str, object]:
             "message": "Windows USB drivers may be required for ADB/Fastboot.",
             "detail": "Install OEM or Google USB drivers if devices are missing.",
             "links": [
-                {"label": "Windows USB driver setup", "url": "https://developer.android.com/studio/run/win-usb"},
-                {"label": "OEM USB drivers", "url": "https://developer.android.com/studio/run/oem-usb"},
+                {
+                    "label": "Windows USB driver setup",
+                    "url": "https://developer.android.com/studio/run/win-usb",
+                },
+                {
+                    "label": "OEM USB drivers",
+                    "url": "https://developer.android.com/studio/run/oem-usb",
+                },
             ],
         }
     if system == "darwin":
@@ -236,7 +242,10 @@ def android_driver_hints() -> dict[str, object]:
             "message": "Linux may require udev rules for USB access.",
             "detail": "Add udev rules and reload to allow ADB/Fastboot access.",
             "links": [
-                {"label": "Linux udev rules guidance", "url": "https://developer.android.com/studio/run/device#setting-up"},
+                {
+                    "label": "Linux udev rules guidance",
+                    "url": "https://developer.android.com/studio/run/device#setting-up",
+                },
             ],
         }
     return {

@@ -22,70 +22,76 @@ class PerformanceAnalyzer:
         analysis = {}
 
         # CPU info
-        code, stdout, _ = SafeSubprocess.run(['adb', '-s', device_id, 'shell', 'cat', '/proc/cpuinfo'])
+        code, stdout, _ = SafeSubprocess.run(
+            ["adb", "-s", device_id, "shell", "cat", "/proc/cpuinfo"]
+        )
         if code == 0:
-            analysis['cpu_cores'] = stdout.count('processor')
+            analysis["cpu_cores"] = stdout.count("processor")
 
             # Parse CPU model
-            for line in stdout.split('\n'):
-                if 'Hardware' in line:
-                    analysis['cpu_model'] = line.split(':')[1].strip()
+            for line in stdout.split("\n"):
+                if "Hardware" in line:
+                    analysis["cpu_model"] = line.split(":")[1].strip()
                     break
 
         # Memory info
-        code, stdout, _ = SafeSubprocess.run(['adb', '-s', device_id, 'shell', 'cat', '/proc/meminfo'])
+        code, stdout, _ = SafeSubprocess.run(
+            ["adb", "-s", device_id, "shell", "cat", "/proc/meminfo"]
+        )
         if code == 0:
-            for line in stdout.split('\n'):
-                if 'MemTotal' in line:
-                    analysis['total_memory'] = line.split()[1]
-                elif 'MemAvailable' in line:
-                    analysis['available_memory'] = line.split()[1]
+            for line in stdout.split("\n"):
+                if "MemTotal" in line:
+                    analysis["total_memory"] = line.split()[1]
+                elif "MemAvailable" in line:
+                    analysis["available_memory"] = line.split()[1]
 
         # Storage info
-        code, stdout, _ = SafeSubprocess.run(['adb', '-s', device_id, 'shell', 'df'])
+        code, stdout, _ = SafeSubprocess.run(["adb", "-s", device_id, "shell", "df"])
         if code == 0:
             storage = []
-            for line in stdout.split('\n')[1:]:
+            for line in stdout.split("\n")[1:]:
                 parts = line.split()
                 if len(parts) >= 6:
                     storage.append(
                         {
-                            'filesystem': parts[0],
-                            'size': parts[1],
-                            'used': parts[2],
-                            'available': parts[3],
-                            'use_percent': parts[4],
-                            'mount': parts[5],
+                            "filesystem": parts[0],
+                            "size": parts[1],
+                            "used": parts[2],
+                            "available": parts[3],
+                            "use_percent": parts[4],
+                            "mount": parts[5],
                         }
                     )
-            analysis['storage'] = storage
+            analysis["storage"] = storage
 
         # Battery stats
-        code, stdout, _ = SafeSubprocess.run(['adb', '-s', device_id, 'shell', 'dumpsys', 'battery'])
+        code, stdout, _ = SafeSubprocess.run(
+            ["adb", "-s", device_id, "shell", "dumpsys", "battery"]
+        )
         if code == 0:
             battery = {}
-            for line in stdout.split('\n'):
-                if ':' in line:
-                    key, value = line.split(':', 1)
-                    battery[key.strip().lower().replace(' ', '_')] = value.strip()
-            analysis['battery'] = battery
+            for line in stdout.split("\n"):
+                if ":" in line:
+                    key, value = line.split(":", 1)
+                    battery[key.strip().lower().replace(" ", "_")] = value.strip()
+            analysis["battery"] = battery
 
         # Top processes
-        code, stdout, _ = SafeSubprocess.run(['adb', '-s', device_id, 'shell', 'top', '-n', '1'])
+        code, stdout, _ = SafeSubprocess.run(["adb", "-s", device_id, "shell", "top", "-n", "1"])
         if code == 0:
             processes = []
-            for line in stdout.split('\n'):
-                if '%' in line and not line.startswith('User'):
+            for line in stdout.split("\n"):
+                if "%" in line and not line.startswith("User"):
                     parts = line.split()
                     if len(parts) >= 9:
                         processes.append(
                             {
-                                'pid': parts[0],
-                                'cpu': parts[2],
-                                'mem': parts[5],
-                                'name': parts[-1],
+                                "pid": parts[0],
+                                "cpu": parts[2],
+                                "mem": parts[5],
+                                "name": parts[-1],
                             }
                         )
-            analysis['top_processes'] = processes[:10]
+            analysis["top_processes"] = processes[:10]
 
         return analysis

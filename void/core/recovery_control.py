@@ -1,17 +1,14 @@
 """
 Recovery mode control and workflows.
 
+For use only on organization-owned devices or with explicit, written legal authorization.
+
 Copyright (c) 2024 Roach Labs. All rights reserved.
 Made by James Michael Roach Jr.
 Proprietary and confidential. Unauthorized use or distribution is prohibited.
 """
 
 from __future__ import annotations
-
-"""Authorized recovery-mode controls.
-
-For use only on organization-owned devices or with explicit, written legal authorization.
-"""
 
 from typing import Dict
 
@@ -28,7 +25,11 @@ class AuthorizationError(PermissionError):
 
 
 def _authorization_valid(token: str, ownership: str) -> bool:
-    return bool(token and ownership) and token != LEGAL_AUTHORIZATION_TOKEN and ownership != DEVICE_OWNERSHIP_VERIFICATION
+    return (
+        bool(token and ownership)
+        and token != LEGAL_AUTHORIZATION_TOKEN
+        and ownership != DEVICE_OWNERSHIP_VERIFICATION
+    )
 
 
 def _ensure_authorized(token: str, ownership: str, action: str) -> None:
@@ -37,7 +38,9 @@ def _ensure_authorized(token: str, ownership: str, action: str) -> None:
         raise AuthorizationError("Authorization required for recovery actions.")
 
 
-def reboot_to_fastboot(device_id: str, authorization_token: str, ownership_verification: str) -> Dict[str, object]:
+def reboot_to_fastboot(
+    device_id: str, authorization_token: str, ownership_verification: str
+) -> Dict[str, object]:
     """Reboot to Fastboot for company device recovery."""
     _ensure_authorized(authorization_token, ownership_verification, "reboot_to_fastboot")
     code, _, stderr = SafeSubprocess.run(["adb", "-s", device_id, "reboot", "bootloader"])
@@ -51,7 +54,9 @@ def reboot_to_fastboot(device_id: str, authorization_token: str, ownership_verif
     return {"success": success, "error": stderr.strip()}
 
 
-def reboot_to_recovery(device_id: str, authorization_token: str, ownership_verification: str) -> Dict[str, object]:
+def reboot_to_recovery(
+    device_id: str, authorization_token: str, ownership_verification: str
+) -> Dict[str, object]:
     """Reboot to Recovery for forensic data preservation."""
     _ensure_authorized(authorization_token, ownership_verification, "reboot_to_recovery")
     code, _, stderr = SafeSubprocess.run(["adb", "-s", device_id, "reboot", "recovery"])
@@ -65,7 +70,9 @@ def reboot_to_recovery(device_id: str, authorization_token: str, ownership_verif
     return {"success": success, "error": stderr.strip()}
 
 
-def reboot_to_edl(device_id: str, authorization_token: str, ownership_verification: str) -> Dict[str, object]:
+def reboot_to_edl(
+    device_id: str, authorization_token: str, ownership_verification: str
+) -> Dict[str, object]:
     """Reboot to EDL (Emergency Download Mode) using documented procedures."""
     _ensure_authorized(authorization_token, ownership_verification, "reboot_to_edl")
     code, _, stderr = SafeSubprocess.run(["adb", "-s", device_id, "reboot", "edl"])
@@ -79,7 +86,9 @@ def reboot_to_edl(device_id: str, authorization_token: str, ownership_verificati
     return {"success": success, "error": stderr.strip()}
 
 
-def reboot_to_download_mode(device_id: str, authorization_token: str, ownership_verification: str) -> Dict[str, object]:
+def reboot_to_download_mode(
+    device_id: str, authorization_token: str, ownership_verification: str
+) -> Dict[str, object]:
     """Reboot to Download Mode for OEM-sanctioned firmware repair."""
     _ensure_authorized(authorization_token, ownership_verification, "reboot_to_download_mode")
     code, _, stderr = SafeSubprocess.run(["adb", "-s", device_id, "reboot", "download"])

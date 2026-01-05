@@ -66,10 +66,7 @@ class GeminiAgent:
         full_prompt = prompt
         if task_list:
             task_context = json.dumps(task_list, indent=2)
-            full_prompt = (
-                f"Current tasks:\\n{task_context}\\n\\n"
-                f"User message: {prompt}"
-            )
+            full_prompt = f"Current tasks:\\n{task_context}\\n\\n" f"User message: {prompt}"
 
         resolved_parts = list(parts or [])
         if not resolved_parts:

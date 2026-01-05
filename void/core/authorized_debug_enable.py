@@ -1,17 +1,14 @@
 """
 Authorized debug enable workflows.
 
+For use only on organization-owned devices or with explicit, written legal authorization.
+
 Copyright (c) 2024 Roach Labs. All rights reserved.
 Made by James Michael Roach Jr.
 Proprietary and confidential. Unauthorized use or distribution is prohibited.
 """
 
 from __future__ import annotations
-
-"""Authorized debugging enablement helpers.
-
-For use only on organization-owned devices or with explicit, written legal authorization.
-"""
 
 from typing import Dict, List
 
@@ -28,7 +25,11 @@ class AuthorizationError(PermissionError):
 
 
 def _authorization_valid(token: str, ownership: str) -> bool:
-    return bool(token and ownership) and token != LEGAL_AUTHORIZATION_TOKEN and ownership != DEVICE_OWNERSHIP_VERIFICATION
+    return (
+        bool(token and ownership)
+        and token != LEGAL_AUTHORIZATION_TOKEN
+        and ownership != DEVICE_OWNERSHIP_VERIFICATION
+    )
 
 
 def _ensure_authorized(token: str, ownership: str, action: str) -> None:
@@ -40,7 +41,9 @@ def _ensure_authorized(token: str, ownership: str, action: str) -> None:
 def _adb_state(device_id: str) -> str:
     code, stdout, stderr = SafeSubprocess.run(["adb", "-s", device_id, "get-state"])
     if code != 0:
-        logger.log("warning", "audit", f"adb get-state failed: {stderr.strip()}", device_id=device_id)
+        logger.log(
+            "warning", "audit", f"adb get-state failed: {stderr.strip()}", device_id=device_id
+        )
         return "unknown"
     return stdout.strip()
 
@@ -53,14 +56,38 @@ def enable_debugging_settings(
     """Enable debugging-related settings for company device recovery."""
     _ensure_authorized(authorization_token, ownership_verification, "enable_debugging_settings")
     if _adb_state(device_id) != "device":
-        logger.log("warning", "compliance", "ADB not authorized; manual approval required.", device_id=device_id)
+        logger.log(
+            "warning",
+            "compliance",
+            "ADB not authorized; manual approval required.",
+            device_id=device_id,
+        )
         return {"success": False, "reason": "adb_not_authorized"}
 
     steps: List[Dict[str, object]] = []
     commands = [
-        ("enable_dev_settings", ["adb", "-s", device_id, "shell", "settings", "put", "global", "development_settings_enabled", "1"]),
-        ("enable_adb", ["adb", "-s", device_id, "shell", "settings", "put", "global", "adb_enabled", "1"]),
-        ("set_usb_config", ["adb", "-s", device_id, "shell", "setprop", "persist.sys.usb.config", "mtp,adb"]),
+        (
+            "enable_dev_settings",
+            [
+                "adb",
+                "-s",
+                device_id,
+                "shell",
+                "settings",
+                "put",
+                "global",
+                "development_settings_enabled",
+                "1",
+            ],
+        ),
+        (
+            "enable_adb",
+            ["adb", "-s", device_id, "shell", "settings", "put", "global", "adb_enabled", "1"],
+        ),
+        (
+            "set_usb_config",
+            ["adb", "-s", device_id, "shell", "setprop", "persist.sys.usb.config", "mtp,adb"],
+        ),
     ]
 
     for name, cmd in commands:
@@ -68,7 +95,9 @@ def enable_debugging_settings(
         success = code == 0
         steps.append({"step": name, "success": success, "error": stderr.strip()})
         if not success:
-            logger.log("warning", "audit", f"Step {name} failed: {stderr.strip()}", device_id=device_id)
+            logger.log(
+                "warning", "audit", f"Step {name} failed: {stderr.strip()}", device_id=device_id
+            )
 
     logger.log(
         "info",
@@ -87,7 +116,12 @@ def restart_adbd(
     """Restart adbd for authorized penetration test automation."""
     _ensure_authorized(authorization_token, ownership_verification, "restart_adbd")
     if _adb_state(device_id) != "device":
-        logger.log("warning", "compliance", "ADB not authorized; adbd restart skipped.", device_id=device_id)
+        logger.log(
+            "warning",
+            "compliance",
+            "ADB not authorized; adbd restart skipped.",
+            device_id=device_id,
+        )
         return {"success": False, "reason": "adb_not_authorized"}
 
     steps = []
@@ -98,7 +132,9 @@ def restart_adbd(
         code, _, stderr = SafeSubprocess.run(cmd)
         steps.append({"step": name, "success": code == 0, "error": stderr.strip()})
 
-    logger.log("info", "audit", "adbd restart attempted for authorized testing.", device_id=device_id)
+    logger.log(
+        "info", "audit", "adbd restart attempted for authorized testing.", device_id=device_id
+    )
     return {"success": all(step["success"] for step in steps), "steps": steps}
 
 
