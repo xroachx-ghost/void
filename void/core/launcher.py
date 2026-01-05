@@ -226,7 +226,7 @@ def _install_darwin(entries: List[LauncherEntry]) -> Dict[str, List[str]]:
             [
                 "#!/bin/bash",
                 f'cd "{Path.cwd()}"',
-                f'void {args}'.strip(),
+                f"void {args}".strip(),
             ]
         )
         try:

@@ -49,7 +49,9 @@ class MediaTekChipset:
                 )
 
         if match_any(
-            context.get("usb_vendor") or context.get("chipset_vendor") or context.get("chipset_vendor_hint"),
+            context.get("usb_vendor")
+            or context.get("chipset_vendor")
+            or context.get("chipset_vendor_hint"),
             ("mediatek", "mtk"),
         ):
             return ChipsetDetection(
@@ -120,7 +122,9 @@ class MediaTekChipset:
             )
 
         error = metadata.get("error", {})
-        message = error.get("message", "No MediaTek recovery tools found (mtkclient/SP Flash Tool).")
+        message = error.get(
+            "message", "No MediaTek recovery tools found (mtkclient/SP Flash Tool)."
+        )
         return ChipsetActionResult(
             success=False,
             message=message,

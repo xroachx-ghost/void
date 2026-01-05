@@ -27,7 +27,11 @@ class AuthorizationError(PermissionError):
 
 
 def _authorization_valid(token: str, ownership: str) -> bool:
-    return bool(token and ownership) and token != LEGAL_AUTHORIZATION_TOKEN and ownership != DEVICE_OWNERSHIP_VERIFICATION
+    return (
+        bool(token and ownership)
+        and token != LEGAL_AUTHORIZATION_TOKEN
+        and ownership != DEVICE_OWNERSHIP_VERIFICATION
+    )
 
 
 def _ensure_authorized(token: str, ownership: str, action: str) -> None:
@@ -53,7 +57,9 @@ def flash_signed_firmware(
         logger.log("error", "compliance", f"Invalid partition name: {partition}")
         return {"success": False, "error": "invalid_partition"}
 
-    code, _, stderr = SafeSubprocess.run(["fastboot", "-s", device_id, "flash", partition, str(image)])
+    code, _, stderr = SafeSubprocess.run(
+        ["fastboot", "-s", device_id, "flash", partition, str(image)]
+    )
     success = code == 0
     logger.log(
         "info" if success else "warning",
@@ -79,7 +85,9 @@ def hash_partition_via_adb(
     cmd = ["adb", "-s", device_id, "shell", "sha256sum", f"/dev/block/by-name/{partition}"]
     code, stdout, stderr = SafeSubprocess.run(cmd)
     if code != 0:
-        logger.log("warning", "audit", f"Partition hash failed: {stderr.strip()}", device_id=device_id)
+        logger.log(
+            "warning", "audit", f"Partition hash failed: {stderr.strip()}", device_id=device_id
+        )
         return {"success": False, "error": stderr.strip()}
 
     digest = stdout.strip().split()[0] if stdout.strip() else ""
@@ -120,13 +128,17 @@ def dump_partition_via_adb(
     ]
     code, _, stderr = SafeSubprocess.run(dd_cmd)
     if code != 0:
-        logger.log("warning", "audit", f"Partition dump failed: {stderr.strip()}", device_id=device_id)
+        logger.log(
+            "warning", "audit", f"Partition dump failed: {stderr.strip()}", device_id=device_id
+        )
         return {"success": False, "error": stderr.strip()}
 
     pull_cmd = ["adb", "-s", device_id, "pull", device_tmp, str(output)]
     code, _, stderr = SafeSubprocess.run(pull_cmd)
     if code != 0:
-        logger.log("warning", "audit", f"Partition pull failed: {stderr.strip()}", device_id=device_id)
+        logger.log(
+            "warning", "audit", f"Partition pull failed: {stderr.strip()}", device_id=device_id
+        )
         return {"success": False, "error": stderr.strip()}
 
     SafeSubprocess.run(["adb", "-s", device_id, "shell", "rm", "-f", device_tmp])

@@ -19,128 +19,109 @@ class ShellController:
     @staticmethod
     def execute_command(device_id: str, command: str) -> Dict:
         """Execute shell command on device
-        
+
         Args:
             device_id: Device identifier
             command: Shell command to execute
-            
+
         Returns:
             Dict with success, output, and error
         """
-        code, stdout, stderr = SafeSubprocess.run(['adb', '-s', device_id, 'shell', command])
-        
-        return {
-            'success': code == 0,
-            'exit_code': code,
-            'output': stdout,
-            'error': stderr
-        }
+        code, stdout, stderr = SafeSubprocess.run(["adb", "-s", device_id, "shell", command])
+
+        return {"success": code == 0, "exit_code": code, "output": stdout, "error": stderr}
 
     @staticmethod
     def execute_commands_batch(device_id: str, commands: List[str]) -> List[Dict]:
         """Execute multiple commands sequentially
-        
+
         Args:
             device_id: Device identifier
             commands: List of shell commands
-            
+
         Returns:
             List of results for each command
         """
         results = []
         for command in commands:
             result = ShellController.execute_command(device_id, command)
-            results.append({
-                'command': command,
-                **result
-            })
-        
+            results.append({"command": command, **result})
+
         return results
 
     @staticmethod
     def execute_script(device_id: str, script_content: str) -> Dict:
         """Execute shell script on device
-        
+
         Args:
             device_id: Device identifier
             script_content: Shell script content
-            
+
         Returns:
             Dict with success, output, and error
         """
         import tempfile
         import os
-        from pathlib import Path
-        
+
         # Create temporary script locally
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.sh', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".sh", delete=False) as f:
             f.write(script_content)
             local_script_path = f.name
-        
+
         try:
             # Push script to device
-            script_path = '/data/local/tmp/void_script.sh'
-            code, _, _ = SafeSubprocess.run([
-                'adb', '-s', device_id, 'push', local_script_path, script_path
-            ])
-            
+            script_path = "/data/local/tmp/void_script.sh"
+            code, _, _ = SafeSubprocess.run(
+                ["adb", "-s", device_id, "push", local_script_path, script_path]
+            )
+
             if code != 0:
-                return {'success': False, 'error': 'Failed to push script to device'}
-            
+                return {"success": False, "error": "Failed to push script to device"}
+
             # Make executable
-            code, _, _ = SafeSubprocess.run([
-                'adb', '-s', device_id, 'shell', 'chmod', '755', script_path
-            ])
-            
+            code, _, _ = SafeSubprocess.run(
+                ["adb", "-s", device_id, "shell", "chmod", "755", script_path]
+            )
+
             if code != 0:
-                return {'success': False, 'error': 'Failed to make script executable'}
-            
+                return {"success": False, "error": "Failed to make script executable"}
+
             # Execute
-            code, stdout, stderr = SafeSubprocess.run([
-                'adb', '-s', device_id, 'shell', 'sh', script_path
-            ])
+            code, stdout, stderr = SafeSubprocess.run(
+                ["adb", "-s", device_id, "shell", "sh", script_path]
+            )
         finally:
             # Cleanup local temp file
             try:
                 os.unlink(local_script_path)
-            except:
+            except OSError:
                 pass
-        
+
         # Cleanup
-        SafeSubprocess.run(['adb', '-s', device_id, 'shell', 'rm', script_path])
-        
-        return {
-            'success': code == 0,
-            'exit_code': code,
-            'output': stdout,
-            'error': stderr
-        }
+        SafeSubprocess.run(["adb", "-s", device_id, "shell", "rm", script_path])
+
+        return {"success": code == 0, "exit_code": code, "output": stdout, "error": stderr}
 
     @staticmethod
     def get_root_status(device_id: str) -> bool:
         """Check if device has root access"""
-        code, stdout, _ = SafeSubprocess.run(['adb', '-s', device_id, 'shell', 'su', '-c', 'id'])
-        
-        return code == 0 and 'uid=0' in stdout
+        code, stdout, _ = SafeSubprocess.run(["adb", "-s", device_id, "shell", "su", "-c", "id"])
+
+        return code == 0 and "uid=0" in stdout
 
     @staticmethod
     def execute_as_root(device_id: str, command: str) -> Dict:
         """Execute command as root
-        
+
         Args:
             device_id: Device identifier
             command: Shell command to execute
-            
+
         Returns:
             Dict with success, output, and error
         """
-        code, stdout, stderr = SafeSubprocess.run([
-            'adb', '-s', device_id, 'shell', 'su', '-c', command
-        ])
-        
-        return {
-            'success': code == 0,
-            'exit_code': code,
-            'output': stdout,
-            'error': stderr
-        }
+        code, stdout, stderr = SafeSubprocess.run(
+            ["adb", "-s", device_id, "shell", "su", "-c", command]
+        )
+
+        return {"success": code == 0, "exit_code": code, "output": stdout, "error": stderr}

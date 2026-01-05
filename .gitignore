@@ -5,3 +5,6 @@ __pycache__/
 coverage.xml
 htmlcov/
 void_suite.egg-info/
+build/
+dist/
+*.egg-info/

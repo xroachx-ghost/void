@@ -9,7 +9,7 @@ Proprietary and confidential. Unauthorized use or distribution is prohibited.
 from __future__ import annotations
 
 import re
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 
 from .utils import SafeSubprocess
 
@@ -89,7 +89,11 @@ class StartupWizardAnalyzer:
                             result["active_package"] = match.group(1)
                         else:
                             result["active_package"] = next(
-                                (pkg for pkg in StartupWizardAnalyzer._PACKAGE_CANDIDATES if pkg in line),
+                                (
+                                    pkg
+                                    for pkg in StartupWizardAnalyzer._PACKAGE_CANDIDATES
+                                    if pkg in line
+                                ),
                                 None,
                             )
                         result["running"] = True

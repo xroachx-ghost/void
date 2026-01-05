@@ -86,11 +86,14 @@ build-backend = "setuptools.build_meta"
 [tool.setuptools]
 packages = [
     "void",
+    "void.api",
     "void.core",
+    "void.core.auth",
     "void.core.chipsets",
     "void.core.tools",
     "void.data",
     "void.plugins",
+    "void.ui",
 ]
 package-dir = {"" = "."}
 

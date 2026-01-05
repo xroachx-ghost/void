@@ -38,7 +38,9 @@ class SamsungExynosChipset:
                 )
 
         if match_any(
-            context.get("usb_vendor") or context.get("chipset_vendor") or context.get("chipset_vendor_hint"),
+            context.get("usb_vendor")
+            or context.get("chipset_vendor")
+            or context.get("chipset_vendor_hint"),
             ("samsung",),
         ):
             return ChipsetDetection(

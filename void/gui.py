@@ -44,6 +44,7 @@ from .core.gemini import GeminiAgent
 from .core.logcat import LogcatViewer
 from .core.monitor import monitor
 from .core.network import NetworkAnalyzer, NetworkTools
+from .core.partitions import backup_partition, list_partitions, wipe_partition
 from .core.setup_wizard import SetupWizardDiagnostics
 from .core.startup import StartupWizardAnalyzer
 from .core.performance import PerformanceAnalyzer
@@ -60,6 +61,7 @@ from .terms import ensure_terms_acceptance_gui
 try:
     import tkinter as tk
     from tkinter import ttk, messagebox, scrolledtext, filedialog
+
     GUI_AVAILABLE = True
 except ImportError:
     GUI_AVAILABLE = False
@@ -119,7 +121,7 @@ class Tooltip:
 
 class VoidGUI:
     """User-friendly GUI with an anonymous hacktivist theme."""
-    
+
     # Constants
     MAX_SHELL_OUTPUT_LINES = 100
     ADB_TCPIP_WAIT_SECONDS = 2
@@ -139,17 +141,17 @@ class VoidGUI:
         self.theme = Config.GUI_THEME
         self.root = tk.Tk()
         self.root.title(Config.APP_NAME)
-        
+
         # Calculate window size based on screen resolution (80% of screen, min 980x640, max 1600x900)
         screen_width = self.root.winfo_screenwidth()
         screen_height = self.root.winfo_screenheight()
         window_width = max(980, min(1600, int(screen_width * 0.8)))
         window_height = max(640, min(900, int(screen_height * 0.8)))
-        
+
         # Center the window
         x = (screen_width - window_width) // 2
         y = (screen_height - window_height) // 2
-        
+
         self.root.geometry(f"{window_width}x{window_height}+{x}+{y}")
         self.root.minsize(980, 640)  # Set minimum window size
         self.root.resizable(True, True)  # Make window resizable
@@ -161,7 +163,9 @@ class VoidGUI:
         self.all_device_info: List[Dict[str, Any]] = []
         self.detection_errors: List[Dict[str, Any]] = []
         self.selected_device_id: Optional[str] = None
-        self.device_list: Optional[tk.Listbox] = None  # Initialize as None, will be created in advanced view
+        self.device_list: Optional[tk.Listbox] = (
+            None  # Initialize as None, will be created in advanced view
+        )
         self.status_var = tk.StringVar(value="Ready.")
         self.selected_device_var = tk.StringVar(value="No device selected.")
         self.device_section_texts: Dict[str, tk.Text] = {}
@@ -169,19 +173,13 @@ class VoidGUI:
         self.copy_device_id_button: Optional[ttk.Button] = None
         self.copy_device_summary_button: Optional[ttk.Button] = None
         self.device_search_var = tk.StringVar(value="")
-        self.action_help_var = tk.StringVar(
-            value="Select an action to see a description."
-        )
+        self.action_help_var = tk.StringVar(value="Select an action to see a description.")
         self.command_search_var = tk.StringVar(value="")
         self.command_line_var = tk.StringVar(value="")
         self.command_args_var = tk.StringVar(value="")
         self.command_detail_var = tk.StringVar(value="Select a command to see details.")
-        self.plugin_description_var = tk.StringVar(
-            value="Select a plugin to view details."
-        )
-        self.chipset_detection_var = tk.StringVar(
-            value="No chipset detection has been run yet."
-        )
+        self.plugin_description_var = tk.StringVar(value="Select a plugin to view details.")
+        self.chipset_detection_var = tk.StringVar(value="No chipset detection has been run yet.")
         self.chipset_status_var = tk.StringVar(
             value="Select a device to view chipset workflow status."
         )
@@ -281,18 +279,18 @@ class VoidGUI:
         self.log_export_since_var = tk.StringVar(value="")
         self.log_export_until_var = tk.StringVar(value="")
         self.log_export_limit_var = tk.StringVar(value="500")
-        
+
         # Simple/Advanced mode toggle
         self.is_advanced_mode = tk.BooleanVar(value=self._app_config.get("advanced_mode", False))
         self.mode_toggle_button: Optional[ttk.Button] = None
         self.simple_view_container: Optional[ttk.Frame] = None
         self.advanced_view_container: Optional[ttk.Frame] = None
-        
+
         self._show_splash()
 
     def _format_timestamp(self) -> str:
         """Format current timestamp for logging."""
-        return datetime.now().strftime('%H:%M:%S')
+        return datetime.now().strftime("%H:%M:%S")
 
     def _show_splash(self) -> None:
         """Display the animated splash screen before loading the main UI."""
@@ -316,7 +314,9 @@ class VoidGUI:
         self._splash_canvas.pack(fill="both", expand=True)
         self._animate_splash()
 
-    def _create_readonly_text(self, parent: tk.Widget, height: int = 4) -> scrolledtext.ScrolledText:
+    def _create_readonly_text(
+        self, parent: tk.Widget, height: int = 4
+    ) -> scrolledtext.ScrolledText:
         text_widget = scrolledtext.ScrolledText(
             parent,
             height=height,
@@ -478,7 +478,12 @@ class VoidGUI:
             self._pending_troubleshooting_open = False
 
     def _show_troubleshooting_panel(self) -> None:
-        if self.notebook and self.diagnostics_tab and self.diagnostics_notebook and self.troubleshooting_panel:
+        if (
+            self.notebook
+            and self.diagnostics_tab
+            and self.diagnostics_notebook
+            and self.troubleshooting_panel
+        ):
             # First select the Diagnostics main tab
             self.notebook.select(self.diagnostics_tab)
             # Then select the Troubleshooting sub-tab
@@ -661,11 +666,11 @@ class VoidGUI:
             self.download_status_var.set("All required assets are available.")
 
     def _apply_download_actions(self) -> None:
-        selected = [
-            key for key, var in self.download_item_vars.items() if var.get()
-        ]
+        selected = [key for key, var in self.download_item_vars.items() if var.get()]
         if not selected:
-            self.download_status_var.set("Select at least one missing item to download or generate.")
+            self.download_status_var.set(
+                "Select at least one missing item to download or generate."
+            )
             return
 
         self._run_task("Asset downloads", self._run_download_actions, selected)
@@ -711,7 +716,9 @@ class VoidGUI:
         else:
             messagebox.showwarning("Void", result.get("message", "Unable to add URL."))
 
-    def _format_tool_checks(self, results: List[ToolCheckResult], label_prefix: str) -> List[Dict[str, Any]]:
+    def _format_tool_checks(
+        self, results: List[ToolCheckResult], label_prefix: str
+    ) -> List[Dict[str, Any]]:
         items: List[Dict[str, Any]] = []
         for tool in results:
             status = "pass" if tool.available else "fail"
@@ -1135,7 +1142,7 @@ class VoidGUI:
     @staticmethod
     def _hex_to_rgb(value: str) -> tuple[int, int, int]:
         value = value.lstrip("#")
-        return tuple(int(value[i:i + 2], 16) for i in (0, 2, 4))
+        return tuple(int(value[i : i + 2], 16) for i in (0, 2, 4))
 
     @staticmethod
     def _rgb_to_hex(rgb: tuple[int, int, int]) -> str:
@@ -1202,10 +1209,7 @@ class VoidGUI:
         """Build the themed layout."""
         style = ttk.Style(self.root)
         style.theme_use("clam")
-        style.configure(
-            "Void.TFrame",
-            background=self.theme["bg"]
-        )
+        style.configure("Void.TFrame", background=self.theme["bg"])
         style.configure(
             "Void.Card.TFrame",
             background=self.theme["panel"],
@@ -1216,7 +1220,7 @@ class VoidGUI:
             "Void.TLabel",
             background=self.theme["bg"],
             foreground=self.theme["text"],
-            font=("Consolas", 11)
+            font=("Consolas", 11),
         )
         style.configure(
             "Void.Title.TLabel",
@@ -1277,18 +1281,20 @@ class VoidGUI:
             bg=self.theme["bg"],
         )
         header.pack(fill="x", padx=20, pady=(20, 10))
-        header.bind("<Configure>", lambda event: self._render_header(header, event.width, event.height))
-        
+        header.bind(
+            "<Configure>", lambda event: self._render_header(header, event.width, event.height)
+        )
+
         # Add mode toggle button in top-right corner
         mode_toggle_container = ttk.Frame(self.root, style="Void.TFrame")
         mode_toggle_container.place(relx=1.0, y=35, anchor="ne", x=-30)
-        
+
         self.mode_toggle_button = ttk.Button(
             mode_toggle_container,
             text="⚙ Advanced",
             style="Void.TButton",
             command=self._toggle_mode,
-            width=12
+            width=12,
         )
         self.mode_toggle_button.pack()
         Tooltip(self.mode_toggle_button, "Switch between Simple and Advanced modes")
@@ -1308,228 +1314,229 @@ class VoidGUI:
 
         body = ttk.Frame(self.root, style="Void.TFrame")
         body.pack(fill="both", expand=True, padx=20, pady=10)
-        
+
         # Create containers for both simple and advanced views
         self.simple_view_container = ttk.Frame(body, style="Void.TFrame")
         self.advanced_view_container = ttk.Frame(body, style="Void.TFrame")
-        
+
         # Build Simple View
         self._build_simple_view()
-        
+
         # Build Advanced View (original layout)
         self._build_advanced_view()
-        
+
         # Show appropriate view based on saved preference
         self._switch_view()
-        
+
     def _build_simple_view(self) -> None:
         """Build the simplified, user-friendly dashboard view."""
         if not self.simple_view_container:
             return
-            
+
         # Make the simple view scrollable
         main = self._make_scrollable(self.simple_view_container)
-        
+
         # Welcome section
         welcome_frame = ttk.Frame(main, style="Void.TFrame")
         welcome_frame.pack(fill="x", pady=(0, 20))
-        
+
+        ttk.Label(welcome_frame, text="Welcome to Void", style="Void.Title.TLabel").pack(anchor="w")
+
         ttk.Label(
-            welcome_frame,
-            text="Welcome to Void",
-            style="Void.Title.TLabel"
-        ).pack(anchor="w")
-        
-        ttk.Label(
-            welcome_frame,
-            text="Android Device Toolkit - Simple Mode",
-            style="Void.TLabel"
+            welcome_frame, text="Android Device Toolkit - Simple Mode", style="Void.TLabel"
         ).pack(anchor="w", pady=(4, 0))
-        
+
         # Device status card
         device_card = ttk.Frame(main, style="Void.Card.TFrame")
         device_card.pack(fill="x", pady=(0, 20))
         device_card.configure(padding=20)
-        
+
         ttk.Label(
             device_card,
             text="📱 Connected Device",
             font=("Consolas", 14, "bold"),
             foreground=self.theme["accent"],
-            background=self.theme["panel"]
+            background=self.theme["panel"],
         ).pack(anchor="w")
-        
+
         ttk.Label(
             device_card,
             textvariable=self.selected_device_var,
             style="Void.TLabel",
-            font=("Consolas", 12)
+            font=("Consolas", 12),
         ).pack(anchor="w", pady=(8, 12))
-        
+
         ttk.Button(
             device_card,
             text="🔄 Refresh Devices",
             style="Void.TButton",
             command=self.refresh_devices,
-            width=20
+            width=20,
         ).pack(anchor="w")
-        
+
         # Quick Actions grid
         ttk.Label(
             main,
             text="Quick Actions",
             font=("Consolas", 14, "bold"),
             foreground=self.theme["accent"],
-            background=self.theme["bg"]
+            background=self.theme["bg"],
         ).pack(anchor="w", pady=(0, 12))
-        
+
         actions_grid = ttk.Frame(main, style="Void.TFrame")
         actions_grid.pack(fill="x", pady=(0, 20))
-        
+
         # Row 1 - Backup & Reports
         row1 = ttk.Frame(actions_grid, style="Void.TFrame")
         row1.pack(fill="x", pady=(0, 12))
-        
+
         self._create_action_card(
             row1,
             "💾 Backup Device",
             "Create a safe backup of your device data",
             self._backup,
-            side="left"
+            side="left",
         )
-        
+
         self._create_action_card(
             row1,
             "📊 Generate Report",
             "Create detailed device information report",
             self._report,
             side="left",
-            padx=(12, 0)
+            padx=(12, 0),
         )
-        
+
         # Row 2 - Diagnostics
         row2 = ttk.Frame(actions_grid, style="Void.TFrame")
         row2.pack(fill="x", pady=(0, 12))
-        
+
         self._create_action_card(
             row2,
             "🔧 Repair Workflow",
             "Run guided diagnostics and repair",
             self._repair_flow,
-            side="left"
+            side="left",
         )
-        
+
         self._create_action_card(
             row2,
             "📸 Screenshot",
             "Capture device screen",
             self._screenshot,
             side="left",
-            padx=(12, 0)
+            padx=(12, 0),
         )
-        
+
         # Row 2.5 - FRP Wizard (New Feature)
         row2_5 = ttk.Frame(actions_grid, style="Void.TFrame")
         row2_5.pack(fill="x", pady=(0, 12))
-        
+
         self._create_action_card(
             row2_5,
             "🔓 FRP Wizard",
             "Automated FRP bypass with guided steps",
             self._open_frp_wizard,
-            side="left"
+            side="left",
         )
-        
+
         # Row 3 - File & App Management
         row3 = ttk.Frame(actions_grid, style="Void.TFrame")
         row3.pack(fill="x", pady=(0, 12))
-        
+
         self._create_action_card(
             row3,
             "📁 Browse Files",
             "Access device files and folders",
-            lambda: self._switch_to_advanced_tab(1, 1) if self.notebook else None,  # Device Tools > Files
-            side="left"
+            lambda: (
+                self._switch_to_advanced_tab(1, 1) if self.notebook else None
+            ),  # Device Tools > Files
+            side="left",
         )
-        
+
         self._create_action_card(
             row3,
             "📱 Manage Apps",
             "View and manage installed apps",
-            lambda: self._switch_to_advanced_tab(1, 0) if self.notebook else None,  # Device Tools > Apps
+            lambda: (
+                self._switch_to_advanced_tab(1, 0) if self.notebook else None
+            ),  # Device Tools > Apps
             side="left",
-            padx=(12, 0)
+            padx=(12, 0),
         )
-        
+
         # Row 4 - Performance & Logs
         row4 = ttk.Frame(actions_grid, style="Void.TFrame")
         row4.pack(fill="x", pady=(0, 12))
-        
+
         self._create_action_card(
             row4,
             "🔍 Analyze Performance",
             "Check device health and performance",
             self._analyze,
-            side="left"
+            side="left",
         )
-        
+
         self._create_action_card(
             row4,
             "📋 View Logs",
             "View device logs and diagnostics",
-            lambda: self._switch_to_advanced_tab(3, 0) if self.notebook else None,  # Diagnostics > Logcat
+            lambda: (
+                self._switch_to_advanced_tab(3, 0) if self.notebook else None
+            ),  # Diagnostics > Logcat
             side="left",
-            padx=(12, 0)
+            padx=(12, 0),
         )
-        
+
         # Row 5 - Recovery & Network
         row5 = ttk.Frame(actions_grid, style="Void.TFrame")
         row5.pack(fill="x")
-        
+
         self._create_action_card(
             row5,
             "🔄 Data Recovery",
             "Recover contacts and messages",
-            lambda: self._switch_to_advanced_tab(2, 0) if self.notebook else None,  # Recovery > Data Recovery
-            side="left"
+            lambda: (
+                self._switch_to_advanced_tab(2, 0) if self.notebook else None
+            ),  # Recovery > Data Recovery
+            side="left",
         )
-        
+
         self._create_action_card(
             row5,
             "🌐 Network Tools",
             "Network settings and diagnostics",
-            lambda: self._switch_to_advanced_tab(1, 3) if self.notebook else None,  # Device Tools > Network
+            lambda: (
+                self._switch_to_advanced_tab(1, 3) if self.notebook else None
+            ),  # Device Tools > Network
             side="left",
-            padx=(12, 0)
+            padx=(12, 0),
         )
-        
+
         # Help section
         help_card = ttk.Frame(main, style="Void.Card.TFrame")
         help_card.pack(fill="x", pady=(20, 0))
         help_card.configure(padding=16)
-        
+
         ttk.Label(
             help_card,
             text="💡 Quick Tips",
             font=("Consolas", 12, "bold"),
             foreground=self.theme["accent"],
-            background=self.theme["panel"]
+            background=self.theme["panel"],
         ).pack(anchor="w")
-        
+
         tips_text = (
             "• Connect your device and enable USB debugging\n"
             "• Click 'Refresh Devices' to detect your device\n"
             "• Use Quick Actions for common tasks\n"
             "• Switch to Advanced mode for more options"
         )
-        
-        ttk.Label(
-            help_card,
-            text=tips_text,
-            style="Void.TLabel",
-            justify="left"
-        ).pack(anchor="w", pady=(8, 0))
-        
+
+        ttk.Label(help_card, text=tips_text, style="Void.TLabel", justify="left").pack(
+            anchor="w", pady=(8, 0)
+        )
+
     def _create_action_card(
         self,
         parent: tk.Widget,
@@ -1537,45 +1544,37 @@ class VoidGUI:
         description: str,
         command: Callable,
         side: str = "left",
-        padx: tuple = (0, 0)
+        padx: tuple = (0, 0),
     ) -> None:
         """Create a card-style action button."""
         card = ttk.Frame(parent, style="Void.Card.TFrame")
         card.pack(side=side, fill="both", expand=True, padx=padx)
         card.configure(padding=16)
-        
-        btn = ttk.Button(
-            card,
-            text=title,
-            style="Void.TButton",
-            command=command
-        )
+
+        btn = ttk.Button(card, text=title, style="Void.TButton", command=command)
         btn.pack(fill="x")
-        
+
         ttk.Label(
-            card,
-            text=description,
-            style="Void.TLabel",
-            font=("Consolas", 9),
-            wraplength=200
+            card, text=description, style="Void.TLabel", font=("Consolas", 9), wraplength=200
         ).pack(anchor="w", pady=(8, 0))
-        
+
         # Add hover effect
         def on_enter(e):
             card.configure(relief="sunken")
+
         def on_leave(e):
             card.configure(relief="raised")
-        
+
         card.bind("<Enter>", on_enter)
         card.bind("<Leave>", on_leave)
         btn.bind("<Enter>", on_enter)
         btn.bind("<Leave>", on_leave)
-        
+
     def _build_advanced_view(self) -> None:
         """Build the advanced view with all tabs and features."""
         if not self.advanced_view_container:
             return
-            
+
         body = self.advanced_view_container
 
         left = ttk.Frame(body, style="Void.Card.TFrame")
@@ -1605,22 +1604,16 @@ class VoidGUI:
             selectbackground=self.theme["button_active"],
             selectforeground=self.theme["text"],
             highlightthickness=0,
-            font=("Consolas", 10)
+            font=("Consolas", 10),
         )
         self.device_list.pack(pady=(6, 10))
         self.device_list.bind("<<ListboxSelect>>", lambda _: self._on_device_select())
         Tooltip(self.device_list, "Displays connected devices detected via ADB or fastboot.")
 
         ttk.Button(
-            left,
-            text="Refresh Devices",
-            style="Void.TButton",
-            command=self.refresh_devices
+            left, text="Refresh Devices", style="Void.TButton", command=self.refresh_devices
         ).pack(fill="x")
-        Tooltip(
-            left.winfo_children()[-1],
-            "Re-scan connected devices and refresh metadata."
-        )
+        Tooltip(left.winfo_children()[-1], "Re-scan connected devices and refresh metadata.")
 
         right = ttk.Frame(body, style="Void.TFrame")
         right.pack(side="left", fill="both", expand=True)
@@ -1649,7 +1642,7 @@ class VoidGUI:
         # Main tabs
         dashboard = ttk.Frame(self.notebook, style="Void.TFrame")
         dashboard_scrollable = self._make_scrollable(dashboard)
-        
+
         # Device Tools - Combined Apps, Files, System, Network
         device_tools_tab = ttk.Frame(self.notebook, style="Void.TFrame")
         device_tools_notebook = ttk.Notebook(device_tools_tab, style="Void.TNotebook")
@@ -1662,7 +1655,7 @@ class VoidGUI:
         device_tools_notebook.add(files_panel, text="Files")
         device_tools_notebook.add(system_panel, text="System")
         device_tools_notebook.add(network_panel, text="Network")
-        
+
         # Advanced Recovery - Combined Recovery, EDL, and Data Recovery
         recovery_tab = ttk.Frame(self.notebook, style="Void.TFrame")
         recovery_notebook = ttk.Notebook(recovery_tab, style="Void.TNotebook")
@@ -1673,10 +1666,10 @@ class VoidGUI:
         recovery_notebook.add(recovery_panel, text="Data Recovery")
         recovery_notebook.add(edl_recovery, text="EDL Mode")
         recovery_notebook.add(edl_tools_panel, text="Flash/Dump")
-        
+
         # Make EDL recovery panel scrollable
         edl_recovery_scrollable = self._make_scrollable(edl_recovery)
-        
+
         # Diagnostics - Combined Logcat, Monitoring, Troubleshooting
         self.diagnostics_tab = ttk.Frame(self.notebook, style="Void.TFrame")
         self.diagnostics_notebook = ttk.Notebook(self.diagnostics_tab, style="Void.TNotebook")
@@ -1687,10 +1680,10 @@ class VoidGUI:
         self.diagnostics_notebook.add(logcat_panel, text="Logcat")
         self.diagnostics_notebook.add(monitor_panel, text="Monitor")
         self.diagnostics_notebook.add(self.troubleshooting_panel, text="Troubleshoot")
-        
+
         # Make troubleshooting panel scrollable
         self.troubleshooting_scrollable = self._make_scrollable(self.troubleshooting_panel)
-        
+
         # Data Management - Combined exports and database tools
         data_tab = ttk.Frame(self.notebook, style="Void.TFrame")
         data_notebook = ttk.Notebook(data_tab, style="Void.TNotebook")
@@ -1699,7 +1692,7 @@ class VoidGUI:
         db_tools_panel = ttk.Frame(data_notebook, style="Void.TFrame")
         data_notebook.add(data_exports_panel, text="Exports")
         data_notebook.add(db_tools_panel, text="Database")
-        
+
         # Automation - Combined Command Center, Plugins, Browser, Assistant
         automation_tab = ttk.Frame(self.notebook, style="Void.TFrame")
         automation_notebook = ttk.Notebook(automation_tab, style="Void.TNotebook")
@@ -1712,10 +1705,10 @@ class VoidGUI:
         automation_notebook.add(plugins_panel, text="Plugins")
         automation_notebook.add(self.browser_panel, text="Browser")
         automation_notebook.add(self.assistant_panel, text="AI Assistant")
-        
+
         # Operations Log - Standalone
         logs = ttk.Frame(self.notebook, style="Void.TFrame")
-        
+
         # Settings - Combined Settings and Help
         settings_tab = ttk.Frame(self.notebook, style="Void.TFrame")
         settings_notebook = ttk.Notebook(settings_tab, style="Void.TNotebook")
@@ -1724,10 +1717,10 @@ class VoidGUI:
         help_panel = ttk.Frame(settings_notebook, style="Void.TFrame")
         settings_notebook.add(settings_panel, text="Configuration")
         settings_notebook.add(help_panel, text="Help")
-        
+
         # Make help panel scrollable
-        help_panel_scrollable = self._make_scrollable(help_panel)
-        
+        self._make_scrollable(help_panel)
+
         # Add main tabs to notebook (reduced from 20 to 8 tabs)
         self.notebook.add(dashboard, text="📊 Dashboard")
         self.notebook.add(device_tools_tab, text="🔧 Device Tools")
@@ -1745,10 +1738,12 @@ class VoidGUI:
         tab_controls.bind("<Button-4>", self._on_tab_wheel)
         tab_controls.bind("<Button-5>", self._on_tab_wheel)
 
-        ttk.Label(dashboard_scrollable, text="Selected Device", style="Void.TLabel").pack(anchor="w")
-        ttk.Label(dashboard_scrollable, textvariable=self.selected_device_var, style="Void.TLabel").pack(
-            anchor="w", pady=(2, 8)
+        ttk.Label(dashboard_scrollable, text="Selected Device", style="Void.TLabel").pack(
+            anchor="w"
         )
+        ttk.Label(
+            dashboard_scrollable, textvariable=self.selected_device_var, style="Void.TLabel"
+        ).pack(anchor="w", pady=(2, 8))
 
         details = ttk.Frame(dashboard_scrollable, style="Void.TFrame")
         details.pack(fill="x", pady=(0, 10))
@@ -1777,7 +1772,9 @@ class VoidGUI:
             state="disabled",
         )
         self.copy_device_summary_button.pack(side="left")
-        Tooltip(self.copy_device_summary_button, "Copy the selected device summary to the clipboard.")
+        Tooltip(
+            self.copy_device_summary_button, "Copy the selected device summary to the clipboard."
+        )
 
         sections = (
             ("Device", "device", 7),
@@ -1796,19 +1793,16 @@ class VoidGUI:
 
         self._clear_device_sections()
 
-        ttk.Label(dashboard_scrollable, text="Actions", style="Void.TLabel").pack(anchor="w", pady=(6, 0))
+        ttk.Label(dashboard_scrollable, text="Actions", style="Void.TLabel").pack(
+            anchor="w", pady=(6, 0)
+        )
         actions = ttk.Frame(dashboard_scrollable, style="Void.TFrame")
         actions.pack(fill="x", pady=6)
 
         self.backup_button = ttk.Button(
-            actions,
-            text="Create Backup",
-            style="Void.TButton",
-            command=self._backup
+            actions, text="Create Backup", style="Void.TButton", command=self._backup
         )
-        self.backup_button.pack(
-            side="left", padx=(0, 8)
-        )
+        self.backup_button.pack(side="left", padx=(0, 8))
         Tooltip(self.backup_button, "Creates a local backup snapshot of device data.")
         self.backup_button.bind(
             "<Enter>",
@@ -1818,14 +1812,9 @@ class VoidGUI:
         )
 
         self.analyze_button = ttk.Button(
-            actions,
-            text="Analyze",
-            style="Void.TButton",
-            command=self._analyze
+            actions, text="Analyze", style="Void.TButton", command=self._analyze
         )
-        self.analyze_button.pack(
-            side="left", padx=(0, 8)
-        )
+        self.analyze_button.pack(side="left", padx=(0, 8))
         Tooltip(self.analyze_button, "Collects performance metrics and device diagnostics.")
         self.analyze_button.bind(
             "<Enter>",
@@ -1835,14 +1824,9 @@ class VoidGUI:
         )
 
         self.report_button = ttk.Button(
-            actions,
-            text="Generate Report",
-            style="Void.TButton",
-            command=self._report
+            actions, text="Generate Report", style="Void.TButton", command=self._report
         )
-        self.report_button.pack(
-            side="left", padx=(0, 8)
-        )
+        self.report_button.pack(side="left", padx=(0, 8))
         Tooltip(self.report_button, "Builds an HTML device report with collected metadata.")
         self.report_button.bind(
             "<Enter>",
@@ -1857,9 +1841,7 @@ class VoidGUI:
             style="Void.TButton",
             command=self._repair_flow,
         )
-        self.repair_flow_button.pack(
-            side="left", padx=(0, 8)
-        )
+        self.repair_flow_button.pack(side="left", padx=(0, 8))
         Tooltip(self.repair_flow_button, "Run the guided repair workflow with remediation prompts.")
         self.repair_flow_button.bind(
             "<Enter>",
@@ -1869,14 +1851,9 @@ class VoidGUI:
         )
 
         screenshot_button = ttk.Button(
-            actions,
-            text="Screenshot",
-            style="Void.TButton",
-            command=self._screenshot
+            actions, text="Screenshot", style="Void.TButton", command=self._screenshot
         )
-        screenshot_button.pack(
-            side="left"
-        )
+        screenshot_button.pack(side="left")
         Tooltip(screenshot_button, "Captures a screenshot from the connected device.")
         screenshot_button.bind(
             "<Enter>",
@@ -1927,11 +1904,9 @@ class VoidGUI:
             command=lambda: self._run_problem_category("backup"),
         ).pack(side="left")
 
-        ttk.Label(
-            dashboard_scrollable,
-            text="Action Descriptions",
-            style="Void.TLabel"
-        ).pack(anchor="w", pady=(10, 0))
+        ttk.Label(dashboard_scrollable, text="Action Descriptions", style="Void.TLabel").pack(
+            anchor="w", pady=(10, 0)
+        )
         action_descriptions = (
             "Create Backup — Save a local snapshot of apps and data.\n"
             "Analyze — Collect performance and diagnostic stats.\n"
@@ -1940,21 +1915,24 @@ class VoidGUI:
             "Screenshot — Capture the current device screen."
         )
         ttk.Label(
-            dashboard_scrollable,
-            text=action_descriptions,
-            style="Void.TLabel",
-            wraplength=520
+            dashboard_scrollable, text=action_descriptions, style="Void.TLabel", wraplength=520
         ).pack(anchor="w", pady=(4, 0))
 
-        ttk.Label(dashboard_scrollable, text="Quick Tips", style="Void.TLabel").pack(anchor="w", pady=(10, 0))
+        ttk.Label(dashboard_scrollable, text="Quick Tips", style="Void.TLabel").pack(
+            anchor="w", pady=(10, 0)
+        )
         tips = (
             "• Use Refresh Devices before each operation.\n"
             "• Reports are generated in HTML for easy sharing.\n"
             "• Operations run in the background; watch the log for progress."
         )
-        ttk.Label(dashboard_scrollable, text=tips, style="Void.TLabel", wraplength=520).pack(anchor="w")
+        ttk.Label(dashboard_scrollable, text=tips, style="Void.TLabel", wraplength=520).pack(
+            anchor="w"
+        )
 
-        ttk.Label(dashboard_scrollable, text="Repair Workflow", style="Void.TLabel").pack(anchor="w", pady=(12, 0))
+        ttk.Label(dashboard_scrollable, text="Repair Workflow", style="Void.TLabel").pack(
+            anchor="w", pady=(12, 0)
+        )
         workflow_card = ttk.Frame(dashboard_scrollable, style="Void.Card.TFrame")
         workflow_card.pack(fill="x", pady=(6, 0))
         workflow_card.configure(padding=12)
@@ -2015,7 +1993,7 @@ class VoidGUI:
             fg=self.theme["text"],
             insertbackground=self.theme["accent"],
             font=("Consolas", 10),
-            state="disabled"
+            state="disabled",
         )
         self.output.pack(fill="both", expand=True, pady=(6, 0))
         if self._pending_log_entries:
@@ -2122,7 +2100,6 @@ class VoidGUI:
             command=self._run_full_diagnostics,
         ).pack(side="left")
 
-
         downloads_card = ttk.Frame(self.troubleshooting_scrollable, style="Void.Card.TFrame")
         downloads_card.pack(fill="x", pady=(0, 12))
         downloads_card.configure(padding=12)
@@ -2210,7 +2187,9 @@ class VoidGUI:
             ),
         ).pack(anchor="w")
 
-        ttk.Label(edl_recovery_scrollable, text="Mode Detection", style="Void.TLabel").pack(anchor="w")
+        ttk.Label(edl_recovery_scrollable, text="Mode Detection", style="Void.TLabel").pack(
+            anchor="w"
+        )
         detection_panel = ttk.Frame(edl_recovery_scrollable, style="Void.TFrame")
         detection_panel.pack(fill="x", pady=(6, 10))
 
@@ -2230,7 +2209,9 @@ class VoidGUI:
         detect_button.pack(anchor="w", pady=(6, 0))
         Tooltip(detect_button, "Run chipset detection for the selected device.")
 
-        ttk.Label(edl_recovery_scrollable, text="Readiness Check", style="Void.TLabel").pack(anchor="w")
+        ttk.Label(edl_recovery_scrollable, text="Readiness Check", style="Void.TLabel").pack(
+            anchor="w"
+        )
         readiness_panel = ttk.Frame(edl_recovery_scrollable, style="Void.TFrame")
         readiness_panel.pack(fill="x", pady=(6, 10))
 
@@ -2252,7 +2233,9 @@ class VoidGUI:
             command=self._update_edl_preflight,
         ).pack(anchor="w", pady=(6, 0))
 
-        ttk.Label(edl_recovery_scrollable, text="Tool Selection", style="Void.TLabel").pack(anchor="w", pady=(10, 0))
+        ttk.Label(edl_recovery_scrollable, text="Tool Selection", style="Void.TLabel").pack(
+            anchor="w", pady=(10, 0)
+        )
         tool_panel = ttk.Frame(edl_recovery_scrollable, style="Void.TFrame")
         tool_panel.pack(fill="x", pady=(6, 10))
 
@@ -2273,14 +2256,24 @@ class VoidGUI:
         mode_menu = ttk.Combobox(
             tool_panel,
             textvariable=self.target_mode_var,
-            values=["edl", "preloader", "download", "bootrom", "fastboot", "bootloader", "recovery"],
+            values=[
+                "edl",
+                "preloader",
+                "download",
+                "bootrom",
+                "fastboot",
+                "bootloader",
+                "recovery",
+            ],
             state="readonly",
             width=12,
         )
         mode_menu.pack(side="left", padx=(8, 0))
         Tooltip(mode_menu, "Select the target mode for entry workflows.")
 
-        ttk.Label(edl_recovery_scrollable, text="Workflows", style="Void.TLabel").pack(anchor="w", pady=(10, 0))
+        ttk.Label(edl_recovery_scrollable, text="Workflows", style="Void.TLabel").pack(
+            anchor="w", pady=(10, 0)
+        )
         workflow_panel = ttk.Frame(edl_recovery_scrollable, style="Void.TFrame")
         workflow_panel.pack(fill="x", pady=(6, 12))
 
@@ -2311,7 +2304,9 @@ class VoidGUI:
         dump_button.pack(side="left")
         Tooltip(dump_button, "Validate dump tool availability for the selected chipset.")
 
-        ttk.Label(edl_recovery_scrollable, text="Test-Point Guidance", style="Void.TLabel").pack(anchor="w")
+        ttk.Label(edl_recovery_scrollable, text="Test-Point Guidance", style="Void.TLabel").pack(
+            anchor="w"
+        )
         testpoint_panel = ttk.Frame(edl_recovery_scrollable, style="Void.TFrame")
         testpoint_panel.pack(fill="x", pady=(6, 0))
 
@@ -2322,7 +2317,9 @@ class VoidGUI:
             "• Confirm test-point locations with official board-level docs.\n"
             "• Proceed only if you are trained for hardware service."
         )
-        ttk.Label(testpoint_panel, text=warnings, style="Void.TLabel", wraplength=600).pack(anchor="w")
+        ttk.Label(testpoint_panel, text=warnings, style="Void.TLabel", wraplength=600).pack(
+            anchor="w"
+        )
 
         links_panel = ttk.Frame(testpoint_panel, style="Void.TFrame")
         links_panel.pack(anchor="w", pady=(6, 0))
@@ -2360,11 +2357,7 @@ class VoidGUI:
         status.pack(fill="x", padx=20, pady=(0, 12))
         ttk.Label(status, textvariable=self.status_var, style="Void.TLabel").pack(anchor="w")
         ttk.Label(status, textvariable=self.progress_var, style="Void.TLabel").pack(anchor="w")
-        self.progress = ttk.Progressbar(
-            status,
-            mode="indeterminate",
-            length=260
-        )
+        self.progress = ttk.Progressbar(status, mode="indeterminate", length=260)
         self.progress.pack(anchor="w", pady=(6, 0))
         self._update_edl_preflight()
 
@@ -2468,7 +2461,11 @@ class VoidGUI:
             return
         command = self.filtered_command_catalog[selection[0]]
         aliases = ", ".join(command.aliases) if command.aliases else "None"
-        examples = "\n".join(f"• {example}" for example in command.examples) if command.examples else "None"
+        examples = (
+            "\n".join(f"• {example}" for example in command.examples)
+            if command.examples
+            else "None"
+        )
         details = (
             f"{command.name}\n"
             f"Category: {command.category}\n"
@@ -2517,11 +2514,11 @@ class VoidGUI:
 
     def _execute_shell_command(self) -> None:
         from .core.shell import ShellController
-        
+
         device_id = self._get_selected_device()
         if not device_id:
             return
-        
+
         command = self.shell_command_var.get().strip()
         if not command:
             messagebox.showwarning("Void", "Enter a shell command to execute.")
@@ -2529,13 +2526,16 @@ class VoidGUI:
 
         def runner() -> Dict[str, Any]:
             result = ShellController.execute_command(device_id, command)
-            if result.get('output'):
-                lines = result['output'].strip().split('\n')
-                for line in lines[:self.MAX_SHELL_OUTPUT_LINES]:
+            if result.get("output"):
+                lines = result["output"].strip().split("\n")
+                for line in lines[: self.MAX_SHELL_OUTPUT_LINES]:
                     self._log(line, level="DATA")
                 if len(lines) > self.MAX_SHELL_OUTPUT_LINES:
-                    self._log(f"... and {len(lines) - self.MAX_SHELL_OUTPUT_LINES} more lines", level="DATA")
-            if result.get('error'):
+                    self._log(
+                        f"... and {len(lines) - self.MAX_SHELL_OUTPUT_LINES} more lines",
+                        level="DATA",
+                    )
+            if result.get("error"):
                 self._log(f"Error: {result['error']}", level="ERROR")
             return result
 
@@ -2549,6 +2549,7 @@ class VoidGUI:
         progress_callback: Optional[Callable[[str], None]] = None,
     ) -> None:
         """Run a potentially slow task in a background thread."""
+
         def emit_progress(message: str) -> None:
             if message:
                 self.root.after(0, lambda: self.progress_var.set(message))
@@ -2572,9 +2573,7 @@ class VoidGUI:
                 self._log(f"{label} failed: {exc}", level="ERROR")
                 self.root.after(
                     0,
-                    lambda: self.status_var.set(
-                        f"{label} failed. See log for details."
-                    ),
+                    lambda: self.status_var.set(f"{label} failed. See log for details."),
                 )
                 self._show_task_error(label, exc=exc)
             finally:
@@ -2590,7 +2589,7 @@ class VoidGUI:
                 messagebox.showwarning("Void", "Select a device first.")
                 return None
             return self.selected_device_id
-            
+
         selection = self.device_list.curselection()
         if not selection or selection[0] >= len(self.device_ids):
             messagebox.showwarning("Void", "Select a device first.")
@@ -2601,7 +2600,7 @@ class VoidGUI:
         """Update dashboard detail view when a device is selected."""
         if not self.device_list:
             return
-            
+
         selection = self.device_list.curselection()
         if not selection or selection[0] >= len(self.device_info):
             self.selected_device_id = None
@@ -2609,9 +2608,7 @@ class VoidGUI:
             self._clear_device_sections()
             self.chipset_status_var.set("Select a device to view chipset workflow status.")
             self.testpoint_notes_var.set("No model-specific test-point notes available.")
-            self.edl_preflight_var.set(
-                "Run a readiness check before entering recovery workflows."
-            )
+            self.edl_preflight_var.set("Run a readiness check before entering recovery workflows.")
             if self.edl_links_frame is not None:
                 for child in self.edl_links_frame.winfo_children():
                     child.destroy()
@@ -2649,35 +2646,43 @@ class VoidGUI:
         status_label = ", ".join(statuses) if isinstance(statuses, list) else str(statuses)
         reachable = "Yes" if info.get("reachable", False) else "No"
         self.selected_device_var.set(f"{device_id} • {manufacturer} {model}")
-        device_section = "\n".join([
-            f"ID: {device_id}",
-            f"Manufacturer: {manufacturer}",
-            f"Model: {model}",
-            f"Brand: {brand}",
-            f"Product: {product}",
-            f"Hardware: {hardware}",
-            f"ABI: {cpu_abi}",
-            f"Battery Level: {battery.get('level', 'Unknown')}",
-            f"Storage Free: {storage.get('available', 'Unknown')}",
-        ])
-        build_section = "\n".join([
-            f"Android: {android} (SDK {sdk})",
-            f"Build ID: {build_id}",
-            f"Build Type: {build_type}",
-            f"Security Patch: {security}",
-        ])
-        connectivity_section = "\n".join([
-            f"Mode: {mode} (Reachable: {reachable})",
-            f"Modes: {mode_label}",
-            f"Status: {status} (Statuses: {status_label})",
-            f"USB: {usb_id} (VID: {usb_vid} PID: {usb_pid})",
-        ])
-        chipset_section = "\n".join([
-            f"Chipset: {chipset} ({chipset_vendor})",
-            f"Mode: {chipset_mode}",
-            f"Confidence: {chipset_confidence}",
-            f"Notes: {chipset_notes}",
-        ])
+        device_section = "\n".join(
+            [
+                f"ID: {device_id}",
+                f"Manufacturer: {manufacturer}",
+                f"Model: {model}",
+                f"Brand: {brand}",
+                f"Product: {product}",
+                f"Hardware: {hardware}",
+                f"ABI: {cpu_abi}",
+                f"Battery Level: {battery.get('level', 'Unknown')}",
+                f"Storage Free: {storage.get('available', 'Unknown')}",
+            ]
+        )
+        build_section = "\n".join(
+            [
+                f"Android: {android} (SDK {sdk})",
+                f"Build ID: {build_id}",
+                f"Build Type: {build_type}",
+                f"Security Patch: {security}",
+            ]
+        )
+        connectivity_section = "\n".join(
+            [
+                f"Mode: {mode} (Reachable: {reachable})",
+                f"Modes: {mode_label}",
+                f"Status: {status} (Statuses: {status_label})",
+                f"USB: {usb_id} (VID: {usb_vid} PID: {usb_pid})",
+            ]
+        )
+        chipset_section = "\n".join(
+            [
+                f"Chipset: {chipset} ({chipset_vendor})",
+                f"Mode: {chipset_mode}",
+                f"Confidence: {chipset_confidence}",
+                f"Notes: {chipset_notes}",
+            ]
+        )
         self._set_device_section("device", device_section)
         self._set_device_section("build", build_section)
         self._set_device_section("connectivity", connectivity_section)
@@ -2701,9 +2706,8 @@ class VoidGUI:
             f"mode={chipset_mode} confidence={chipset_confidence}."
         )
 
-        testpoint_note = (
-            info.get("testpoint_notes")
-            or info.get("chipset_metadata", {}).get("testpoint_notes")
+        testpoint_note = info.get("testpoint_notes") or info.get("chipset_metadata", {}).get(
+            "testpoint_notes"
         )
         if testpoint_note:
             self.testpoint_notes_var.set(f"Model Notes: {testpoint_note}")
@@ -2730,11 +2734,7 @@ class VoidGUI:
 
     def _summarize_detection_errors(self, errors: List[Dict[str, Any]]) -> str:
         sources = sorted(
-            {
-                str(error.get("source", "")).upper()
-                for error in errors
-                if error.get("source")
-            }
+            {str(error.get("source", "")).upper() for error in errors if error.get("source")}
         )
         if sources:
             sources_label = ", ".join(sources)
@@ -2755,7 +2755,7 @@ class VoidGUI:
                     self.device_ids.append(device.get("id", "unknown"))
                     self.device_info.append(device)
             return
-            
+
         query = self.device_search_var.get().strip().lower()
         self.device_list.delete(0, tk.END)
         self.device_ids = []
@@ -2772,8 +2772,7 @@ class VoidGUI:
             return
 
         filtered = [
-            device for device in self.all_device_info
-            if self._matches_device_filter(device, query)
+            device for device in self.all_device_info if self._matches_device_filter(device, query)
         ]
 
         if not filtered:
@@ -2835,8 +2834,7 @@ class VoidGUI:
         mode_label = ", ".join(m.title() for m in modes if m)
         status_label, status_color = self._device_status_badge(device)
         label = (
-            f"{device_id} • {manufacturer} {model} • "
-            f"{mode_label} [{status_label}]"
+            f"{device_id} • {manufacturer} {model} • " f"{mode_label} [{status_label}]"
         ).strip()
         return label, status_color
 
@@ -2864,7 +2862,9 @@ class VoidGUI:
 
     def _backup(self) -> None:
         if not Config.ENABLE_AUTO_BACKUP:
-            messagebox.showwarning("Backups Disabled", "Enable backups in Settings to use this feature.")
+            messagebox.showwarning(
+                "Backups Disabled", "Enable backups in Settings to use this feature."
+            )
             self.status_var.set("Backup disabled in settings.")
             return
         device_id = self._get_selected_device()
@@ -2878,7 +2878,9 @@ class VoidGUI:
 
     def _analyze(self) -> None:
         if not Config.ENABLE_ANALYTICS:
-            messagebox.showwarning("Analytics Disabled", "Enable analytics in Settings to use Analyze.")
+            messagebox.showwarning(
+                "Analytics Disabled", "Enable analytics in Settings to use Analyze."
+            )
             self.status_var.set("Analyze disabled in settings.")
             return
         device_id = self._get_selected_device()
@@ -2887,7 +2889,9 @@ class VoidGUI:
 
     def _report(self) -> None:
         if not Config.ENABLE_REPORTS:
-            messagebox.showwarning("Reports Disabled", "Enable reports in Settings to generate reports.")
+            messagebox.showwarning(
+                "Reports Disabled", "Enable reports in Settings to generate reports."
+            )
             self.status_var.set("Reports disabled in settings.")
             return
         device_id = self._get_selected_device()
@@ -2944,136 +2948,143 @@ class VoidGUI:
         if not device_id:
             messagebox.showwarning(
                 "FRP Wizard",
-                "Please select a device first.\n\nConnect your device and click 'Refresh Devices'."
+                "Please select a device first.\n\nConnect your device and click 'Refresh Devices'.",
             )
             return
-        
+
         # Create FRP wizard window
         wizard_window = tk.Toplevel(self.root)
         wizard_window.title("FRP Wizard - Automated Bypass")
         wizard_window.geometry("900x700")
         wizard_window.configure(bg=self.theme["bg"])
         wizard_window.resizable(True, True)
-        
+
         # Center the window
         wizard_window.update_idletasks()
         x = (wizard_window.winfo_screenwidth() // 2) - (900 // 2)
         y = (wizard_window.winfo_screenheight() // 2) - (700 // 2)
         wizard_window.geometry(f"+{x}+{y}")
-        
+
         # Main container with scrollbar
         main_container = ttk.Frame(wizard_window, style="Void.TFrame")
         main_container.pack(fill="both", expand=True, padx=20, pady=20)
-        
+
         # Title section
         title_frame = ttk.Frame(main_container, style="Void.TFrame")
         title_frame.pack(fill="x", pady=(0, 20))
-        
+
         ttk.Label(
             title_frame,
             text="🔓 FRP Bypass Wizard",
             font=("Consolas", 18, "bold"),
             foreground=self.theme["accent"],
-            background=self.theme["bg"]
+            background=self.theme["bg"],
         ).pack(anchor="w")
-        
+
         ttk.Label(
             title_frame,
             text="Automated Factory Reset Protection bypass with guided steps",
             style="Void.TLabel",
-            font=("Consolas", 10)
+            font=("Consolas", 10),
         ).pack(anchor="w", pady=(4, 0))
-        
+
         # Warning section
         warning_frame = ttk.Frame(main_container, style="Void.Card.TFrame")
         warning_frame.pack(fill="x", pady=(0, 20))
         warning_frame.configure(padding=16)
-        
+
         ttk.Label(
             warning_frame,
             text="⚠️ Legal Warning",
             font=("Consolas", 12, "bold"),
             foreground=self.theme.get("error", "#ff6b6b"),
-            background=self.theme["panel"]
+            background=self.theme["panel"],
         ).pack(anchor="w")
-        
+
         ttk.Label(
             warning_frame,
             text="Only proceed if you are the legitimate owner of this device.\nUnauthorized FRP bypass is illegal and may violate laws in your jurisdiction.",
             style="Void.TLabel",
             font=("Consolas", 9),
-            justify="left"
+            justify="left",
         ).pack(anchor="w", pady=(4, 0))
-        
+
         # Device info section
         device_frame = ttk.Frame(main_container, style="Void.Card.TFrame")
         device_frame.pack(fill="x", pady=(0, 20))
         device_frame.configure(padding=16)
-        
+
         ttk.Label(
             device_frame,
             text="📱 Device Information",
             font=("Consolas", 12, "bold"),
             foreground=self.theme["accent"],
-            background=self.theme["panel"]
+            background=self.theme["panel"],
         ).pack(anchor="w")
-        
+
         # Get device info
         device_info_text = self._get_device_info_for_frp(device_id)
-        
+
         device_info_label = ttk.Label(
             device_frame,
             text=device_info_text,
             style="Void.TLabel",
             font=("Consolas", 9),
-            justify="left"
+            justify="left",
         )
         device_info_label.pack(anchor="w", pady=(8, 0))
-        
+
         # Method selection section
         method_frame = ttk.Frame(main_container, style="Void.TFrame")
         method_frame.pack(fill="both", expand=True, pady=(0, 20))
-        
+
         # Left side - method list
         left_panel = ttk.Frame(method_frame, style="Void.Card.TFrame")
         left_panel.pack(side="left", fill="both", expand=True, padx=(0, 10))
         left_panel.configure(padding=16)
-        
+
         ttk.Label(
             left_panel,
             text="🎯 Available Methods",
             font=("Consolas", 12, "bold"),
             foreground=self.theme["accent"],
-            background=self.theme["panel"]
+            background=self.theme["panel"],
         ).pack(anchor="w")
-        
+
         # Category selection
         category_frame = ttk.Frame(left_panel, style="Void.TFrame")
         category_frame.pack(fill="x", pady=(12, 8))
-        
-        ttk.Label(
-            category_frame,
-            text="Category:",
-            style="Void.TLabel"
-        ).pack(side="left", padx=(0, 8))
-        
+
+        ttk.Label(category_frame, text="Category:", style="Void.TLabel").pack(
+            side="left", padx=(0, 8)
+        )
+
         category_var = tk.StringVar(value="automated")
         category_combo = ttk.Combobox(
             category_frame,
             textvariable=category_var,
-            values=["automated", "adb", "fastboot", "edl", "recovery", "manual", "hardware", "commercial"],
+            values=[
+                "automated",
+                "adb",
+                "fastboot",
+                "edl",
+                "recovery",
+                "manual",
+                "hardware",
+                "commercial",
+            ],
             state="readonly",
-            width=15
+            width=15,
         )
         category_combo.pack(side="left")
-        
+
         # Method listbox with scrollbar
         method_list_frame = ttk.Frame(left_panel, style="Void.TFrame")
         method_list_frame.pack(fill="both", expand=True, pady=(0, 8))
-        
+
         method_scrollbar = ttk.Scrollbar(method_list_frame)
         method_scrollbar.pack(side="right", fill="y")
-        
+
         method_listbox = tk.Listbox(
             method_list_frame,
             yscrollcommand=method_scrollbar.set,
@@ -3084,24 +3095,24 @@ class VoidGUI:
             font=("Consolas", 9),
             relief="solid",
             borderwidth=1,
-            activestyle="none"
+            activestyle="none",
         )
         method_listbox.pack(side="left", fill="both", expand=True)
         method_scrollbar.config(command=method_listbox.yview)
-        
+
         # Right side - method details
         right_panel = ttk.Frame(method_frame, style="Void.Card.TFrame")
         right_panel.pack(side="right", fill="both", expand=True)
         right_panel.configure(padding=16)
-        
+
         ttk.Label(
             right_panel,
             text="📋 Method Details",
             font=("Consolas", 12, "bold"),
             foreground=self.theme["accent"],
-            background=self.theme["panel"]
+            background=self.theme["panel"],
         ).pack(anchor="w")
-        
+
         method_detail_text = scrolledtext.ScrolledText(
             right_panel,
             height=15,
@@ -3111,112 +3122,109 @@ class VoidGUI:
             foreground=self.theme["text"],
             insertbackground=self.theme["text"],
             relief="solid",
-            borderwidth=1
+            borderwidth=1,
         )
         method_detail_text.pack(fill="both", expand=True, pady=(12, 0))
         method_detail_text.configure(state="disabled")
-        
+
         # Bottom action buttons
         action_frame = ttk.Frame(main_container, style="Void.TFrame")
         action_frame.pack(fill="x")
-        
+
         ttk.Button(
             action_frame,
             text="▶ Execute Selected Method",
             style="Void.TButton",
             command=lambda: self._execute_frp_method(
                 wizard_window, device_id, method_listbox, method_detail_text
-            )
+            ),
         ).pack(side="left", padx=(0, 8))
-        
+
         ttk.Button(
             action_frame,
             text="🔄 Refresh Methods",
             style="Void.TButton",
             command=lambda: self._populate_frp_methods(
                 device_id, category_var.get(), method_listbox, method_detail_text
-            )
+            ),
         ).pack(side="left", padx=(0, 8))
-        
+
         ttk.Button(
-            action_frame,
-            text="❌ Close",
-            style="Void.TButton",
-            command=wizard_window.destroy
+            action_frame, text="❌ Close", style="Void.TButton", command=wizard_window.destroy
         ).pack(side="right")
-        
+
         # Populate initial methods
-        self._populate_frp_methods(device_id, category_var.get(), method_listbox, method_detail_text)
-        
+        self._populate_frp_methods(
+            device_id, category_var.get(), method_listbox, method_detail_text
+        )
+
         # Bind category change
         category_combo.bind(
             "<<ComboboxSelected>>",
             lambda e: self._populate_frp_methods(
                 device_id, category_var.get(), method_listbox, method_detail_text
-            )
+            ),
         )
-        
+
         # Bind method selection
         method_listbox.bind(
             "<<ListboxSelect>>",
-            lambda e: self._show_frp_method_details(
-                device_id, method_listbox, method_detail_text
-            )
+            lambda e: self._show_frp_method_details(device_id, method_listbox, method_detail_text),
         )
 
     def _get_device_info_with_wizard_diagnostics(self, device_id: str) -> Dict:
         """Get device info dict enriched with setup wizard diagnostics.
-        
+
         Args:
             device_id: The device ID to get info for
-            
+
         Returns:
             Dictionary with device info including wizard diagnostics
         """
         # Get base device info
-        device_info_dict = {'id': device_id, 'mode': 'unknown'}
+        device_info_dict = {"id": device_id, "mode": "unknown"}
         for dev in self.all_device_info:
-            if dev.get('id') == device_id:
+            if dev.get("id") == device_id:
                 device_info_dict = dev
                 break
-        
+
         # Add setup wizard diagnostics
         try:
             diagnostics = SetupWizardDiagnostics.analyze(device_id)
-            device_info_dict['wizard_status'] = diagnostics.get('status', 'unknown')
-            device_info_dict['wizard_running'] = diagnostics.get('wizard_running', False)
-            device_info_dict['user_setup_complete'] = diagnostics.get('user_setup_complete', None)
+            device_info_dict["wizard_status"] = diagnostics.get("status", "unknown")
+            device_info_dict["wizard_running"] = diagnostics.get("wizard_running", False)
+            device_info_dict["user_setup_complete"] = diagnostics.get("user_setup_complete", None)
         except Exception:
             pass  # Continue without diagnostics if they fail
-        
+
         return device_info_dict
 
     def _get_device_info_for_frp(self, device_id: str) -> str:
         """Get device information formatted for FRP wizard."""
         device_info_dict = None
         for dev in self.all_device_info:
-            if dev.get('id') == device_id:
+            if dev.get("id") == device_id:
                 device_info_dict = dev
                 break
-        
+
         if not device_info_dict:
             return f"Device ID: {device_id}\n(Device info unavailable - run device detection)"
-        
-        manufacturer = device_info_dict.get('manufacturer', 'Unknown')
-        model = device_info_dict.get('model', 'Unknown')
-        android_ver = device_info_dict.get('android_version', 'Unknown')
-        security_patch = device_info_dict.get('security_patch', 'Unknown')
-        mode = device_info_dict.get('mode', 'Unknown')
-        
+
+        manufacturer = device_info_dict.get("manufacturer", "Unknown")
+        model = device_info_dict.get("model", "Unknown")
+        android_ver = device_info_dict.get("android_version", "Unknown")
+        security_patch = device_info_dict.get("security_patch", "Unknown")
+        mode = device_info_dict.get("mode", "Unknown")
+
         # Get setup wizard diagnostics
         wizard_status = "Unknown"
         wizard_details = ""
         try:
             diagnostics = SetupWizardDiagnostics.analyze(device_id)
-            wizard_status = diagnostics.get('status', 'Unknown')
-            
+            wizard_status = diagnostics.get("status", "Unknown")
+
             # Add relevant wizard information
-            if diagnostics.get('wizard_running'):
+            if diagnostics.get("wizard_running"):
                 wizard_details = "\n⚠️  Setup Wizard is currently running"
             if wizard_status == "wizard loop suspected":
                 wizard_details = "\n⚠️  WIZARD LOOP DETECTED - FRP likely active"
@@ -3224,7 +3232,7 @@ class VoidGUI:
                 wizard_details = "\n⚠️  Setup incomplete - FRP may be active"
         except Exception:
             pass  # If diagnostics fail, continue without them
-        
+
         info_text = f"""Device ID: {device_id}
 Manufacturer: {manufacturer}
 Model: {model}
@@ -3232,7 +3240,7 @@ Android Version: {android_ver}
 Security Patch: {security_patch}
 Current Mode: {mode}
 Setup Wizard Status: {wizard_status}{wizard_details}"""
-        
+
         return info_text
 
     def _populate_frp_methods(
@@ -3240,51 +3248,59 @@ Setup Wizard Status: {wizard_status}{wizard_details}"""
         device_id: str,
         category: str,
         method_listbox: tk.Listbox,
-        detail_text: scrolledtext.ScrolledText
+        detail_text: scrolledtext.ScrolledText,
     ) -> None:
         """Populate the FRP methods list based on category."""
         method_listbox.delete(0, tk.END)
-        
+
         # Get device info with wizard diagnostics
         device_info_dict = self._get_device_info_with_wizard_diagnostics(device_id)
-        
+
         # Get recommendations from FRP engine
         recommendations = self.frp_engine.detect_best_methods(device_info_dict)
-        
+
         # Filter methods by category
         if category == "automated":
             # Show primary recommended methods
-            methods = recommendations.get('primary_methods', [])[:10]
+            methods = recommendations.get("primary_methods", [])[:10]
         elif category == "adb":
-            methods = [m for m in self.frp_engine.methods.keys() if m.startswith('adb_')][:15]
+            methods = [m for m in self.frp_engine.methods.keys() if m.startswith("adb_")][:15]
         elif category == "fastboot":
-            methods = [m for m in self.frp_engine.methods.keys() if m.startswith('fastboot_')][:15]
+            methods = [m for m in self.frp_engine.methods.keys() if m.startswith("fastboot_")][:15]
         elif category == "edl":
-            methods = [m for m in self.frp_engine.methods.keys() 
-                      if m.startswith('edl_') or m.startswith('qualcomm_') or m.startswith('mtk_')][:15]
+            methods = [
+                m
+                for m in self.frp_engine.methods.keys()
+                if m.startswith("edl_") or m.startswith("qualcomm_") or m.startswith("mtk_")
+            ][:15]
         elif category == "recovery":
-            methods = [m for m in self.frp_engine.methods.keys() if m.startswith('recovery_')][:15]
+            methods = [m for m in self.frp_engine.methods.keys() if m.startswith("recovery_")][:15]
         elif category == "manual":
-            methods = recommendations.get('manual_methods', []) + \
-                     [m for m in self.frp_engine.methods.keys() 
-                      if m.startswith('settings_') or m.startswith('browser_') or m.startswith('sim_')][:15]
+            methods = (
+                recommendations.get("manual_methods", [])
+                + [
+                    m
+                    for m in self.frp_engine.methods.keys()
+                    if m.startswith("settings_") or m.startswith("browser_") or m.startswith("sim_")
+                ][:15]
+            )
         elif category == "hardware":
-            methods = recommendations.get('hardware_methods', [])[:15]
+            methods = recommendations.get("hardware_methods", [])[:15]
         elif category == "commercial":
-            methods = [m for m in self.frp_engine.methods.keys() if m.startswith('tool_')][:15]
+            methods = [m for m in self.frp_engine.methods.keys() if m.startswith("tool_")][:15]
         else:
-            methods = recommendations.get('primary_methods', [])[:10]
-        
+            methods = recommendations.get("primary_methods", [])[:10]
+
         # Add methods to listbox with success rate
-        success_rates = recommendations.get('success_probability', {})
+        success_rates = recommendations.get("success_probability", {})
         for method in methods:
-            success_rate = success_rates.get(method, 'Unknown')
+            success_rate = success_rates.get(method, "Unknown")
             display_name = f"{method.replace('_', ' ').title()} [{success_rate}]"
             method_listbox.insert(tk.END, display_name)
-        
+
         # Store method names directly on the widget for retrieval
         method_listbox._frp_methods = methods  # Store as widget attribute
-        
+
         # Update detail text
         detail_text.configure(state="normal")
         detail_text.delete("1.0", tk.END)
@@ -3297,41 +3313,38 @@ Setup Wizard Status: {wizard_status}{wizard_details}"""
             f"• Automated methods show the best recommended options\n"
             f"• ADB methods require USB debugging enabled\n"
             f"• EDL methods work at hardware level (advanced)\n"
-            f"• Manual methods require physical device interaction"
+            f"• Manual methods require physical device interaction",
         )
         detail_text.configure(state="disabled")
 
     def _show_frp_method_details(
-        self,
-        device_id: str,
-        method_listbox: tk.Listbox,
-        detail_text: scrolledtext.ScrolledText
+        self, device_id: str, method_listbox: tk.Listbox, detail_text: scrolledtext.ScrolledText
     ) -> None:
         """Show details for the selected FRP method."""
         selection = method_listbox.curselection()
         if not selection:
             return
-        
+
         index = selection[0]
-        methods = getattr(method_listbox, '_frp_methods', [])
-        
+        methods = getattr(method_listbox, "_frp_methods", [])
+
         if index >= len(methods):
             return
-        
+
         method_id = methods[index]
-        
+
         # Get device info with wizard diagnostics
         device_info_dict = self._get_device_info_with_wizard_diagnostics(device_id)
-        
+
         # Get recommendations to get requirements and success rate
         recommendations = self.frp_engine.detect_best_methods(device_info_dict)
-        requirements = recommendations.get('requirements', {}).get(method_id, {})
-        success_rate = recommendations.get('success_probability', {}).get(method_id, 'Unknown')
-        
+        requirements = recommendations.get("requirements", {}).get(method_id, {})
+        success_rate = recommendations.get("success_probability", {}).get(method_id, "Unknown")
+
         # Build detail text
         detail_text.configure(state="normal")
         detail_text.delete("1.0", tk.END)
-        
+
         detail = f"""METHOD: {method_id}
 
 SUCCESS RATE: {success_rate}
@@ -3340,40 +3353,39 @@ SKILL LEVEL: {requirements.get('skill_level', 'Unknown')}
 
 TOOLS NEEDED:
 """
-        for tool in requirements.get('tools_needed', ['None specified']):
+        for tool in requirements.get("tools_needed", ["None specified"]):
             detail += f"  • {tool}\n"
-        
+
         detail += "\nPREREQUISITES:\n"
-        for prereq in requirements.get('prerequisites', ['None specified']):
+        for prereq in requirements.get("prerequisites", ["None specified"]):
             detail += f"  • {prereq}\n"
-        
+
         detail += "\nRISKS:\n"
-        for risk in requirements.get('risks', ['No specific risks listed']):
+        for risk in requirements.get("risks", ["No specific risks listed"]):
             detail += f"  ⚠ {risk}\n"
-        
+
         detail += f"\nDESCRIPTION:\n{self._get_method_description(method_id)}"
-        
+
         detail_text.insert("1.0", detail)
         detail_text.configure(state="disabled")
 
     def _get_method_description(self, method_id: str) -> str:
         """Get a human-readable description for a method."""
         descriptions = {
-            'adb_setup_complete': 'Bypasses FRP by marking device setup as complete via ADB commands.',
-            'adb_accounts_remove': 'Removes Google account database files using ADB shell.',
-            'adb_shell_reset': 'Resets lock settings and user data via ADB shell commands.',
-            'fastboot_erase_frp': 'Erases the FRP partition using fastboot (requires unlocked bootloader).',
-            'fastboot_erase_misc': 'Erases the misc partition which may contain FRP lock data.',
-            'edl_erase_frp_partition': 'Erases FRP partition at hardware level using EDL mode.',
-            'recovery_twrp_filemanager_delete': 'Uses TWRP file manager to delete FRP-related files.',
-            'settings_talkback_bypass': 'Manual bypass using TalkBack accessibility settings.',
-            'browser_chrome_download_apk': 'Exploits Chrome browser to download and install bypass APK.',
-            'tool_samfw_frp_tool': 'Commercial Samsung FRP tool with high success rate.',
+            "adb_setup_complete": "Bypasses FRP by marking device setup as complete via ADB commands.",
+            "adb_accounts_remove": "Removes Google account database files using ADB shell.",
+            "adb_shell_reset": "Resets lock settings and user data via ADB shell commands.",
+            "fastboot_erase_frp": "Erases the FRP partition using fastboot (requires unlocked bootloader).",
+            "fastboot_erase_misc": "Erases the misc partition which may contain FRP lock data.",
+            "edl_erase_frp_partition": "Erases FRP partition at hardware level using EDL mode.",
+            "recovery_twrp_filemanager_delete": "Uses TWRP file manager to delete FRP-related files.",
+            "settings_talkback_bypass": "Manual bypass using TalkBack accessibility settings.",
+            "browser_chrome_download_apk": "Exploits Chrome browser to download and install bypass APK.",
+            "tool_samfw_frp_tool": "Commercial Samsung FRP tool with high success rate.",
         }
-        
+
         return descriptions.get(
-            method_id,
-            'This method attempts to bypass FRP lock. See requirements and risks above.'
+            method_id, "This method attempts to bypass FRP lock. See requirements and risks above."
         )
 
     def _execute_frp_method(
@@ -3381,34 +3393,34 @@ TOOLS NEEDED:
         wizard_window: tk.Toplevel,
         device_id: str,
         method_listbox: tk.Listbox,
-        detail_text: scrolledtext.ScrolledText
+        detail_text: scrolledtext.ScrolledText,
     ) -> None:
         """Execute the selected FRP method with progress tracking."""
         selection = method_listbox.curselection()
         if not selection:
             messagebox.showwarning("FRP Wizard", "Please select a method first.")
             return
-        
+
         index = selection[0]
-        methods = getattr(method_listbox, '_frp_methods', [])
-        
+        methods = getattr(method_listbox, "_frp_methods", [])
+
         if index >= len(methods):
             return
-        
+
         method_id = methods[index]
-        
+
         # Confirm execution
         confirm = messagebox.askyesno(
             "Confirm FRP Bypass",
             f"Execute method: {method_id}\n\n"
             f"This will attempt to bypass FRP on device {device_id}.\n\n"
             f"⚠️ Ensure you have legal right to unlock this device.\n\n"
-            f"Continue?"
+            f"Continue?",
         )
-        
+
         if not confirm:
             return
-        
+
         # Create progress window
         progress_window = tk.Toplevel(wizard_window)
         progress_window.title("FRP Method Execution")
@@ -3416,52 +3428,42 @@ TOOLS NEEDED:
         progress_window.configure(bg=self.theme["bg"])
         progress_window.transient(wizard_window)
         progress_window.grab_set()
-        
+
         # Center progress window
         progress_window.update_idletasks()
         x = (progress_window.winfo_screenwidth() // 2) - (700 // 2)
         y = (progress_window.winfo_screenheight() // 2) - (500 // 2)
         progress_window.geometry(f"+{x}+{y}")
-        
+
         # Progress window content
         content_frame = ttk.Frame(progress_window, style="Void.TFrame")
         content_frame.pack(fill="both", expand=True, padx=20, pady=20)
-        
+
         ttk.Label(
             content_frame,
             text=f"🔄 Executing: {method_id}",
             font=("Consolas", 14, "bold"),
             foreground=self.theme["accent"],
-            background=self.theme["bg"]
+            background=self.theme["bg"],
         ).pack(anchor="w", pady=(0, 20))
-        
+
         # Status label
         status_var = tk.StringVar(value="Initializing...")
         status_label = ttk.Label(
-            content_frame,
-            textvariable=status_var,
-            style="Void.TLabel",
-            font=("Consolas", 10)
+            content_frame, textvariable=status_var, style="Void.TLabel", font=("Consolas", 10)
         )
         status_label.pack(anchor="w", pady=(0, 10))
-        
+
         # Progress bar
-        progress_bar = ttk.Progressbar(
-            content_frame,
-            mode='indeterminate',
-            length=400
-        )
+        progress_bar = ttk.Progressbar(content_frame, mode="indeterminate", length=400)
         progress_bar.pack(fill="x", pady=(0, 20))
         progress_bar.start(10)
-        
+
         # Log area
         ttk.Label(
-            content_frame,
-            text="Execution Log:",
-            style="Void.TLabel",
-            font=("Consolas", 10, "bold")
+            content_frame, text="Execution Log:", style="Void.TLabel", font=("Consolas", 10, "bold")
         ).pack(anchor="w", pady=(0, 8))
-        
+
         log_text = scrolledtext.ScrolledText(
             content_frame,
             height=15,
@@ -3471,26 +3473,26 @@ TOOLS NEEDED:
             foreground=self.theme["text"],
             insertbackground=self.theme["text"],
             relief="solid",
-            borderwidth=1
+            borderwidth=1,
         )
         log_text.pack(fill="both", expand=True, pady=(0, 20))
-        
+
         # Close button (disabled initially)
         close_button = ttk.Button(
             content_frame,
             text="Close",
             style="Void.TButton",
             command=progress_window.destroy,
-            state="disabled"
+            state="disabled",
         )
         close_button.pack(anchor="e")
-        
+
         def log_message(msg: str) -> None:
             """Add message to log."""
             log_text.insert(tk.END, f"{msg}\n")
             log_text.see(tk.END)
             progress_window.update()
-        
+
         def execute_in_thread() -> None:
             """Execute the FRP method in a separate thread."""
             try:
@@ -3498,33 +3500,33 @@ TOOLS NEEDED:
                 log_message(f"[{self._format_timestamp()}] Method: {method_id}")
                 log_message(f"[{self._format_timestamp()}] Device: {device_id}")
                 log_message("")
-                
+
                 status_var.set("Executing method...")
-                
+
                 # Execute the method
                 result = self.frp_engine.execute_method(method_id, device_id)
-                
+
                 log_message(f"[{self._format_timestamp()}] Execution completed")
                 log_message("")
-                
-                if result.get('success'):
+
+                if result.get("success"):
                     log_message("✅ SUCCESS!")
                     log_message(f"Message: {result.get('message', 'FRP bypass successful')}")
                     status_var.set("✅ Method executed successfully!")
                     progress_bar.stop()
-                    progress_bar.configure(mode='determinate', value=100)
+                    progress_bar.configure(mode="determinate", value=100)
                 else:
                     log_message("❌ FAILED")
                     log_message(f"Message: {result.get('message', 'FRP bypass failed')}")
                     status_var.set("❌ Method execution failed")
                     progress_bar.stop()
-                    progress_bar.configure(mode='determinate', value=0)
-                
+                    progress_bar.configure(mode="determinate", value=0)
+
                 log_message("")
                 log_message("=" * 60)
                 log_message("NEXT STEPS:")
-                
-                if result.get('success'):
+
+                if result.get("success"):
                     log_message("1. Reboot your device")
                     log_message("2. Verify that FRP lock is bypassed")
                     log_message("3. Set up device with new Google account")
@@ -3533,7 +3535,7 @@ TOOLS NEEDED:
                     log_message("2. Verify device prerequisites are met")
                     log_message("3. Try an alternative method from the list")
                     log_message("4. Check device connection and mode")
-                
+
             except Exception as e:
                 log_message(f"[{self._format_timestamp()}] ❌ EXCEPTION OCCURRED")
                 log_message(f"Error: {str(e)}")
@@ -3542,11 +3544,11 @@ TOOLS NEEDED:
                 log_message("Please check device connection and try again.")
                 status_var.set("❌ Exception occurred")
                 progress_bar.stop()
-                progress_bar.configure(mode='determinate', value=0)
-            
+                progress_bar.configure(mode="determinate", value=0)
+
             finally:
                 close_button.configure(state="normal")
-        
+
         # Start execution in thread
         thread = threading.Thread(target=execute_in_thread, daemon=True)
         thread.start()
@@ -3564,9 +3566,7 @@ TOOLS NEEDED:
                 summary, message = self._format_display_diagnostics_result(result)
                 self._log(summary)
                 self.status_var.set(summary)
-                self.root.after(
-                    0, lambda: messagebox.showinfo("Display Diagnostics", message)
-                )
+                self.root.after(0, lambda: messagebox.showinfo("Display Diagnostics", message))
             except Exception as exc:
                 self._log(f"Display diagnostics failed: {exc}", level="ERROR")
                 self.status_var.set("Display diagnostics failed. See log for details.")
@@ -3578,7 +3578,7 @@ TOOLS NEEDED:
 
     def _check_battery_health(self) -> None:
         from .core.diagnostics import DiagnosticsTools
-        
+
         device_id = self._get_selected_device()
         if not device_id:
             return
@@ -3594,7 +3594,7 @@ TOOLS NEEDED:
 
     def _check_storage_health(self) -> None:
         from .core.diagnostics import DiagnosticsTools
-        
+
         device_id = self._get_selected_device()
         if not device_id:
             return
@@ -3602,15 +3602,18 @@ TOOLS NEEDED:
         def runner() -> Dict[str, Any]:
             storage = DiagnosticsTools.check_storage_health(device_id)
             self._log("Storage Health:")
-            for partition in storage.get('partitions', []):
-                self._log(f"  {partition.get('mounted_on')}: {partition.get('used')}/{partition.get('size')} ({partition.get('use_percent')})", level="DATA")
+            for partition in storage.get("partitions", []):
+                self._log(
+                    f"  {partition.get('mounted_on')}: {partition.get('used')}/{partition.get('size')} ({partition.get('use_percent')})",
+                    level="DATA",
+                )
             return {"success": True, "message": "Storage health checked"}
 
         self._run_task("Storage Health", runner)
 
     def _check_temperature(self) -> None:
         from .core.diagnostics import DiagnosticsTools
-        
+
         device_id = self._get_selected_device()
         if not device_id:
             return
@@ -3629,7 +3632,7 @@ TOOLS NEEDED:
 
     def _run_full_diagnostics(self) -> None:
         from .core.diagnostics import DiagnosticsTools
-        
+
         device_id = self._get_selected_device()
         if not device_id:
             return
@@ -3637,21 +3640,24 @@ TOOLS NEEDED:
         def runner() -> Dict[str, Any]:
             diagnostics = DiagnosticsTools.run_device_diagnostics(device_id)
             self._log("Full Device Diagnostics:")
-            
+
             self._log("Battery:", level="DATA")
-            for key, value in diagnostics.get('battery', {}).items():
+            for key, value in diagnostics.get("battery", {}).items():
                 self._log(f"  {key}: {value}", level="DATA")
-            
+
             self._log("Storage:", level="DATA")
-            for partition in diagnostics.get('storage', {}).get('partitions', [])[:5]:
-                self._log(f"  {partition.get('mounted_on')}: {partition.get('available')} available", level="DATA")
-            
-            if diagnostics.get('imei'):
+            for partition in diagnostics.get("storage", {}).get("partitions", [])[:5]:
+                self._log(
+                    f"  {partition.get('mounted_on')}: {partition.get('available')} available",
+                    level="DATA",
+                )
+
+            if diagnostics.get("imei"):
                 self._log(f"IMEI: {diagnostics['imei']}", level="DATA")
-            
-            if diagnostics.get('build_fingerprint'):
+
+            if diagnostics.get("build_fingerprint"):
                 self._log(f"Build: {diagnostics['build_fingerprint']}", level="DATA")
-            
+
             return {"success": True, "message": "Full diagnostics complete"}
 
         self._run_task("Full Diagnostics", runner)
@@ -3785,12 +3791,10 @@ TOOLS NEEDED:
         Config.BACKUP_DIR.mkdir(parents=True, exist_ok=True)
         try:
             usage = shutil.disk_usage(Config.BACKUP_DIR)
-            free_gb = usage.free / (1024 ** 3)
-            total_gb = usage.total / (1024 ** 3)
+            free_gb = usage.free / (1024**3)
+            total_gb = usage.total / (1024**3)
             details.append(f"Storage free: {free_gb:.1f} GB of {total_gb:.1f} GB")
-            summary = (
-                f"{backup_count} backup(s) recorded; {free_gb:.1f} GB free in backup storage."
-            )
+            summary = f"{backup_count} backup(s) recorded; {free_gb:.1f} GB free in backup storage."
         except OSError as exc:
             details.append(f"Storage availability check failed: {exc}")
             summary = f"{backup_count} backup(s) recorded; storage availability unknown."
@@ -3852,76 +3856,71 @@ TOOLS NEEDED:
         Returns the inner frame where content should be packed.
         """
         # Create canvas and scrollbar
-        canvas = tk.Canvas(
-            parent,
-            bg=self.theme["bg"],
-            highlightthickness=0,
-            bd=0
-        )
+        canvas = tk.Canvas(parent, bg=self.theme["bg"], highlightthickness=0, bd=0)
         scrollbar = ttk.Scrollbar(parent, orient="vertical", command=canvas.yview)
-        
+
         # Create inner frame to hold the actual content
         scrollable_frame = ttk.Frame(canvas, style="Void.TFrame")
-        
+
         # Configure the canvas scrolling
         def _on_frame_configure(event):
             # Update scroll region to encompass the inner frame
             canvas.configure(scrollregion=canvas.bbox("all"))
-        
+
         def _on_canvas_configure(event):
             # Make the canvas window width match the canvas width
             canvas.itemconfig(canvas_window, width=event.width)
-        
+
         scrollable_frame.bind("<Configure>", _on_frame_configure)
         canvas.bind("<Configure>", _on_canvas_configure)
-        
+
         # Create window in canvas
         canvas_window = canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
         canvas.configure(yscrollcommand=scrollbar.set)
-        
+
         # Pack canvas and scrollbar
         canvas.pack(side="left", fill="both", expand=True)
         scrollbar.pack(side="right", fill="y")
-        
+
         # Bind mouse wheel events for scrolling
         def _on_mousewheel(event):
             canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
-        
+
         def _on_mousewheel_linux(event):
             if event.num == 4:
                 canvas.yview_scroll(-1, "units")
             elif event.num == 5:
                 canvas.yview_scroll(1, "units")
-        
+
         # Bind to canvas for mouse wheel scrolling
         canvas.bind("<MouseWheel>", _on_mousewheel)
         canvas.bind("<Button-4>", _on_mousewheel_linux)
         canvas.bind("<Button-5>", _on_mousewheel_linux)
-        
+
         # Also bind to scrollable_frame for when mouse is over content
         scrollable_frame.bind("<MouseWheel>", _on_mousewheel)
         scrollable_frame.bind("<Button-4>", _on_mousewheel_linux)
         scrollable_frame.bind("<Button-5>", _on_mousewheel_linux)
-        
+
         # Bind enter/leave events to enable scrolling when mouse is over the panel
         def _bind_to_mousewheel(event):
             canvas.bind_all("<MouseWheel>", _on_mousewheel)
             canvas.bind_all("<Button-4>", _on_mousewheel_linux)
             canvas.bind_all("<Button-5>", _on_mousewheel_linux)
-        
+
         def _unbind_from_mousewheel(event):
             canvas.unbind_all("<MouseWheel>")
             canvas.unbind_all("<Button-4>")
             canvas.unbind_all("<Button-5>")
-        
+
         canvas.bind("<Enter>", _bind_to_mousewheel)
         canvas.bind("<Leave>", _unbind_from_mousewheel)
-        
+
         return scrollable_frame
 
     def _build_apps_panel(self, panel: ttk.Frame) -> None:
         scrollable = self._make_scrollable(panel)
-        
+
         ttk.Label(scrollable, text="Apps", style="Void.TLabel").pack(anchor="w")
 
         filters = ttk.Frame(scrollable, style="Void.Card.TFrame")
@@ -4040,10 +4039,9 @@ TOOLS NEEDED:
             command=self._install_apk,
         ).pack(side="left")
 
-
     def _build_files_panel(self, panel: ttk.Frame) -> None:
         scrollable = self._make_scrollable(panel)
-        
+
         ttk.Label(scrollable, text="Files", style="Void.TLabel").pack(anchor="w")
 
         list_card = ttk.Frame(scrollable, style="Void.Card.TFrame")
@@ -4185,7 +4183,7 @@ TOOLS NEEDED:
         ops_card.pack(fill="x", pady=(12, 12))
         ops_card.configure(padding=12)
         ttk.Label(ops_card, text="File Operations", style="Void.TLabel").pack(anchor="w")
-        
+
         # Create folder
         mkdir_row = ttk.Frame(ops_card, style="Void.TFrame")
         mkdir_row.pack(fill="x", pady=(6, 6))
@@ -4207,7 +4205,7 @@ TOOLS NEEDED:
             style="Void.TButton",
             command=self._create_folder,
         ).pack(side="left")
-        
+
         # Rename/Move
         rename_row = ttk.Frame(ops_card, style="Void.TFrame")
         rename_row.pack(fill="x", pady=(0, 6))
@@ -4243,7 +4241,7 @@ TOOLS NEEDED:
             style="Void.TButton",
             command=self._rename_file,
         ).pack(side="left")
-        
+
         # Copy
         copy_row = ttk.Frame(ops_card, style="Void.TFrame")
         copy_row.pack(fill="x")
@@ -4280,10 +4278,9 @@ TOOLS NEEDED:
             command=self._copy_file,
         ).pack(side="left")
 
-
     def _build_recovery_panel(self, panel: ttk.Frame) -> None:
         scrollable = self._make_scrollable(panel)
-        
+
         ttk.Label(scrollable, text="Recovery", style="Void.TLabel").pack(anchor="w")
 
         data_card = ttk.Frame(scrollable, style="Void.Card.TFrame")
@@ -4310,7 +4307,7 @@ TOOLS NEEDED:
         partition_card.pack(fill="x", pady=(0, 12))
         partition_card.configure(padding=12)
         ttk.Label(partition_card, text="Partition Operations", style="Void.TLabel").pack(anchor="w")
-        
+
         partition_list_row = ttk.Frame(partition_card, style="Void.TFrame")
         partition_list_row.pack(fill="x", pady=(6, 6))
         ttk.Button(
@@ -4325,10 +4322,12 @@ TOOLS NEEDED:
             style="Void.TButton",
             command=self._view_partition_table,
         ).pack(side="left")
-        
+
         partition_backup_row = ttk.Frame(partition_card, style="Void.TFrame")
         partition_backup_row.pack(fill="x", pady=(0, 6))
-        ttk.Label(partition_backup_row, text="Partition Name:", style="Void.TLabel").pack(side="left")
+        ttk.Label(partition_backup_row, text="Partition Name:", style="Void.TLabel").pack(
+            side="left"
+        )
         self.partition_name_var = tk.StringVar(value="boot")
         partition_entry = tk.Entry(
             partition_backup_row,
@@ -4359,7 +4358,7 @@ TOOLS NEEDED:
         root_card.pack(fill="x", pady=(0, 12))
         root_card.configure(padding=12)
         ttk.Label(root_card, text="Root & Recovery", style="Void.TLabel").pack(anchor="w")
-        
+
         root_row1 = ttk.Frame(root_card, style="Void.TFrame")
         root_row1.pack(fill="x", pady=(6, 6))
         ttk.Button(
@@ -4380,7 +4379,7 @@ TOOLS NEEDED:
             style="Void.TButton",
             command=self._extract_boot_image,
         ).pack(side="left")
-        
+
         root_row2 = ttk.Frame(root_card, style="Void.TFrame")
         root_row2.pack(fill="x", pady=(0, 6))
         ttk.Button(
@@ -4401,7 +4400,7 @@ TOOLS NEEDED:
             style="Void.TButton",
             command=self._verify_twrp,
         ).pack(side="left")
-        
+
         root_row3 = ttk.Frame(root_card, style="Void.TFrame")
         root_row3.pack(fill="x")
         ttk.Button(
@@ -4449,7 +4448,7 @@ TOOLS NEEDED:
 
     def _build_system_panel(self, panel: ttk.Frame) -> None:
         scrollable = self._make_scrollable(panel)
-        
+
         ttk.Label(scrollable, text="System Tweaks", style="Void.TLabel").pack(anchor="w")
 
         tweak_card = ttk.Frame(scrollable, style="Void.Card.TFrame")
@@ -4489,8 +4488,10 @@ TOOLS NEEDED:
         usb_card = ttk.Frame(scrollable, style="Void.Card.TFrame")
         usb_card.pack(fill="x", pady=(0, 12))
         usb_card.configure(padding=12)
-        ttk.Label(usb_card, text="USB Debugging (Comprehensive Methods)", style="Void.TLabel").pack(anchor="w")
-        
+        ttk.Label(usb_card, text="USB Debugging (Comprehensive Methods)", style="Void.TLabel").pack(
+            anchor="w"
+        )
+
         # Method selection
         method_frame = ttk.Frame(usb_card, style="Void.TFrame")
         method_frame.pack(fill="x", pady=(6, 6))
@@ -4499,12 +4500,20 @@ TOOLS NEEDED:
         method_combo = ttk.Combobox(
             method_frame,
             textvariable=self.usb_debug_method_var,
-            values=["standard", "all", "properties", "settings_db", "build_prop", "adb_keys", "root"],
+            values=[
+                "standard",
+                "all",
+                "properties",
+                "settings_db",
+                "build_prop",
+                "adb_keys",
+                "root",
+            ],
             state="readonly",
-            width=15
+            width=15,
         )
         method_combo.pack(side="left", padx=(0, 12))
-        
+
         # Show methods info button
         ttk.Button(
             method_frame,
@@ -4512,7 +4521,7 @@ TOOLS NEEDED:
             style="Void.TButton",
             command=self._show_usb_methods_info,
         ).pack(side="left")
-        
+
         usb_row = ttk.Frame(usb_card, style="Void.TFrame")
         usb_row.pack(fill="x", pady=(6, 0))
         ttk.Checkbutton(
@@ -4539,19 +4548,19 @@ TOOLS NEEDED:
             reboot_row,
             text="System",
             style="Void.TButton",
-            command=lambda: self._reboot_device('system'),
+            command=lambda: self._reboot_device("system"),
         ).pack(side="left", padx=(0, 6))
         ttk.Button(
             reboot_row,
             text="Recovery",
             style="Void.TButton",
-            command=lambda: self._reboot_device('recovery'),
+            command=lambda: self._reboot_device("recovery"),
         ).pack(side="left", padx=(0, 6))
         ttk.Button(
             reboot_row,
             text="Bootloader",
             style="Void.TButton",
-            command=lambda: self._reboot_device('bootloader'),
+            command=lambda: self._reboot_device("bootloader"),
         ).pack(side="left", padx=(0, 6))
         ttk.Button(
             reboot_row,
@@ -4571,25 +4580,25 @@ TOOLS NEEDED:
             toggle_row,
             text="Stay Awake ON",
             style="Void.TButton",
-            command=lambda: self._toggle_system_setting('stay_awake', True),
+            command=lambda: self._toggle_system_setting("stay_awake", True),
         ).pack(side="left", padx=(0, 6))
         ttk.Button(
             toggle_row,
             text="Stay Awake OFF",
             style="Void.TButton",
-            command=lambda: self._toggle_system_setting('stay_awake', False),
+            command=lambda: self._toggle_system_setting("stay_awake", False),
         ).pack(side="left", padx=(0, 6))
         ttk.Button(
             toggle_row,
             text="Battery Saver ON",
             style="Void.TButton",
-            command=lambda: self._toggle_system_setting('battery_saver', True),
+            command=lambda: self._toggle_system_setting("battery_saver", True),
         ).pack(side="left", padx=(0, 6))
         ttk.Button(
             toggle_row,
             text="Battery Saver OFF",
             style="Void.TButton",
-            command=lambda: self._toggle_system_setting('battery_saver', False),
+            command=lambda: self._toggle_system_setting("battery_saver", False),
         ).pack(side="left")
 
         # ADB over TCP/IP
@@ -4618,10 +4627,9 @@ TOOLS NEEDED:
             command=self._check_adb_tcpip_status,
         ).pack(side="left")
 
-
     def _build_network_panel(self, panel: ttk.Frame) -> None:
         scrollable = self._make_scrollable(panel)
-        
+
         ttk.Label(scrollable, text="Network", style="Void.TLabel").pack(anchor="w")
 
         net_card = ttk.Frame(scrollable, style="Void.Card.TFrame")
@@ -4646,25 +4654,25 @@ TOOLS NEEDED:
             toggle_row,
             text="WiFi ON",
             style="Void.TButton",
-            command=lambda: self._toggle_network('wifi', True),
+            command=lambda: self._toggle_network("wifi", True),
         ).pack(side="left", padx=(0, 6))
         ttk.Button(
             toggle_row,
             text="WiFi OFF",
             style="Void.TButton",
-            command=lambda: self._toggle_network('wifi', False),
+            command=lambda: self._toggle_network("wifi", False),
         ).pack(side="left", padx=(0, 6))
         ttk.Button(
             toggle_row,
             text="Data ON",
             style="Void.TButton",
-            command=lambda: self._toggle_network('data', True),
+            command=lambda: self._toggle_network("data", True),
         ).pack(side="left", padx=(0, 6))
         ttk.Button(
             toggle_row,
             text="Data OFF",
             style="Void.TButton",
-            command=lambda: self._toggle_network('data', False),
+            command=lambda: self._toggle_network("data", False),
         ).pack(side="left")
 
         # Network info
@@ -4687,10 +4695,9 @@ TOOLS NEEDED:
             command=self._list_wifi_networks,
         ).pack(side="left")
 
-
     def _build_logcat_panel(self, panel: ttk.Frame) -> None:
         scrollable = self._make_scrollable(panel)
-        
+
         ttk.Label(scrollable, text="Logcat", style="Void.TLabel").pack(anchor="w")
 
         logcat_card = ttk.Frame(scrollable, style="Void.Card.TFrame")
@@ -4755,10 +4762,9 @@ TOOLS NEEDED:
             command=self._view_crash_logs,
         ).pack(side="left")
 
-
     def _build_monitor_panel(self, panel: ttk.Frame) -> None:
         scrollable = self._make_scrollable(panel)
-        
+
         ttk.Label(scrollable, text="Monitoring", style="Void.TLabel").pack(anchor="w")
 
         monitor_card = ttk.Frame(scrollable, style="Void.Card.TFrame")
@@ -4793,7 +4799,7 @@ TOOLS NEEDED:
 
     def _build_edl_tools_panel(self, panel: ttk.Frame) -> None:
         scrollable = self._make_scrollable(panel)
-        
+
         ttk.Label(scrollable, text="EDL Flash/Dump", style="Void.TLabel").pack(anchor="w")
 
         flash_card = ttk.Frame(scrollable, style="Void.Card.TFrame")
@@ -4894,7 +4900,7 @@ TOOLS NEEDED:
             style="Void.TButton",
             command=self._edl_compat_matrix,
         ).pack(side="left")
-        
+
         edl_tools_row2 = ttk.Frame(edl_tools_card, style="Void.TFrame")
         edl_tools_row2.pack(fill="x", pady=(0, 6))
         ttk.Button(
@@ -4915,7 +4921,7 @@ TOOLS NEEDED:
             style="Void.TButton",
             command=self._edl_verify_hash,
         ).pack(side="left")
-        
+
         edl_tools_row3 = ttk.Frame(edl_tools_card, style="Void.TFrame")
         edl_tools_row3.pack(fill="x")
         ttk.Button(
@@ -4939,7 +4945,7 @@ TOOLS NEEDED:
 
     def _build_data_exports_panel(self, panel: ttk.Frame) -> None:
         scrollable = self._make_scrollable(panel)
-        
+
         ttk.Label(scrollable, text="Data / Reports / Exports", style="Void.TLabel").pack(anchor="w")
 
         list_card = ttk.Frame(scrollable, style="Void.Card.TFrame")
@@ -5033,7 +5039,7 @@ TOOLS NEEDED:
 
     def _build_db_tools_panel(self, panel: ttk.Frame) -> None:
         scrollable = self._make_scrollable(panel)
-        
+
         ttk.Label(scrollable, text="Database Tools", style="Void.TLabel").pack(anchor="w")
 
         health_card = ttk.Frame(scrollable, style="Void.Card.TFrame")
@@ -5157,7 +5163,7 @@ TOOLS NEEDED:
 
     def _build_command_panel(self, panel: ttk.Frame) -> None:
         scrollable = self._make_scrollable(panel)
-        
+
         ttk.Label(scrollable, text="Command Center", style="Void.TLabel").pack(anchor="w")
 
         search_card = ttk.Frame(scrollable, style="Void.Card.TFrame")
@@ -5290,7 +5296,7 @@ TOOLS NEEDED:
 
     def _build_browser_panel(self, panel: ttk.Frame) -> None:
         scrollable = self._make_scrollable(panel)
-        
+
         ttk.Label(scrollable, text="Browser Automation", style="Void.TLabel").pack(anchor="w")
         description = (
             "Launch a headed browser session and drive navigation, clicks, and typing. "
@@ -5431,7 +5437,7 @@ TOOLS NEEDED:
 
     def _build_assistant_panel(self, panel: ttk.Frame) -> None:
         scrollable = self._make_scrollable(panel)
-        
+
         ttk.Label(scrollable, text="Gemini Assistant", style="Void.TLabel").pack(anchor="w")
 
         description = (
@@ -5507,9 +5513,7 @@ TOOLS NEEDED:
             wraplength=600,
             justify="left",
         ).pack(anchor="w", pady=(4, 8))
-        ttk.Label(advanced_card, text="System Instruction", style="Void.TLabel").pack(
-            anchor="w"
-        )
+        ttk.Label(advanced_card, text="System Instruction", style="Void.TLabel").pack(anchor="w")
         self.gemini_system_text = scrolledtext.ScrolledText(
             advanced_card,
             height=4,
@@ -5539,9 +5543,7 @@ TOOLS NEEDED:
         self.gemini_generation_text.pack(fill="x", expand=True, pady=(4, 8))
         self.gemini_generation_text.insert("1.0", self.gemini_generation_config)
 
-        ttk.Label(advanced_card, text="Extra Payload (JSON)", style="Void.TLabel").pack(
-            anchor="w"
-        )
+        ttk.Label(advanced_card, text="Extra Payload (JSON)", style="Void.TLabel").pack(anchor="w")
         self.gemini_payload_text = scrolledtext.ScrolledText(
             advanced_card,
             height=6,
@@ -5631,7 +5633,7 @@ TOOLS NEEDED:
 
     def _build_settings_panel(self, panel: ttk.Frame) -> None:
         scrollable = self._make_scrollable(panel)
-        
+
         ttk.Label(scrollable, text="Settings", style="Void.TLabel").pack(anchor="w")
 
         toggles = ttk.Frame(scrollable, style="Void.Card.TFrame")
@@ -5720,7 +5722,7 @@ TOOLS NEEDED:
     def _build_plugins_panel(self, panel: ttk.Frame) -> None:
         """Build the plugins management panel."""
         scrollable = self._make_scrollable(panel)
-        
+
         ttk.Label(scrollable, text="Registered Plugins", style="Void.TLabel").pack(anchor="w")
         plugin_controls = ttk.Frame(scrollable, style="Void.TFrame")
         plugin_controls.pack(fill="both", expand=True, pady=(6, 0))
@@ -5769,13 +5771,10 @@ TOOLS NEEDED:
     def _build_help_panel(self, panel: ttk.Frame) -> None:
         """Build the help and documentation panel."""
         scrollable = self._make_scrollable(panel)
-        
+
         ttk.Label(scrollable, text="Action Details", style="Void.TLabel").pack(anchor="w")
         ttk.Label(
-            scrollable,
-            textvariable=self.action_help_var,
-            style="Void.TLabel",
-            wraplength=600
+            scrollable, textvariable=self.action_help_var, style="Void.TLabel", wraplength=600
         ).pack(anchor="w", pady=(6, 12))
 
         guide = (
@@ -5870,9 +5869,7 @@ TOOLS NEEDED:
         generation_config = self.gemini_generation_text.get("1.0", tk.END).strip()
         extra_payload = self.gemini_payload_text.get("1.0", tk.END).strip()
 
-        parsed_generation = self._parse_gemini_json(
-            generation_config, "Generation Config"
-        )
+        parsed_generation = self._parse_gemini_json(generation_config, "Generation Config")
         parsed_payload = self._parse_gemini_json(extra_payload, "Extra Payload")
         if parsed_generation is None or parsed_payload is None:
             return
@@ -6199,7 +6196,9 @@ TOOLS NEEDED:
 
     def _backup_app(self) -> None:
         if not Config.ENABLE_AUTO_BACKUP:
-            messagebox.showwarning("Backups Disabled", "Enable backups in Settings to use this feature.")
+            messagebox.showwarning(
+                "Backups Disabled", "Enable backups in Settings to use this feature."
+            )
             self.status_var.set("Backup disabled in settings.")
             return
         device_id = self._get_selected_device()
@@ -6237,9 +6236,9 @@ TOOLS NEEDED:
             info = AppManager.get_app_info_detailed(device_id, package)
             self._log(f"App Info for {package}:")
             for key, value in info.items():
-                if key != 'permissions':
+                if key != "permissions":
                     self._log(f"  {key}: {value}", level="DATA")
-            if 'permissions' in info:
+            if "permissions" in info:
                 self._log(f"  Permissions: {len(info['permissions'])} granted", level="DATA")
             return {"success": True, "message": "App info retrieved."}
 
@@ -6251,7 +6250,7 @@ TOOLS NEEDED:
             return
 
         def runner() -> Dict[str, Any]:
-            result = AppManager.export_app_list(device_id, format='csv')
+            result = AppManager.export_app_list(device_id, format="csv")
             if result.get("success"):
                 self._log(f"App list exported: {result.get('path')} ({result.get('count')} apps)")
                 message = f"Exported {result.get('count')} apps to {result.get('path')}"
@@ -6267,8 +6266,7 @@ TOOLS NEEDED:
             return
 
         apk_path = filedialog.askopenfilename(
-            title="Select APK File",
-            filetypes=[("APK Files", "*.apk"), ("All Files", "*.*")]
+            title="Select APK File", filetypes=[("APK Files", "*.apk"), ("All Files", "*.*")]
         )
         if not apk_path:
             return
@@ -6491,7 +6489,9 @@ TOOLS NEEDED:
             if result.get("success") and result.get("partitions"):
                 self._log(f"Found {len(result['partitions'])} partitions:")
                 for p in result["partitions"]:
-                    self._log(f"  {p.get('name', 'unknown')}: {p.get('size', 'unknown')} ({p.get('filesystem', 'unknown')})")
+                    self._log(
+                        f"  {p.get('name', 'unknown')}: {p.get('size', 'unknown')} ({p.get('filesystem', 'unknown')})"
+                    )
             return result
 
         self._run_task("List partitions", runner)
@@ -6503,10 +6503,11 @@ TOOLS NEEDED:
 
         def runner() -> Dict[str, Any]:
             from .core.edl_toolkit import read_partition_table
+
             result = read_partition_table(device_id)
             if result.success and result.data:
                 self._log("Partition table:")
-                for line in str(result.data).split('\n'):
+                for line in str(result.data).split("\n"):
                     self._log(f"  {line}")
             return {"success": result.success, "message": result.message}
 
@@ -6537,12 +6538,12 @@ TOOLS NEEDED:
         if not partition_name:
             messagebox.showwarning("Void", "Enter a partition name to wipe.")
             return
-        
+
         confirm = messagebox.askyesno(
             "Confirm Partition Wipe",
             f"⚠️ WARNING: This will PERMANENTLY ERASE the '{partition_name}' partition!\n\n"
             f"This action CANNOT be undone. Are you absolutely sure?",
-            icon="warning"
+            icon="warning",
         )
         if not confirm:
             return
@@ -6560,6 +6561,7 @@ TOOLS NEEDED:
 
         def runner() -> Dict[str, Any]:
             from .core.edl_toolkit import verify_root
+
             result = verify_root(device_id)
             if result.success:
                 self._log("✅ Root access verified!")
@@ -6578,11 +6580,12 @@ TOOLS NEEDED:
 
         def runner() -> Dict[str, Any]:
             from .core.edl_toolkit import safety_check
+
             result = safety_check(device_id)
             if result.success and result.data:
                 self._log("Safety checklist:")
-                for check in result.data.get('checks', []):
-                    status = "✅" if check.get('passed') else "❌"
+                for check in result.data.get("checks", []):
+                    status = "✅" if check.get("passed") else "❌"
                     self._log(f"  {status} {check.get('name')}: {check.get('message')}")
             return {"success": result.success, "message": result.message}
 
@@ -6590,18 +6593,19 @@ TOOLS NEEDED:
 
     def _extract_boot_image(self) -> None:
         from tkinter import filedialog
+
         boot_img_path = filedialog.askopenfilename(
-            title="Select Boot Image",
-            filetypes=[("Image Files", "*.img"), ("All Files", "*.*")]
+            title="Select Boot Image", filetypes=[("Image Files", "*.img"), ("All Files", "*.*")]
         )
         if not boot_img_path:
             return
 
         def runner() -> Dict[str, Any]:
             from .core.edl_toolkit import extract_boot_image
+
             result = extract_boot_image(boot_img_path)
             if result.success:
-                self._log(f"Boot image extracted successfully")
+                self._log("Boot image extracted successfully")
                 if result.data:
                     self._log(f"  Output: {result.data}")
             return {"success": result.success, "message": result.message}
@@ -6613,15 +6617,16 @@ TOOLS NEEDED:
         if not device_id:
             return
         from tkinter import filedialog
+
         boot_img_path = filedialog.askopenfilename(
-            title="Select Boot Image",
-            filetypes=[("Image Files", "*.img"), ("All Files", "*.*")]
+            title="Select Boot Image", filetypes=[("Image Files", "*.img"), ("All Files", "*.*")]
         )
         if not boot_img_path:
             return
 
         def runner() -> Dict[str, Any]:
             from .core.edl_toolkit import stage_magisk_patch
+
             result = stage_magisk_patch(device_id, boot_img_path)
             if result.success:
                 self._log("Boot image staged for Magisk patching")
@@ -6637,6 +6642,7 @@ TOOLS NEEDED:
 
         def runner() -> Dict[str, Any]:
             from .core.edl_toolkit import pull_magisk_patched
+
             result = pull_magisk_patched(device_id)
             if result.success and result.data:
                 self._log(f"Pulled Magisk patched image to: {result.data}")
@@ -6649,15 +6655,16 @@ TOOLS NEEDED:
         if not device_id:
             return
         from tkinter import filedialog
+
         twrp_img_path = filedialog.askopenfilename(
-            title="Select TWRP Image",
-            filetypes=[("Image Files", "*.img"), ("All Files", "*.*")]
+            title="Select TWRP Image", filetypes=[("Image Files", "*.img"), ("All Files", "*.*")]
         )
         if not twrp_img_path:
             return
 
         def runner() -> Dict[str, Any]:
             from .core.edl_toolkit import verify_twrp_image
+
             result = verify_twrp_image(device_id, twrp_img_path)
             if result.success:
                 self._log("✅ TWRP image verified successfully")
@@ -6670,9 +6677,9 @@ TOOLS NEEDED:
         if not device_id:
             return
         from tkinter import filedialog
+
         twrp_img_path = filedialog.askopenfilename(
-            title="Select TWRP Image",
-            filetypes=[("Image Files", "*.img"), ("All Files", "*.*")]
+            title="Select TWRP Image", filetypes=[("Image Files", "*.img"), ("All Files", "*.*")]
         )
         if not twrp_img_path:
             return
@@ -6680,13 +6687,14 @@ TOOLS NEEDED:
         confirm = messagebox.askyesno(
             "Confirm TWRP Flash",
             "This will permanently flash TWRP to the recovery partition.\n\nContinue?",
-            icon="question"
+            icon="question",
         )
         if not confirm:
             return
 
         def runner() -> Dict[str, Any]:
             from .core.edl_toolkit import flash_recovery
+
             result = flash_recovery(device_id, twrp_img_path, mode="flash")
             return {"success": result.success, "message": result.message}
 
@@ -6697,15 +6705,16 @@ TOOLS NEEDED:
         if not device_id:
             return
         from tkinter import filedialog
+
         twrp_img_path = filedialog.askopenfilename(
-            title="Select TWRP Image",
-            filetypes=[("Image Files", "*.img"), ("All Files", "*.*")]
+            title="Select TWRP Image", filetypes=[("Image Files", "*.img"), ("All Files", "*.*")]
         )
         if not twrp_img_path:
             return
 
         def runner() -> Dict[str, Any]:
             from .core.edl_toolkit import flash_recovery
+
             result = flash_recovery(device_id, twrp_img_path, mode="boot")
             if result.success:
                 self._log("Device will boot into TWRP temporarily")
@@ -6722,15 +6731,16 @@ TOOLS NEEDED:
             messagebox.showwarning("Void", "Enter a partition name to rollback (e.g., 'boot').")
             return
         from tkinter import filedialog
+
         backup_img_path = filedialog.askopenfilename(
-            title="Select Backup Image",
-            filetypes=[("Image Files", "*.img"), ("All Files", "*.*")]
+            title="Select Backup Image", filetypes=[("Image Files", "*.img"), ("All Files", "*.*")]
         )
         if not backup_img_path:
             return
 
         def runner() -> Dict[str, Any]:
             from .core.edl_toolkit import rollback_flash
+
             result = rollback_flash(device_id, partition_name, backup_img_path)
             return {"success": result.success, "message": result.message}
 
@@ -6756,7 +6766,11 @@ TOOLS NEEDED:
                 success = SystemTweaker.set_screen_timeout(device_id, int(value))
             else:
                 return {"success": False, "message": "Unknown tweak type."}
-            message = f"{tweak_type.title()} updated." if success else f"{tweak_type.title()} update failed."
+            message = (
+                f"{tweak_type.title()} updated."
+                if success
+                else f"{tweak_type.title()} update failed."
+            )
             self._log(message)
             return {"success": success, "message": message}
 
@@ -6767,16 +6781,16 @@ TOOLS NEEDED:
         if not device_id:
             return
         force = bool(self.usb_force_var.get())
-        
+
         # Get selected method if available
-        method = getattr(self, 'usb_debug_method_var', None)
+        method = getattr(self, "usb_debug_method_var", None)
         if method:
             method_value = method.get()
         else:
-            method_value = 'all' if force else 'standard'
+            method_value = "all" if force else "standard"
 
         def runner() -> Dict[str, Any]:
-            if force or method_value != 'standard':
+            if force or method_value != "standard":
                 result = SystemTweaker.force_usb_debugging(device_id, method_value)
             else:
                 result = {
@@ -6797,119 +6811,128 @@ TOOLS NEEDED:
                 }
                 result["success"] = all(step["success"] for step in result["steps"])
                 result["adb_enabled"] = result["success"]
-                result["methods_attempted"] = 'standard'
-            
-            status = f"using method '{method_value}'" if method_value != 'standard' else "standard enable"
-            self._log(f"USB debugging attempt ({status}): {'✅ SUCCESS' if result.get('success') else '❌ FAILED'}")
-            
+                result["methods_attempted"] = "standard"
+
+            status = (
+                f"using method '{method_value}'"
+                if method_value != "standard"
+                else "standard enable"
+            )
+            self._log(
+                f"USB debugging attempt ({status}): {'✅ SUCCESS' if result.get('success') else '❌ FAILED'}"
+            )
+
             # Show result details
-            if result.get('adb_enabled'):
-                self._log(f"✅ ADB Enabled: Yes", level="DATA")
-            if result.get('usb_config'):
+            if result.get("adb_enabled"):
+                self._log("✅ ADB Enabled: Yes", level="DATA")
+            if result.get("usb_config"):
                 self._log(f"   USB Config: {result['usb_config']}", level="DATA")
-            if result.get('has_root') is not None:
-                self._log(f"   Root Access: {'✅ Yes' if result['has_root'] else '❌ No'}", level="DATA")
-            
+            if result.get("has_root") is not None:
+                self._log(
+                    f"   Root Access: {'✅ Yes' if result['has_root'] else '❌ No'}", level="DATA"
+                )
+
             # Show steps
             self._log("Steps executed:", level="DATA")
             for step in result.get("steps", []):
                 icon = "✅" if step.get("success") else "❌"
-                category = step.get('category', 'unknown')
+                category = step.get("category", "unknown")
                 detail = f" - {step.get('detail')}" if step.get("detail") else ""
                 self._log(f"  {icon} [{category}] {step.get('step')}{detail}", level="DATA")
-            
+
             # Summary
-            if 'total_steps' in result and 'successful_steps' in result:
-                self._log(f"Summary: {result['successful_steps']}/{result['total_steps']} steps successful", level="DATA")
-            
+            if "total_steps" in result and "successful_steps" in result:
+                self._log(
+                    f"Summary: {result['successful_steps']}/{result['total_steps']} steps successful",
+                    level="DATA",
+                )
+
             if not result.get("success"):
                 self._log("💡 Try different methods or check device requirements", level="WARN")
-            
+
             return {
                 "success": bool(result.get("success")),
                 "message": f"USB debugging attempt completed ({method_value}).",
             }
 
         self._run_task("USB debugging", runner)
-    
+
     def _show_usb_methods_info(self) -> None:
         """Show information about USB debugging methods"""
         methods_info = SystemTweaker.get_usb_debugging_methods()
-        
+
         # Create info window
         info_win = tk.Toplevel(self.root)
         info_win.title("USB Debugging Methods - Comprehensive Guide")
         info_win.geometry("800x600")
         info_win.configure(bg="#070b12")
-        
+
         # Make it modal
         info_win.transient(self.root)
         info_win.grab_set()
-        
+
         # Create scrollable text
         frame = ttk.Frame(info_win, style="Void.TFrame")
         frame.pack(fill="both", expand=True, padx=10, pady=10)
-        
-        text_widget = tk.Text(frame, wrap="word", bg="#0a0f1a", fg="#ffffff", 
-                              font=("Consolas", 10), padx=10, pady=10)
+
+        text_widget = tk.Text(
+            frame, wrap="word", bg="#0a0f1a", fg="#ffffff", font=("Consolas", 10), padx=10, pady=10
+        )
         scrollbar = ttk.Scrollbar(frame, command=text_widget.yview)
         text_widget.configure(yscrollcommand=scrollbar.set)
-        
+
         scrollbar.pack(side="right", fill="y")
         text_widget.pack(side="left", fill="both", expand=True)
-        
+
         # Populate with method information
         text_widget.insert("end", "=" * 80 + "\n")
         text_widget.insert("end", "USB DEBUGGING FORCE-ENABLE METHODS - COMPREHENSIVE GUIDE\n")
         text_widget.insert("end", "=" * 80 + "\n\n")
-        
-        for method in methods_info['methods']:
+
+        for method in methods_info["methods"]:
             text_widget.insert("end", f"🔹 {method['name']} ({method['id']})\n", "method_name")
             text_widget.insert("end", f"   {method['description']}\n\n")
             text_widget.insert("end", f"   Requirements: {', '.join(method['requirements'])}\n")
             text_widget.insert("end", f"   Risk Level: {method['risk_level']}\n")
             text_widget.insert("end", f"   Success Rate: {method['success_rate']}\n")
-            
-            if 'steps' in method:
-                text_widget.insert("end", f"   Steps:\n")
-                for step in method['steps']:
+
+            if "steps" in method:
+                text_widget.insert("end", "   Steps:\n")
+                for step in method["steps"]:
                     text_widget.insert("end", f"     • {step}\n")
-            
-            if 'notes' in method:
+
+            if "notes" in method:
                 text_widget.insert("end", f"   ⚠️  {method['notes']}\n")
-            
+
             text_widget.insert("end", "\n" + "-" * 80 + "\n\n")
-        
+
         # Add recommendations
         text_widget.insert("end", "RECOMMENDATIONS BY SCENARIO:\n", "header")
         text_widget.insert("end", "-" * 80 + "\n")
-        for scenario, recommendation in methods_info['recommendations'].items():
+        for scenario, recommendation in methods_info["recommendations"].items():
             text_widget.insert("end", f"• {scenario.replace('_', ' ').title()}: {recommendation}\n")
-        
+
         text_widget.insert("end", "\n")
-        
+
         # Add warnings
         text_widget.insert("end", "⚠️  IMPORTANT WARNINGS:\n", "warning")
         text_widget.insert("end", "-" * 80 + "\n")
-        for warning in methods_info['warnings']:
+        for warning in methods_info["warnings"]:
             text_widget.insert("end", f"• {warning}\n")
-        
+
         # Configure tags for styling
         text_widget.tag_config("method_name", foreground="#00f5d4", font=("Consolas", 11, "bold"))
         text_widget.tag_config("header", foreground="#7c3aed", font=("Consolas", 11, "bold"))
         text_widget.tag_config("warning", foreground="#ff6b6b", font=("Consolas", 11, "bold"))
-        
+
         text_widget.configure(state="disabled")
-        
+
         # Close button
         btn_frame = ttk.Frame(info_win, style="Void.TFrame")
         btn_frame.pack(fill="x", padx=10, pady=(0, 10))
-        ttk.Button(
-            btn_frame,
-            text="Close",
-            style="Void.TButton",
-            command=info_win.destroy
-        ).pack(side="right")
+        ttk.Button(btn_frame, text="Close", style="Void.TButton", command=info_win.destroy).pack(
+            side="right"
+        )
 
     def _reboot_device(self, mode: str) -> None:
         device_id = self._get_selected_device()
@@ -6949,10 +6972,10 @@ TOOLS NEEDED:
             return
 
         def runner() -> Dict[str, Any]:
-            if setting == 'stay_awake':
+            if setting == "stay_awake":
                 success = SystemTweaker.toggle_stay_awake(device_id, enable)
                 setting_name = "Stay Awake"
-            elif setting == 'battery_saver':
+            elif setting == "battery_saver":
                 success = SystemTweaker.toggle_battery_saver(device_id, enable)
                 setting_name = "Battery Saver"
             else:
@@ -6975,10 +6998,13 @@ TOOLS NEEDED:
             success = SystemTweaker.enable_adb_tcpip(device_id)
             if success:
                 import time
+
                 time.sleep(self.ADB_TCPIP_WAIT_SECONDS)  # Wait for service to start
                 status = SystemTweaker.get_adb_tcpip_status(device_id)
-                if status.get('ip'):
-                    message = f"ADB over WiFi enabled. Connect with: adb connect {status['ip']}:5555"
+                if status.get("ip"):
+                    message = (
+                        f"ADB over WiFi enabled. Connect with: adb connect {status['ip']}:5555"
+                    )
                     self._log(message)
                 else:
                     message = "ADB over WiFi enabled on port 5555."
@@ -7009,9 +7035,9 @@ TOOLS NEEDED:
 
         def runner() -> Dict[str, Any]:
             status = SystemTweaker.get_adb_tcpip_status(device_id)
-            if status.get('enabled'):
+            if status.get("enabled"):
                 message = f"ADB over WiFi: ENABLED on port {status.get('port')}"
-                if status.get('ip'):
+                if status.get("ip"):
                     message += f"\nDevice IP: {status['ip']}"
                     message += f"\nConnect with: adb connect {status['ip']}:{status['port']}"
             else:
@@ -7036,10 +7062,10 @@ TOOLS NEEDED:
             return
 
         def runner() -> Dict[str, Any]:
-            if network_type == 'wifi':
+            if network_type == "wifi":
                 success = NetworkAnalyzer.toggle_wifi(device_id, enable)
                 name = "WiFi"
-            elif network_type == 'data':
+            elif network_type == "data":
                 success = NetworkAnalyzer.toggle_mobile_data(device_id, enable)
                 name = "Mobile Data"
             else:
@@ -7061,11 +7087,11 @@ TOOLS NEEDED:
         def runner() -> Dict[str, Any]:
             info = NetworkAnalyzer.get_network_info(device_id)
             self._log("Network Information:")
-            if info.get('ip'):
+            if info.get("ip"):
                 self._log(f"  IP Address: {info['ip']}", level="DATA")
-            if info.get('mac'):
+            if info.get("mac"):
                 self._log(f"  MAC Address: {info['mac']}", level="DATA")
-            if info.get('gateway'):
+            if info.get("gateway"):
                 self._log(f"  Gateway: {info['gateway']}", level="DATA")
             if not info:
                 self._log("  No network information available", level="DATA")
@@ -7133,7 +7159,7 @@ TOOLS NEEDED:
         output_path = filedialog.asksaveasfilename(
             title="Save Logcat",
             defaultextension=".txt",
-            filetypes=[("Text Files", "*.txt"), ("All Files", "*.*")]
+            filetypes=[("Text Files", "*.txt"), ("All Files", "*.*")],
         )
         if not output_path:
             return
@@ -7166,7 +7192,7 @@ TOOLS NEEDED:
 
         def runner() -> Dict[str, Any]:
             output = LogcatViewer.get_kernel_log(device_id)
-            lines = output.strip().split('\n')
+            lines = output.strip().split("\n")
             self._log(f"Kernel Log ({len(lines)} lines):")
             for line in lines[-50:]:  # Show last 50 lines
                 self._log(line, level="DATA")
@@ -7192,7 +7218,9 @@ TOOLS NEEDED:
 
     def _start_monitoring(self) -> None:
         if not Config.ENABLE_MONITORING:
-            messagebox.showwarning("Monitoring Disabled", "Enable monitoring in configuration to use this feature.")
+            messagebox.showwarning(
+                "Monitoring Disabled", "Enable monitoring in configuration to use this feature."
+            )
             self.status_var.set("Monitoring disabled in settings.")
             return
 
@@ -7271,10 +7299,11 @@ TOOLS NEEDED:
     def _edl_list_programmers(self) -> None:
         def runner() -> Dict[str, Any]:
             from .core.edl_toolkit import list_firehose_programmers
+
             result = list_firehose_programmers()
             if result.success and result.data:
                 self._log("Available Firehose Programmers:")
-                for prog in result.data.get('programmers', []):
+                for prog in result.data.get("programmers", []):
                     self._log(f"  • {prog.get('chipset')}: {prog.get('file')}", level="DATA")
             return {"success": result.success, "message": result.message}
 
@@ -7283,11 +7312,14 @@ TOOLS NEEDED:
     def _edl_detect_devices(self) -> None:
         def runner() -> Dict[str, Any]:
             from .core.edl_toolkit import detect_edl_devices
+
             result = detect_edl_devices()
             if result.success and result.data:
                 self._log(f"Detected {len(result.data.get('devices', []))} EDL device(s):")
-                for dev in result.data.get('devices', []):
-                    self._log(f"  • {dev.get('usb_id')}: {dev.get('chipset', 'Unknown')}", level="DATA")
+                for dev in result.data.get("devices", []):
+                    self._log(
+                        f"  • {dev.get('usb_id')}: {dev.get('chipset', 'Unknown')}", level="DATA"
+                    )
             return {"success": result.success, "message": result.message}
 
         self._run_task("Detect EDL devices", runner)
@@ -7295,34 +7327,38 @@ TOOLS NEEDED:
     def _edl_compat_matrix(self) -> None:
         def runner() -> Dict[str, Any]:
             from .core.edl_toolkit import compatibility_matrix
+
             result = compatibility_matrix()
             if result.success and result.data:
                 self._log("EDL Compatibility Matrix:")
-                for entry in result.data.get('matrix', []):
-                    self._log(f"  {entry.get('chipset')}: {entry.get('tools', 'N/A')}", level="DATA")
+                for entry in result.data.get("matrix", []):
+                    self._log(
+                        f"  {entry.get('chipset')}: {entry.get('tools', 'N/A')}", level="DATA"
+                    )
             return {"success": result.success, "message": result.message}
 
         self._run_task("Show compatibility matrix", runner)
 
     def _edl_sparse_to_raw(self) -> None:
         from tkinter import filedialog
+
         source_path = filedialog.askopenfilename(
-            title="Select Sparse Image",
-            filetypes=[("Image Files", "*.img"), ("All Files", "*.*")]
+            title="Select Sparse Image", filetypes=[("Image Files", "*.img"), ("All Files", "*.*")]
         )
         if not source_path:
             return
-        
+
         dest_path = filedialog.asksaveasfilename(
             title="Save Raw Image As",
             defaultextension=".img",
-            filetypes=[("Image Files", "*.img"), ("All Files", "*.*")]
+            filetypes=[("Image Files", "*.img"), ("All Files", "*.*")],
         )
         if not dest_path:
             return
 
         def runner() -> Dict[str, Any]:
             from .core.edl_toolkit import convert_sparse_image
+
             result = convert_sparse_image("to-raw", source_path, dest_path)
             return {"success": result.success, "message": result.message}
 
@@ -7330,23 +7366,24 @@ TOOLS NEEDED:
 
     def _edl_raw_to_sparse(self) -> None:
         from tkinter import filedialog
+
         source_path = filedialog.askopenfilename(
-            title="Select Raw Image",
-            filetypes=[("Image Files", "*.img"), ("All Files", "*.*")]
+            title="Select Raw Image", filetypes=[("Image Files", "*.img"), ("All Files", "*.*")]
         )
         if not source_path:
             return
-        
+
         dest_path = filedialog.asksaveasfilename(
             title="Save Sparse Image As",
             defaultextension=".img",
-            filetypes=[("Image Files", "*.img"), ("All Files", "*.*")]
+            filetypes=[("Image Files", "*.img"), ("All Files", "*.*")],
         )
         if not dest_path:
             return
 
         def runner() -> Dict[str, Any]:
             from .core.edl_toolkit import convert_sparse_image
+
             result = convert_sparse_image("to-sparse", source_path, dest_path)
             return {"success": result.success, "message": result.message}
 
@@ -7354,15 +7391,17 @@ TOOLS NEEDED:
 
     def _edl_verify_hash(self) -> None:
         from tkinter import filedialog
+
         image_path = filedialog.askopenfilename(
             title="Select Image to Verify",
-            filetypes=[("Image Files", "*.img"), ("All Files", "*.*")]
+            filetypes=[("Image Files", "*.img"), ("All Files", "*.*")],
         )
         if not image_path:
             return
 
         def runner() -> Dict[str, Any]:
             from .core.edl_toolkit import verify_hash
+
             result = verify_hash(image_path)
             if result.success and result.data:
                 self._log(f"SHA256: {result.data.get('hash')}", level="DATA")
@@ -7373,10 +7412,11 @@ TOOLS NEEDED:
     def _edl_unbrick_checklist(self) -> None:
         def runner() -> Dict[str, Any]:
             from .core.edl_toolkit import edl_unbrick_plan
+
             result = edl_unbrick_plan()
             if result.success and result.data:
                 self._log("Unbrick Checklist:")
-                for step in result.data.get('steps', []):
+                for step in result.data.get("steps", []):
                     self._log(f"  {step.get('number')}. {step.get('description')}", level="DATA")
             return {"success": result.success, "message": result.message}
 
@@ -7384,16 +7424,20 @@ TOOLS NEEDED:
 
     def _edl_device_notes(self) -> None:
         from tkinter import simpledialog
-        vendor = simpledialog.askstring("Device Notes", "Enter vendor name (e.g., 'qualcomm', 'mediatek'):")
+
+        vendor = simpledialog.askstring(
+            "Device Notes", "Enter vendor name (e.g., 'qualcomm', 'mediatek'):"
+        )
         if not vendor:
             return
 
         def runner() -> Dict[str, Any]:
             from .core.edl_toolkit import device_notes
+
             result = device_notes(vendor)
             if result.success and result.data:
                 self._log(f"Device Notes for {vendor}:")
-                self._log(result.data.get('notes', 'No notes available'), level="DATA")
+                self._log(result.data.get("notes", "No notes available"), level="DATA")
             return {"success": result.success, "message": result.message}
 
         self._run_task(f"Device notes: {vendor}", runner)
@@ -7401,6 +7445,7 @@ TOOLS NEEDED:
     def _edl_capture_log(self) -> None:
         def runner() -> Dict[str, Any]:
             from .core.edl_toolkit import capture_edl_log
+
             result = capture_edl_log()
             if result.success and result.data:
                 self._log(f"EDL log captured to: {result.data.get('path')}", level="DATA")
@@ -7418,7 +7463,9 @@ TOOLS NEEDED:
         limit = self._parse_limit(self.recent_items_limit_var.get(), 10)
 
         def runner() -> Dict[str, Any]:
-            items = sorted(Config.BACKUP_DIR.glob("*"), key=lambda p: p.stat().st_mtime, reverse=True)
+            items = sorted(
+                Config.BACKUP_DIR.glob("*"), key=lambda p: p.stat().st_mtime, reverse=True
+            )
             self._log(f"Recent backups ({min(limit, len(items))} shown):")
             for item in items[:limit]:
                 size = item.stat().st_size if item.is_file() else 0
@@ -7430,13 +7477,17 @@ TOOLS NEEDED:
 
     def _list_reports(self) -> None:
         if not Config.ENABLE_REPORTS:
-            messagebox.showwarning("Reports Disabled", "Enable reports in Settings to use this feature.")
+            messagebox.showwarning(
+                "Reports Disabled", "Enable reports in Settings to use this feature."
+            )
             self.status_var.set("Reports disabled in settings.")
             return
         limit = self._parse_limit(self.recent_items_limit_var.get(), 10)
 
         def runner() -> Dict[str, Any]:
-            items = sorted(Config.REPORTS_DIR.glob("*"), key=lambda p: p.stat().st_mtime, reverse=True)
+            items = sorted(
+                Config.REPORTS_DIR.glob("*"), key=lambda p: p.stat().st_mtime, reverse=True
+            )
             self._log(f"Recent reports ({min(limit, len(items))} shown):")
             for item in items[:limit]:
                 size = item.stat().st_size if item.is_file() else 0
@@ -7450,7 +7501,9 @@ TOOLS NEEDED:
         limit = self._parse_limit(self.recent_items_limit_var.get(), 10)
 
         def runner() -> Dict[str, Any]:
-            items = sorted(Config.EXPORTS_DIR.glob("*"), key=lambda p: p.stat().st_mtime, reverse=True)
+            items = sorted(
+                Config.EXPORTS_DIR.glob("*"), key=lambda p: p.stat().st_mtime, reverse=True
+            )
             self._log(f"Recent exports ({min(limit, len(items))} shown):")
             for item in items[:limit]:
                 size = item.stat().st_size if item.is_file() else 0
@@ -7497,7 +7550,9 @@ TOOLS NEEDED:
 
     def _export_reports_json(self) -> None:
         if not Config.ENABLE_REPORTS:
-            messagebox.showwarning("Reports Disabled", "Enable reports in Settings to use this feature.")
+            messagebox.showwarning(
+                "Reports Disabled", "Enable reports in Settings to use this feature."
+            )
             self.status_var.set("Reports disabled in settings.")
             return
 
@@ -7609,7 +7664,9 @@ TOOLS NEEDED:
 
     def _show_recent_reports(self) -> None:
         if not Config.ENABLE_REPORTS:
-            messagebox.showwarning("Reports Disabled", "Enable reports in Settings to use this feature.")
+            messagebox.showwarning(
+                "Reports Disabled", "Enable reports in Settings to use this feature."
+            )
             self.status_var.set("Reports disabled in settings.")
             return
         limit = self._parse_limit(self.db_limit_var.get(), 10)
@@ -7728,12 +7785,16 @@ TOOLS NEEDED:
         self._run_task("Export logs", runner)
 
     def _browse_exports_dir(self) -> None:
-        path = filedialog.askdirectory(initialdir=self.exports_dir_var.get() or str(Config.EXPORTS_DIR))
+        path = filedialog.askdirectory(
+            initialdir=self.exports_dir_var.get() or str(Config.EXPORTS_DIR)
+        )
         if path:
             self.exports_dir_var.set(path)
 
     def _browse_reports_dir(self) -> None:
-        path = filedialog.askdirectory(initialdir=self.reports_dir_var.get() or str(Config.REPORTS_DIR))
+        path = filedialog.askdirectory(
+            initialdir=self.reports_dir_var.get() or str(Config.REPORTS_DIR)
+        )
         if path:
             self.reports_dir_var.set(path)
 
@@ -7873,13 +7934,15 @@ TOOLS NEEDED:
                 if show_warning:
                     messagebox.showwarning("Void", "Select a device first.")
                 return None
-            info = next((d for d in self.device_info if d.get("id") == self.selected_device_id), None)
+            info = next(
+                (d for d in self.device_info if d.get("id") == self.selected_device_id), None
+            )
             if not info:
                 if show_warning:
                     messagebox.showwarning("Void", "Device information not available.")
                 return None
             return {k: str(v) for k, v in info.items() if v is not None}
-            
+
         selection = self.device_list.curselection()
         if not selection or selection[0] >= len(self.device_info):
             if show_warning:
@@ -7904,7 +7967,9 @@ TOOLS NEEDED:
         if isinstance(result, dict):
             success = result.get("success")
             if success is True:
-                detail = result.get("message") or result.get("report_name") or "Completed successfully."
+                detail = (
+                    result.get("message") or result.get("report_name") or "Completed successfully."
+                )
                 return f"{label} complete: {detail}"
             if success is False:
                 error = result.get("error") or result.get("message") or "Operation failed."
@@ -7920,7 +7985,9 @@ TOOLS NEEDED:
             return result.get("success") is False
         return False
 
-    def _show_task_error(self, label: str, result: Any | None = None, exc: Exception | None = None) -> None:
+    def _show_task_error(
+        self, label: str, result: Any | None = None, exc: Exception | None = None
+    ) -> None:
         summary, detail, steps = self._build_failure_dialog(label, result=result, exc=exc)
         if steps:
             next_steps = "\n".join(f"• {step}" for step in steps)
@@ -7962,7 +8029,9 @@ TOOLS NEEDED:
     def _failure_guidance(self, detail: str, result: Any | None) -> List[str]:
         detail_lower = (detail or "").lower()
         if isinstance(result, ChipsetActionResult):
-            manual_steps = result.data.get("manual_steps") if isinstance(result.data, dict) else None
+            manual_steps = (
+                result.data.get("manual_steps") if isinstance(result.data, dict) else None
+            )
             if manual_steps:
                 if isinstance(manual_steps, str):
                     steps = [step.strip() for step in manual_steps.splitlines() if step.strip()]
@@ -8007,7 +8076,7 @@ TOOLS NEEDED:
             f"Version {Config.VERSION} ({Config.CODENAME})\n\n"
             "Proprietary Software\n"
             "© 2024 Roach Labs\n"
-            "Made by James Michael Roach Jr."
+            "Made by James Michael Roach Jr.",
         )
 
     def _export_log(self) -> None:
@@ -8036,34 +8105,34 @@ TOOLS NEEDED:
     def _stop_progress(self) -> None:
         self.root.after(0, self.progress.stop)
         self.root.after(0, lambda: self.progress_var.set(""))
-    
+
     def _toggle_mode(self) -> None:
         """Toggle between Simple and Advanced modes."""
         self.is_advanced_mode.set(not self.is_advanced_mode.get())
-        
+
         # Save preference
         self._app_config["advanced_mode"] = self.is_advanced_mode.get()
         self._save_app_config(self._app_config)
-        
+
         # Update button text
         if self.mode_toggle_button:
             if self.is_advanced_mode.get():
                 self.mode_toggle_button.configure(text="🎯 Simple")
             else:
                 self.mode_toggle_button.configure(text="⚙ Advanced")
-        
+
         # Switch views with animation
         self._switch_view()
-        
+
     def _switch_view(self) -> None:
         """Switch between simple and advanced view containers."""
         if not self.simple_view_container or not self.advanced_view_container:
             return
-        
+
         # Hide both first
         self.simple_view_container.pack_forget()
         self.advanced_view_container.pack_forget()
-        
+
         # Show the appropriate one
         if self.is_advanced_mode.get():
             self.advanced_view_container.pack(fill="both", expand=True)
@@ -8073,22 +8142,24 @@ TOOLS NEEDED:
             self.simple_view_container.pack(fill="both", expand=True)
             if self.mode_toggle_button:
                 self.mode_toggle_button.configure(text="⚙ Advanced")
-        
+
         # Refresh device info in simple mode
         if not self.is_advanced_mode.get():
             self.root.after(100, self._update_simple_device_info)
-    
-    def _switch_to_advanced_tab(self, main_tab_index: int, sub_tab_index: Optional[int] = None) -> None:
+
+    def _switch_to_advanced_tab(
+        self, main_tab_index: int, sub_tab_index: Optional[int] = None
+    ) -> None:
         """Switch to advanced mode and navigate to a specific tab."""
         # Switch to advanced mode if not already there
         if not self.is_advanced_mode.get():
             self.is_advanced_mode.set(True)
             self._switch_view()
-        
+
         # Navigate to the specified tab
         if self.notebook and main_tab_index < len(self.notebook.tabs()):
             self.notebook.select(main_tab_index)
-            
+
             # If sub-tab index is provided, navigate to it
             if sub_tab_index is not None:
                 # Get the current tab widget
@@ -8098,11 +8169,13 @@ TOOLS NEEDED:
                     if isinstance(child, ttk.Notebook) and sub_tab_index < len(child.tabs()):
                         child.select(sub_tab_index)
                         break
-    
+
     def _update_simple_device_info(self) -> None:
         """Update device info display in simple mode."""
         if self.selected_device_id:
-            info = next((d for d in self.device_info if d.get("id") == self.selected_device_id), None)
+            info = next(
+                (d for d in self.device_info if d.get("id") == self.selected_device_id), None
+            )
             if info:
                 device_str = f"{info.get('manufacturer', 'Unknown')} {info.get('model', 'Unknown')} ({info.get('id', 'N/A')})"
                 self.selected_device_var.set(device_str)
@@ -8115,9 +8188,7 @@ TOOLS NEEDED:
 def run_gui() -> None:
     """Launch the graphical interface if available."""
     if not GUI_AVAILABLE:
-        print(
-            "GUI not available. Install tkinter (python3-tk on Linux) to use the GUI."
-        )
+        print("GUI not available. Install tkinter (python3-tk on Linux) to use the GUI.")
         return
 
     Config.setup()
